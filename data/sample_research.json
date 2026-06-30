@@ -1,0 +1,11 @@
+[
+  {
+    "id": "RES-2026-0001",
+    "market": "Property Management",
+    "company": "PropertyMe",
+    "source_url": "https://example.com/review",
+    "complaint_summary": "Users repeatedly complain about slow maintenance response updates.",
+    "workflow_cluster": "Maintenance Communication",
+    "evidence_score": 82
+  }
+]

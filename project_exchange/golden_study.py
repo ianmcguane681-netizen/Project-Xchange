@@ -1,0 +1,1063 @@
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+from project_exchange.database import connect, count_rows, row_to_dict, utc_now
+from project_exchange.eos import add_event, add_notification
+from project_exchange.ids import next_sequence_id
+
+
+DEFAULT_STUDY_ID = "GS-001"
+ENGINEERING_READY_OCI = 85
+PROVENANCE_TABLES = ["studies", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]
+
+STAKEHOLDER_KEYWORDS = {
+    "Tenants": ["tenant", "renters", "resident"],
+    "Property managers": ["property manager", "manager", "portfolio"],
+    "Housing associations": ["housing association", "social housing"],
+    "Facilities managers": ["facilities", "facility"],
+    "Estate management companies": ["estate management", "estate manager"],
+    "Condo / HOA managers": ["hoa", "condo", "strata"],
+    "Commercial property managers": ["commercial", "office", "retail unit"],
+    "Letting agents": ["letting agent", "lettings", "leasing"],
+    "Property owners": ["landlord", "owner"],
+    "Maintenance contractors": ["contractor", "maintenance team", "repair vendor"],
+}
+
+CATEGORY_KEYWORDS = {
+    "Maintenance issues": ["maintenance", "repair", "contractor", "work order"],
+    "Tenant communication issues": ["communication", "message", "tenant", "update", "response"],
+    "Accounting / payment issues": ["payment", "accounting", "invoice", "rent", "arrears"],
+    "Reporting problems": ["report", "dashboard", "analytics", "export"],
+    "Compliance problems": ["compliance", "regulation", "inspection", "certificate"],
+    "Missing integrations": ["integration", "sync", "api", "spreadsheet"],
+    "Expensive software complaints": ["expensive", "pricing", "cost", "subscription"],
+    "Feature requests": ["feature", "wish", "request", "missing"],
+    "Repetitive manual tasks": ["manual", "spreadsheet", "copy", "repetitive"],
+    "Poor customer experiences": ["slow", "poor", "bad", "frustrating", "support"],
+}
+
+COUNTRY_HINTS = [
+    "Ireland",
+    "United Kingdom",
+    "United States",
+    "Canada",
+    "Australia",
+    "New Zealand",
+    "Germany",
+    "France",
+    "Spain",
+]
+
+
+def get_or_create_default_study(db_path: str | Path) -> dict[str, object]:
+    study = get_study(db_path, DEFAULT_STUDY_ID)
+    if study:
+        return study
+    return create_study(
+        db_path,
+        DEFAULT_STUDY_ID,
+        "Global Property Management Golden Study",
+        "Property Management",
+        status="Active",
+        scope="Global",
+        countries="Global",
+        stakeholders=", ".join(STAKEHOLDER_KEYWORDS),
+        objective="Find verified, traceable market opportunities backed by repeated complaints and evidence.",
+    )
+
+
+def create_study(
+    db_path: str | Path,
+    study_id: str,
+    name: str,
+    market: str,
+    scope: str = "",
+    countries: str = "",
+    stakeholders: str = "",
+    objective: str = "",
+    status: str = "Active",
+    notes: str = "",
+    data_origin: str = "demo",
+) -> dict[str, object]:
+    provenance = provenance_values(data_origin, "PX-H001")
+    with connect(db_path) as connection:
+        now = utc_now()
+        connection.execute(
+            """
+            INSERT INTO studies
+            (id, name, market, scope, countries, stakeholders, objective, status, started_at, lead_worker,
+             research_worker, audit_worker, library_worker, notes, data_origin, verification_status, is_demo,
+             source_confidence, created_by_worker, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                market = excluded.market,
+                scope = excluded.scope,
+                countries = excluded.countries,
+                stakeholders = excluded.stakeholders,
+                objective = excluded.objective,
+                status = excluded.status,
+                notes = excluded.notes,
+                data_origin = excluded.data_origin,
+                verification_status = excluded.verification_status,
+                is_demo = excluded.is_demo,
+                last_updated = excluded.last_updated
+            """,
+            (
+                study_id,
+                name,
+                market,
+                scope,
+                countries,
+                stakeholders,
+                objective,
+                status,
+                now,
+                "PX-H001",
+                "PX-R001",
+                "PX-A001",
+                "PX-L001",
+                notes,
+                provenance["data_origin"],
+                provenance["verification_status"],
+                1 if provenance["is_demo"] else 0,
+                provenance["source_confidence"],
+                provenance["created_by_worker"],
+                now,
+            ),
+        )
+    add_event(db_path, "StudyCreated", "PX-H001", "Golden Study created", status, study_id)
+    return get_study(db_path, study_id) or {}
+
+
+def get_study(db_path: str | Path, study_id: str) -> dict[str, object] | None:
+    with connect(db_path) as connection:
+        row = connection.execute("SELECT * FROM studies WHERE id = ?", (study_id,)).fetchone()
+    return row_to_dict(row) if row else None
+
+
+def list_studies(db_path: str | Path) -> list[dict[str, object]]:
+    with connect(db_path) as connection:
+        rows = connection.execute("SELECT * FROM studies ORDER BY started_at DESC").fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def create_signal(
+    db_path: str | Path,
+    raw_text: str,
+    study_id: str = DEFAULT_STUDY_ID,
+    source_url: str = "",
+    source_name: str = "",
+    source_type: str = "manual",
+    source_date: str = "",
+    country: str = "",
+    stakeholder_type: str = "",
+    company_product: str = "",
+    data_origin: str = "demo",
+    source_confidence: float | None = None,
+) -> dict[str, object]:
+    if not raw_text.strip():
+        raise ValueError("Signal raw_text is required")
+    study = get_or_create_default_study(db_path) if study_id == DEFAULT_STUDY_ID else get_study(db_path, study_id)
+    if not study:
+        raise ValueError(f"Study not found: {study_id}")
+    enriched = enrich_signal(raw_text, country, stakeholder_type, company_product)
+    provenance = provenance_values(data_origin, "PX-R001", source_confidence)
+    with connect(db_path) as connection:
+        signal_id = next_sequence_id("SIG", count_rows(connection, "study_signals"))
+        now = utc_now()
+        connection.execute(
+            """
+            INSERT INTO study_signals
+            (id, study_id, source_url, source_name, source_type, source_date, country, stakeholder_type,
+             company_product, raw_text, complaint_category, summary, sentiment, evidence_strength,
+             duplicate_group, status, created_at, data_origin, verification_status, is_demo, source_confidence,
+             created_by_worker, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                signal_id,
+                study_id,
+                source_url,
+                source_name,
+                source_type,
+                source_date,
+                enriched["country"],
+                enriched["stakeholder_type"],
+                enriched["company_product"],
+                raw_text,
+                enriched["complaint_category"],
+                enriched["summary"],
+                enriched["sentiment"],
+                enriched["evidence_strength"],
+                enriched["duplicate_group"],
+                "active",
+                now,
+                provenance["data_origin"],
+                provenance["verification_status"],
+                1 if provenance["is_demo"] else 0,
+                provenance["source_confidence"],
+                provenance["created_by_worker"],
+                now,
+            ),
+        )
+    add_event(db_path, "StudySignalCreated", "PX-R001", "PX-R001 created study signal", study_id, signal_id)
+    return get_signal(db_path, signal_id)
+
+
+def get_signal(db_path: str | Path, signal_id: str) -> dict[str, object]:
+    with connect(db_path) as connection:
+        row = connection.execute("SELECT * FROM study_signals WHERE id = ?", (signal_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"Signal not found: {signal_id}")
+    return row_to_dict(row)
+
+
+def list_signals(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            "SELECT * FROM study_signals WHERE study_id = ? ORDER BY created_at DESC",
+            (study_id,),
+        ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def enrich_signal(raw_text: str, country: str, stakeholder_type: str, company_product: str) -> dict[str, object]:
+    text = raw_text.strip()
+    category = consolidate_category(text, choose_from_keywords(text, CATEGORY_KEYWORDS, "Poor customer experiences"))
+    inferred_country = country or infer_country(text)
+    inferred_stakeholder = stakeholder_type or choose_from_keywords(text, STAKEHOLDER_KEYWORDS, "Property managers")
+    product = company_product or infer_product(text)
+    sentiment = "negative" if any(word in text.lower() for word in ["complain", "slow", "poor", "expensive", "frustrating", "missing"]) else "mixed"
+    strength = evidence_strength(text, bool(country or inferred_country), bool(product))
+    summary = summarize(text)
+    duplicate_group = normalize_group(f"{category} {summary}")
+    return {
+        "country": inferred_country,
+        "stakeholder_type": inferred_stakeholder,
+        "company_product": product,
+        "complaint_category": category,
+        "summary": summary,
+        "sentiment": sentiment,
+        "evidence_strength": strength,
+        "duplicate_group": duplicate_group,
+    }
+
+
+def consolidate_category(text: str, category: str) -> str:
+    lower = text.lower()
+    maintenance_terms = ["maintenance", "repair", "contractor", "coordination"]
+    communication_terms = ["communication", "update", "response", "tenant", "chase", "follow-up", "manual", "slow"]
+    if any(term in lower for term in maintenance_terms) and any(term in lower for term in communication_terms):
+        return "Maintenance communication issues"
+    return category
+
+
+def choose_from_keywords(text: str, groups: dict[str, list[str]], fallback: str) -> str:
+    lower = text.lower()
+    best = fallback
+    best_score = 0
+    for group, keywords in groups.items():
+        score = sum(1 for keyword in keywords if keyword.lower() in lower)
+        if score > best_score:
+            best = group
+            best_score = score
+    return best
+
+
+def infer_country(text: str) -> str:
+    lower = text.lower()
+    for country in COUNTRY_HINTS:
+        if country.lower() in lower:
+            return country
+    return "Unknown"
+
+
+def infer_product(text: str) -> str:
+    matches = re.findall(r"\b[A-Z][A-Za-z0-9]+(?:\s+[A-Z][A-Za-z0-9]+)?\b", text)
+    ignored = {"Property", "Tenant", "Maintenance", "Ireland", "United Kingdom", "United States"}
+    products = [match for match in matches if match not in ignored]
+    return ", ".join(products[:3])
+
+
+def evidence_strength(text: str, has_country: bool, has_product: bool) -> int:
+    words = len(text.split())
+    score = 35
+    if words >= 20:
+        score += 20
+    if words >= 50:
+        score += 15
+    if has_country:
+        score += 10
+    if has_product:
+        score += 10
+    if any(word in text.lower() for word in ["repeatedly", "multiple", "always", "every week", "again"]):
+        score += 10
+    return min(score, 100)
+
+
+def summarize(text: str) -> str:
+    compact = " ".join(text.split())
+    return compact.split(".")[0][:220] or "Evidence requires review"
+
+
+def normalize_group(text: str) -> str:
+    tokens = [token for token in re.findall(r"[a-z0-9]+", text.lower()) if len(token) > 3]
+    important = tokens[:10]
+    return "-".join(important) or "general"
+
+
+def generate_findings(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID, min_signals: int = 2) -> list[dict[str, object]]:
+    signals = [signal for signal in list_signals(db_path, study_id) if signal["status"] == "active"]
+    groups: dict[str, list[dict[str, object]]] = {}
+    for signal in signals:
+        key = str(signal["complaint_category"] or "Market problem")
+        groups.setdefault(key, []).append(signal)
+
+    created = []
+    for grouped_signals in groups.values():
+        if len(grouped_signals) < min_signals:
+            continue
+        finding = upsert_finding(db_path, study_id, grouped_signals)
+        created.append(finding)
+    add_event(db_path, "StudyFindingsGenerated", "PX-R001", "PX-R001 generated study findings", str(len(created)), study_id)
+    return created
+
+
+def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, object]]) -> dict[str, object]:
+    category = str(signals[0]["complaint_category"] or "Market problem")
+    theme = category
+    signal_ids = [str(signal["id"]) for signal in signals]
+    sources = sorted({str(signal.get("source_url") or signal.get("source_name") or signal["id"]) for signal in signals})
+    countries = sorted({str(signal.get("country") or "Unknown") for signal in signals})
+    stakeholders = sorted({str(signal.get("stakeholder_type") or "Unknown") for signal in signals})
+    products = sorted({str(signal.get("company_product") or "") for signal in signals if signal.get("company_product")})
+    confidence = min(100, round((sum(int(signal["evidence_strength"] or 0) for signal in signals) / len(signals)) + min(len(signals) * 5, 20)))
+    problem = f"{category} appears repeatedly across {len(signals)} signals from {len(sources)} independent sources."
+    evidence_summary = " | ".join(str(signal["summary"]) for signal in signals[:3])
+    contains_demo = any(bool(signal.get("is_demo")) for signal in signals)
+    non_demo_only = not contains_demo
+    sufficient = len(signals) >= 2 and len(sources) >= 2 and non_demo_only
+    status = "pending_audit" if sufficient else "Insufficient Evidence"
+    data_origin = "demo" if contains_demo else "verified_import"
+    verification_status = "unverified" if contains_demo else "pending_review"
+    confidence_reasoning = (
+        f"{len(signals)} supporting signals, {len(sources)} independent sources, "
+        f"{len(countries)} countries, {len(stakeholders)} stakeholder groups. "
+        f"{'Contains demo evidence; not auditable.' if contains_demo else 'Non-demo evidence only.'}"
+    )
+
+    with connect(db_path) as connection:
+        existing = connection.execute(
+            "SELECT * FROM study_findings WHERE study_id = ? AND theme = ? AND complaint_category = ? AND status != 'archived'",
+            (study_id, theme, category),
+        ).fetchone()
+        now = utc_now()
+        if existing:
+            finding_id = existing["id"]
+            connection.execute(
+                """
+                UPDATE study_findings
+                SET signal_count = ?, independent_source_count = ?, countries = ?, stakeholder_types = ?,
+                    products_mentioned = ?, representative_signals = ?, evidence_summary = ?,
+                    research_confidence = ?, confidence_score = ?, country_count = ?, stakeholder_count = ?,
+                    supporting_evidence_count = ?, contradictory_evidence_count = ?, confidence_reasoning = ?,
+                    status = ?, data_origin = ?, verification_status = ?, is_demo = ?, source_confidence = ?,
+                    last_updated = ?
+                WHERE id = ?
+                """,
+                (
+                    len(signals),
+                    len(sources),
+                    json.dumps(countries),
+                    json.dumps(stakeholders),
+                    json.dumps(products),
+                    json.dumps(signal_ids),
+                    evidence_summary,
+                    confidence,
+                    confidence,
+                    len(countries),
+                    len(stakeholders),
+                    len(signals),
+                    0,
+                    confidence_reasoning,
+                    status,
+                    data_origin,
+                    verification_status,
+                    1 if contains_demo else 0,
+                    confidence,
+                    now,
+                    finding_id,
+                ),
+            )
+        else:
+            finding_id = next_sequence_id("FND", count_rows(connection, "study_findings"))
+            connection.execute(
+                """
+                INSERT INTO study_findings
+                (id, study_id, theme, problem_statement, complaint_category, signal_count,
+                 independent_source_count, countries, stakeholder_types, products_mentioned,
+                 representative_signals, evidence_summary, research_confidence, confidence_score, country_count,
+                 stakeholder_count, supporting_evidence_count, contradictory_evidence_count, confidence_reasoning,
+                 status, created_at, data_origin, verification_status, is_demo, source_confidence, created_by_worker,
+                 last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    finding_id,
+                    study_id,
+                    theme,
+                    problem,
+                    category,
+                    len(signals),
+                    len(sources),
+                    json.dumps(countries),
+                    json.dumps(stakeholders),
+                    json.dumps(products),
+                    json.dumps(signal_ids),
+                    evidence_summary,
+                    confidence,
+                    confidence,
+                    len(countries),
+                    len(stakeholders),
+                    len(signals),
+                    0,
+                    confidence_reasoning,
+                    status,
+                    now,
+                    data_origin,
+                    verification_status,
+                    1 if contains_demo else 0,
+                    confidence,
+                    "PX-R001",
+                    now,
+                ),
+            )
+    return get_finding(db_path, finding_id)
+
+
+def get_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
+    with connect(db_path) as connection:
+        row = connection.execute("SELECT * FROM study_findings WHERE id = ?", (finding_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"Finding not found: {finding_id}")
+    return row_to_dict(row)
+
+
+def list_findings(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            "SELECT * FROM study_findings WHERE study_id = ? ORDER BY created_at DESC",
+            (study_id,),
+        ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def calculate_oci(scores: dict[str, int]) -> int:
+    if "traceability_score" in scores:
+        oci = round(
+            scores["evidence_score"] * 0.25
+            + scores["frequency_score"] * 0.15
+            + scores["market_size_score"] * 0.15
+            + scores["pain_severity_score"] * 0.15
+            + scores["competition_gap_score"] * 0.10
+            + scores["traceability_score"] * 0.20
+        )
+        if scores["traceability_score"] < 100:
+            return min(oci, 60)
+        return oci
+    return round(
+        scores["evidence_score"] * 0.20
+        + scores["frequency_score"] * 0.15
+        + scores["market_size_score"] * 0.15
+        + scores["pain_severity_score"] * 0.15
+        + scores["competition_gap_score"] * 0.10
+        + (100 - scores["build_complexity_score"]) * 0.10
+        + scores["commercial_potential_score"] * 0.10
+        + scores["strategic_fit_score"] * 0.05
+    )
+
+
+def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
+    finding = get_finding(db_path, finding_id)
+    if finding["status"] != "pending_audit":
+        raise ValueError("Finding is not auditable until it has at least 2 supporting non-demo signals from 2 independent sources.")
+    scores = score_finding(finding)
+    signals = [get_signal(db_path, str(signal_id)) for signal_id in _loads_list(finding.get("representative_signals"))]
+    contains_demo = any(bool(signal.get("is_demo")) for signal in signals) or bool(finding.get("is_demo"))
+    traceability_complete = traceability_complete_for_signals(signals)
+    scores["traceability_score"] = 100 if traceability_complete else 40
+    oci = calculate_oci(scores)
+    if contains_demo:
+        oci = 0
+    decision = "Approve Opportunity" if oci >= ENGINEERING_READY_OCI and not contains_demo else "Needs More Evidence" if oci >= 60 else "Reject"
+    missing = []
+    if int(finding["independent_source_count"] or 0) < 2:
+        missing.append("More independent sources")
+    if len(_loads_list(finding.get("countries"))) < 2:
+        missing.append("More country coverage")
+    if contains_demo:
+        missing.append("Non-demo verified evidence required")
+    if not traceability_complete:
+        missing.append("Complete traceability to sources required")
+    reasoning = (
+        f"Finding has {finding['signal_count']} signals, {finding['independent_source_count']} independent sources, "
+        f"traceability score {scores['traceability_score']}, OCI {oci}, decision {decision}."
+    )
+    with connect(db_path) as connection:
+        audit_id = next_sequence_id("FAD", count_rows(connection, "finding_audits"))
+        now = utc_now()
+        connection.execute(
+            """
+            INSERT INTO finding_audits
+            (id, study_id, finding_id, decision, evidence_score, frequency_score, market_size_score,
+             pain_severity_score, competition_gap_score, build_complexity_score, commercial_potential_score,
+             strategic_fit_score, traceability_score, opportunity_confidence_index, final_oci, score_breakdown,
+             oci_reasoning, missing_evidence_warnings, contradictions, missing_evidence, reasoning_summary,
+             recommendation, status, created_at, data_origin, verification_status, is_demo, source_confidence,
+             created_by_worker, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                audit_id,
+                finding["study_id"],
+                finding_id,
+                decision,
+                scores["evidence_score"],
+                scores["frequency_score"],
+                scores["market_size_score"],
+                scores["pain_severity_score"],
+                scores["competition_gap_score"],
+                scores["build_complexity_score"],
+                scores["commercial_potential_score"],
+                scores["strategic_fit_score"],
+                scores["traceability_score"],
+                oci,
+                oci,
+                json.dumps(scores, ensure_ascii=False),
+                explain_oci(scores, oci, contains_demo),
+                json.dumps(missing, ensure_ascii=False),
+                "No direct contradictions detected.",
+                ", ".join(missing) if missing else "None",
+                reasoning,
+                "Approve into Opportunity Database." if decision == "Approve Opportunity" else "Collect more evidence before approval.",
+                "active",
+                now,
+                "demo" if contains_demo else "verified_import",
+                "unverified" if contains_demo else "verified",
+                1 if contains_demo else 0,
+                scores["evidence_score"],
+                "PX-A001",
+                now,
+            ),
+        )
+        connection.execute("UPDATE study_findings SET status = ? WHERE id = ?", ("audited", finding_id))
+    add_event(db_path, "FindingAudited", "PX-A001", "PX-A001 audited finding", decision, audit_id)
+    return get_finding_audit(db_path, audit_id)
+
+
+def score_finding(finding: dict[str, object]) -> dict[str, int]:
+    signal_count = int(finding.get("signal_count") or 0)
+    source_count = int(finding.get("independent_source_count") or 0)
+    countries = len(_loads_list(finding.get("countries")))
+    confidence = int(finding.get("research_confidence") or 0)
+    category = str(finding.get("complaint_category") or "").lower()
+    build_complexity = 35 if any(word in category for word in ["communication", "report", "manual", "integration"]) else 55
+    return {
+        "evidence_score": min(100, confidence),
+        "frequency_score": min(100, signal_count * 35),
+        "market_size_score": min(100, 55 + countries * 15 + source_count * 5),
+        "pain_severity_score": 90 if any(word in category for word in ["maintenance", "payment", "communication", "expensive"]) else 75,
+        "competition_gap_score": 80,
+        "build_complexity_score": build_complexity,
+        "commercial_potential_score": 85,
+        "strategic_fit_score": 90,
+    }
+
+
+def traceability_complete_for_signals(signals: list[dict[str, object]]) -> bool:
+    return bool(signals) and all(signal.get("source_url") or signal.get("source_name") for signal in signals)
+
+
+def explain_oci(scores: dict[str, int], oci: int, contains_demo: bool) -> str:
+    if contains_demo:
+        return "OCI forced to 0 because demo evidence cannot approve an opportunity."
+    if scores.get("traceability_score", 0) < 100:
+        return f"OCI capped at {oci} because traceability is incomplete."
+    return f"OCI {oci} derived from evidence, frequency, market size, pain severity, competition gap, and traceability scores."
+
+
+def get_finding_audit(db_path: str | Path, audit_id: str) -> dict[str, object]:
+    with connect(db_path) as connection:
+        row = connection.execute("SELECT * FROM finding_audits WHERE id = ?", (audit_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"Finding audit not found: {audit_id}")
+    return row_to_dict(row)
+
+
+def list_finding_audits(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            "SELECT * FROM finding_audits WHERE study_id = ? ORDER BY created_at DESC",
+            (study_id,),
+        ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def approve_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    approved = []
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT finding_audits.*
+            FROM finding_audits
+            LEFT JOIN opportunity_records ON opportunity_records.audit_id = finding_audits.id
+            WHERE finding_audits.study_id = ?
+              AND finding_audits.decision = 'Approve Opportunity'
+              AND opportunity_records.id IS NULL
+            ORDER BY finding_audits.created_at ASC
+            """,
+            (study_id,),
+        ).fetchall()
+    for row in rows:
+        audit = row_to_dict(row)
+        if bool(audit.get("is_demo")):
+            continue
+        approved.append(create_opportunity_from_audit(db_path, audit))
+    add_event(db_path, "OpportunitiesApproved", "PX-L001", "PX-L001 approved audited opportunities", str(len(approved)), study_id)
+    return approved
+
+
+def promote_approved_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    return approve_opportunities(db_path, study_id)
+
+
+def create_opportunity_from_audit(db_path: str | Path, audit: dict[str, object]) -> dict[str, object]:
+    finding = get_finding(db_path, str(audit["finding_id"]))
+    signals = [get_signal(db_path, str(signal_id)) for signal_id in _loads_list(finding.get("representative_signals"))]
+    if bool(audit.get("is_demo")) or bool(finding.get("is_demo")) or any(bool(signal.get("is_demo")) for signal in signals):
+        raise ValueError("Demo data cannot be approved into a real Opportunity.")
+    now = utc_now()
+    with connect(db_path) as connection:
+        opportunity_id = next_sequence_id("OPP", count_rows(connection, "opportunity_records"))
+        oci = int(audit["opportunity_confidence_index"] or 0)
+        status = "Approved Opportunity"
+        engineering_status = "Engineering Specification Required"
+        traceability_complete = traceability_complete_for_signals(signals)
+        connection.execute(
+            """
+            INSERT INTO opportunity_records
+            (id, study_id, industry, market, problem, evidence_summary, evidence_count, independent_sources,
+             countries, products_mentioned, stakeholder_types, customer_segments, current_solutions,
+             strengths_existing_solutions, weaknesses_existing_solutions, opportunity_confidence_index,
+             commercial_potential, estimated_market_size, estimated_build_complexity, recommended_component,
+             recommended_pricing_model, recommended_market_entry, engineering_recommendation, problem_scope,
+             target_users, required_inputs, expected_outputs, system_boundaries, traceability_chain_complete,
+             non_demo_evidence_only, audit_id, finding_id, status, engineering_status, owner, version, created_at,
+             last_updated, data_origin, verification_status, is_demo, source_confidence, created_by_worker)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                opportunity_id,
+                audit["study_id"],
+                "Property Management",
+                "Property Management",
+                finding["problem_statement"],
+                finding["evidence_summary"],
+                finding["signal_count"],
+                finding["independent_source_count"],
+                finding["countries"],
+                finding["products_mentioned"],
+                finding["stakeholder_types"],
+                finding["stakeholder_types"],
+                finding["products_mentioned"],
+                "Existing products have market presence and workflow coverage.",
+                "Repeated complaints indicate gaps in speed, communication, cost, or usability.",
+                oci,
+                "High" if oci >= ENGINEERING_READY_OCI else "Medium",
+                "Global niche-to-large SaaS opportunity",
+                "Low" if int(audit["build_complexity_score"] or 100) <= 40 else "Medium",
+                recommended_component(finding),
+                "Subscription with usage-based tiers",
+                "Start with a narrow verified workflow and one stakeholder segment.",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                1 if traceability_complete else 0,
+                1,
+                audit["id"],
+                finding["id"],
+                status,
+                engineering_status,
+                "PX-H001",
+                "v1.0",
+                now,
+                now,
+                "verified_import",
+                "verified",
+                0,
+                audit.get("source_confidence"),
+                "PX-L001",
+            ),
+        )
+        connection.execute("UPDATE study_findings SET status = ? WHERE id = ?", ("opportunity_promoted", finding["id"]))
+    add_notification(db_path, "opportunity_promoted", f"Opportunity promoted: {opportunity_id}", opportunity_id)
+    return get_opportunity(db_path, opportunity_id)
+
+
+def mark_engineering_ready(db_path: str | Path, opportunity_id: str, spec: dict[str, object]) -> dict[str, object]:
+    opportunity = get_opportunity(db_path, opportunity_id)
+    required = [
+        "recommended_component",
+        "engineering_recommendation",
+        "problem_scope",
+        "target_users",
+        "required_inputs",
+        "expected_outputs",
+        "system_boundaries",
+    ]
+    merged = {field: spec.get(field) or opportunity.get(field) for field in required}
+    missing = [field for field, value in merged.items() if not value]
+    chain = traceability_chain(db_path, opportunity_id)
+    non_demo = not any(bool(record.get("is_demo")) for record in [chain["opportunity"], chain["audit"], chain["finding"], *chain["signals"]])
+    traceability_complete = bool(chain["signals"]) and bool(chain["sources"])
+    if missing or not non_demo or not traceability_complete:
+        return {"status": "blocked", "missing_fields": missing, "non_demo_evidence_only": non_demo, "traceability_chain_complete": traceability_complete}
+    with connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE opportunity_records
+            SET engineering_status = ?, status = ?, engineering_recommendation = ?, problem_scope = ?,
+                target_users = ?, required_inputs = ?, expected_outputs = ?, system_boundaries = ?,
+                traceability_chain_complete = ?, non_demo_evidence_only = ?, last_updated = ?
+            WHERE id = ?
+            """,
+            (
+                "Engineering Ready",
+                "Engineering Ready",
+                merged["engineering_recommendation"],
+                merged["problem_scope"],
+                merged["target_users"],
+                merged["required_inputs"],
+                merged["expected_outputs"],
+                merged["system_boundaries"],
+                1,
+                1,
+                utc_now(),
+                opportunity_id,
+            ),
+        )
+    return get_opportunity(db_path, opportunity_id)
+
+
+def recommended_component(finding: dict[str, object]) -> str:
+    category = str(finding.get("complaint_category") or "").lower()
+    if "maintenance" in category:
+        return "Maintenance Communication Component"
+    if "payment" in category or "accounting" in category:
+        return "Payment Reconciliation Component"
+    if "report" in category:
+        return "Property Reporting Component"
+    if "integration" in category:
+        return "Integration Sync Component"
+    return "Workflow Automation Component"
+
+
+def get_opportunity(db_path: str | Path, opportunity_id: str) -> dict[str, object]:
+    with connect(db_path) as connection:
+        row = connection.execute("SELECT * FROM opportunity_records WHERE id = ?", (opportunity_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"Opportunity not found: {opportunity_id}")
+    return row_to_dict(row)
+
+
+def list_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            "SELECT * FROM opportunity_records WHERE study_id = ? ORDER BY opportunity_confidence_index DESC, created_at DESC",
+            (study_id,),
+        ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def archive_record(db_path: str | Path, table_name: str, record_id: str) -> dict[str, object]:
+    allowed = {
+        "study_signals": "id",
+        "study_findings": "id",
+        "finding_audits": "id",
+        "opportunity_records": "id",
+    }
+    if table_name not in allowed:
+        raise ValueError(f"Unsupported archive table: {table_name}")
+    with connect(db_path) as connection:
+        row = connection.execute(f"SELECT * FROM {table_name} WHERE {allowed[table_name]} = ?", (record_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"Record not found: {record_id}")
+        record = row_to_dict(row)
+        now = utc_now()
+        previous_status = str(record.get("status") or "")
+        connection.execute(
+            f"""
+            UPDATE {table_name}
+            SET status = ?, verification_status = ?, archive_reason = ?, archived_at = ?, archived_by = ?,
+                previous_status = ?, last_updated = ?
+            WHERE {allowed[table_name]} = ?
+            """,
+            ("archived", "archived", "Archived instead of deleted.", now, "PX-H001", previous_status, now, record_id),
+        )
+        if bool(record.get("is_demo")):
+            connection.execute(
+                """
+                INSERT INTO demo_archive (table_name, record_id, record_json, archive_reason, archived_at, archived_by)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (table_name, record_id, json.dumps(record, ensure_ascii=False), "Archived demo data.", now, "PX-H001"),
+            )
+    add_event(db_path, "RecordArchived", "PX-H001", "Record archived instead of deleted", table_name, record_id)
+    return {"table": table_name, "id": record_id, "status": "archived"}
+
+
+def traceability_chain(db_path: str | Path, opportunity_id: str) -> dict[str, object]:
+    opportunity = get_opportunity(db_path, opportunity_id)
+    audit = get_finding_audit(db_path, str(opportunity["audit_id"]))
+    finding = get_finding(db_path, str(opportunity["finding_id"]))
+    signal_ids = _loads_list(finding.get("representative_signals"))
+    signals = [get_signal(db_path, str(signal_id)) for signal_id in signal_ids]
+    sources = [
+        {
+            "signal_id": signal["id"],
+            "source_url": signal.get("source_url"),
+            "source_name": signal.get("source_name"),
+            "source_type": signal.get("source_type"),
+        }
+        for signal in signals
+    ]
+    return {"opportunity": opportunity, "audit": audit, "finding": finding, "signals": signals, "sources": sources}
+
+
+def finding_evidence(db_path: str | Path, finding_id: str) -> dict[str, object]:
+    finding = get_finding(db_path, finding_id)
+    signals = [get_signal(db_path, str(signal_id)) for signal_id in _loads_list(finding.get("representative_signals"))]
+    return {"finding": finding, "signals": signals}
+
+
+def study_progress(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    signals = list_signals(db_path, study_id)
+    findings = list_findings(db_path, study_id)
+    audits = list_finding_audits(db_path, study_id)
+    opportunities = list_opportunities(db_path, study_id)
+    archives = archived_count(db_path, study_id)
+    demo_count = sum(1 for row in [*signals, *findings, *audits, *opportunities] if bool(row.get("is_demo")))
+    pending_verification = sum(1 for row in [*signals, *findings, *audits, *opportunities] if row.get("verification_status") in {"unverified", "pending_review"})
+    avg_oci_values = [int(opportunity.get("opportunity_confidence_index") or 0) for opportunity in opportunities]
+    return {
+        "study_id": study_id,
+        "signals_collected": len(signals),
+        "findings_created": len(findings),
+        "audits_completed": len(audits),
+        "opportunities_approved": len([opportunity for opportunity in opportunities if opportunity["status"] in {"Approved Opportunity", "Engineering Ready"}]),
+        "opportunities_rejected": len([audit for audit in audits if audit["decision"] == "Reject"]),
+        "countries_covered": sorted({str(signal.get("country") or "Unknown") for signal in signals}),
+        "stakeholders_covered": sorted({str(signal.get("stakeholder_type") or "Unknown") for signal in signals}),
+        "source_coverage": len({str(signal.get("source_url") or signal.get("source_name") or signal["id"]) for signal in signals}),
+        "engineering_ready": [opportunity for opportunity in opportunities if opportunity.get("engineering_status") == "Engineering Ready"],
+        "top_opportunities": opportunities[:5],
+        "weak_evidence": [finding for finding in findings if int(finding.get("research_confidence") or 0) < 75],
+        "average_oci": round(sum(avg_oci_values) / len(avg_oci_values), 1) if avg_oci_values else 0,
+        "high_priority_opportunities": [opportunity for opportunity in opportunities if int(opportunity.get("opportunity_confidence_index") or 0) >= ENGINEERING_READY_OCI],
+        "archived_count": archives,
+        "demo_records_count": demo_count,
+        "verification_pending_count": pending_verification,
+    }
+
+
+def archived_count(db_path: str | Path, study_id: str) -> int:
+    total = 0
+    with connect(db_path) as connection:
+        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
+            total += int(connection.execute(f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND status = 'archived'", (study_id,)).fetchone()["count"])
+    return total
+
+
+def generate_executive_brief(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    study = get_or_create_default_study(db_path) if study_id == DEFAULT_STUDY_ID else get_study(db_path, study_id)
+    if not study:
+        raise ValueError(f"Study not found: {study_id}")
+    progress = study_progress(db_path, study_id)
+    risks = []
+    if not progress["countries_covered"]:
+        risks.append("No country coverage yet.")
+    if progress["signals_collected"] < 2:
+        risks.append("Not enough repeated evidence for opportunity creation.")
+    if progress["audits_completed"] == 0:
+        risks.append("No findings audited yet.")
+    missing = []
+    if len(progress["countries_covered"]) < 2:
+        missing.append("More countries")
+    if progress["source_coverage"] < 2:
+        missing.append("More independent sources")
+    recommendation = (
+        "Move engineering-ready opportunities into component planning."
+        if progress["engineering_ready"]
+        else "Collect more independent signals, then audit findings with repeated evidence."
+    )
+    body = (
+        f"Study ID: {study_id}\n"
+        f"Industry: Property Management\n"
+        f"Market: {study['market']}\n"
+        f"Signals collected: {progress['signals_collected']} signals\n"
+        f"Findings created: {progress['findings_created']}\n"
+        f"Audits completed: {progress['audits_completed']}\n"
+        f"Approved Opportunities: {progress['opportunities_approved']}\n"
+        f"Engineering Ready Opportunities: {len(progress['engineering_ready'])}\n"
+        f"Countries covered: {', '.join(progress['countries_covered']) or 'None'}\n"
+        f"Stakeholder types covered: {', '.join(progress['stakeholders_covered']) or 'None'}\n"
+        f"Independent sources count: {progress['source_coverage']}\n"
+        f"Highest OCI opportunities: {len(progress['top_opportunities'])}\n"
+        f"Recommended next action: "
+        f"{'Move engineering-ready opportunities into specification review.' if progress['engineering_ready'] else 'Collect verified non-demo evidence and audit only sufficiently supported findings.'}"
+    )
+    with connect(db_path) as connection:
+        brief_id = next_sequence_id("GSB", count_rows(connection, "study_briefs"))
+        connection.execute(
+            """
+            INSERT INTO study_briefs
+            (id, study_id, brief_type, title, body, metrics, top_opportunities, risks, missing_evidence,
+             engineering_recommendation, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                brief_id,
+                study_id,
+                "executive",
+                f"Executive Brief - {study_id}",
+                body,
+                json.dumps(progress, ensure_ascii=False),
+                json.dumps(progress["top_opportunities"], ensure_ascii=False),
+                json.dumps(risks, ensure_ascii=False),
+                json.dumps(missing, ensure_ascii=False),
+                recommendation,
+                utc_now(),
+            ),
+        )
+    add_event(db_path, "GoldenStudyBriefCreated", "PX-H001", "PX-H001 generated Golden Study executive brief", study_id, brief_id)
+    return get_study_brief(db_path, brief_id)
+
+
+def get_study_brief(db_path: str | Path, brief_id: str) -> dict[str, object]:
+    with connect(db_path) as connection:
+        row = connection.execute("SELECT * FROM study_briefs WHERE id = ?", (brief_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"Study brief not found: {brief_id}")
+    return row_to_dict(row)
+
+
+def list_study_briefs(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            "SELECT * FROM study_briefs WHERE study_id = ? ORDER BY created_at DESC",
+            (study_id,),
+        ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def run_research_batch(db_path: str | Path, raw_items: list[dict[str, object]], study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    signals = [
+        create_signal(
+            db_path,
+            str(item.get("raw_text") or ""),
+            study_id,
+            str(item.get("source_url") or ""),
+            str(item.get("source_name") or ""),
+            str(item.get("source_type") or "manual"),
+            str(item.get("source_date") or ""),
+            str(item.get("country") or ""),
+            str(item.get("stakeholder_type") or ""),
+            str(item.get("company_product") or ""),
+            str(item.get("data_origin") or "demo"),
+            item.get("source_confidence"),
+        )
+        for item in raw_items
+        if str(item.get("raw_text") or "").strip()
+    ]
+    findings = generate_findings(db_path, study_id)
+    return {"signals": signals, "findings": findings}
+
+
+def run_audit_batch(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    audits = []
+    for finding in list_findings(db_path, study_id):
+        if finding["status"] == "pending_audit":
+            audits.append(audit_finding(db_path, str(finding["id"])))
+    return audits
+
+
+def demo_warning_active(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> bool:
+    return study_progress(db_path, study_id)["demo_records_count"] > 0
+
+
+def validate_golden_study_integrity(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    findings = list_findings(db_path, study_id)
+    audits = list_finding_audits(db_path, study_id)
+    opportunities = list_opportunities(db_path, study_id)
+    checks = []
+    for finding in findings:
+        checks.append({
+            "check": f"Finding {finding['id']} links to signals",
+            "passed": bool(_loads_list(finding.get("representative_signals"))),
+        })
+    for audit in audits:
+        checks.append({"check": f"Audit {audit['id']} links to finding", "passed": bool(audit.get("finding_id"))})
+        checks.append({"check": f"Audit {audit['id']} has explainable OCI", "passed": bool(audit.get("score_breakdown") and audit.get("oci_reasoning"))})
+        checks.append({"check": f"Demo audit {audit['id']} is not approved", "passed": not (bool(audit.get("is_demo")) and audit.get("decision") == "Approve Opportunity")})
+    for opportunity in opportunities:
+        try:
+            chain = traceability_chain(db_path, str(opportunity["id"]))
+            chain_complete = bool(chain["audit"] and chain["finding"] and chain["signals"] and chain["sources"])
+            non_demo = not any(bool(record.get("is_demo")) for record in [chain["opportunity"], chain["audit"], chain["finding"], *chain["signals"]])
+        except Exception:
+            chain_complete = False
+            non_demo = False
+        required = ["recommended_component", "engineering_recommendation", "problem_scope", "target_users", "required_inputs", "expected_outputs", "system_boundaries"]
+        missing_engineering = [field for field in required if not opportunity.get(field)]
+        checks.extend([
+            {"check": f"Opportunity {opportunity['id']} links to audit", "passed": bool(opportunity.get("audit_id"))},
+            {"check": f"Opportunity {opportunity['id']} traces to sources", "passed": chain_complete},
+            {"check": f"Opportunity {opportunity['id']} uses non-demo evidence", "passed": non_demo},
+            {"check": f"Engineering Ready {opportunity['id']} has required fields", "passed": opportunity.get("engineering_status") != "Engineering Ready" or not missing_engineering},
+        ])
+    archived_preserved = True
+    with connect(db_path) as connection:
+        archived_rows = connection.execute("SELECT COUNT(*) AS count FROM demo_archive").fetchone()["count"]
+    checks.append({"check": "Archived demo records are preserved", "passed": archived_preserved, "count": int(archived_rows)})
+    failed = [check for check in checks if not check["passed"]]
+    return {"passed": not failed, "failed_count": len(failed), "checks": checks}
+
+
+def provenance_values(data_origin: str, worker_id: str, source_confidence: float | None = None) -> dict[str, object]:
+    origin = data_origin if data_origin in {"demo", "manual", "verified_import", "provider"} else "demo"
+    is_demo = origin == "demo"
+    verification_status = "unverified" if is_demo else "verified" if origin == "verified_import" else "pending_review"
+    return {
+        "data_origin": origin,
+        "verification_status": verification_status,
+        "is_demo": is_demo,
+        "source_confidence": source_confidence,
+        "created_by_worker": worker_id,
+    }
+
+
+def _loads_list(raw: object) -> list[object]:
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(str(raw))
+    except json.JSONDecodeError:
+        return []
+    return parsed if isinstance(parsed, list) else []

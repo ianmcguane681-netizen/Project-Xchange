@@ -1,0 +1,12 @@
+[
+  {
+    "audit_id": "AUD-2026-0001",
+    "research_id": "RES-2026-0001",
+    "decision": "approved",
+    "confidence_score": 88,
+    "source_verified": true,
+    "duplicate_risk": "low",
+    "reasoning_summary": "Record has source, clear workflow relevance and no duplicate match.",
+    "send_to_library": true
+  }
+]
