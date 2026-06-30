@@ -915,6 +915,113 @@ with tabs[23]:
             margin: 0 0 4px 0;
             color: #1F2937;
         }
+        .golden-shell {
+            border: 1px solid #C9D9FF;
+            border-radius: 20px;
+            background: #FFFFFF;
+            box-shadow: 0 18px 45px rgba(31, 41, 55, 0.10);
+            margin: 8px 0 18px 0;
+            overflow: hidden;
+        }
+        .golden-shell-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 22px;
+            border-bottom: 1px solid #E5EAF2;
+            background: linear-gradient(90deg, #003399 0%, #0047CC 52%, #F7F9FC 52%, #FFFFFF 100%);
+        }
+        .golden-shell-title {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            color: #FFFFFF;
+        }
+        .golden-brand-mark {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.14);
+            border: 1px solid rgba(255,255,255,0.30);
+            font-weight: 850;
+            letter-spacing: 0;
+        }
+        .golden-shell-title h2 {
+            margin: 0;
+            color: #FFFFFF;
+            font-size: 1.35rem;
+        }
+        .golden-shell-title p {
+            margin: 2px 0 0 0;
+            color: rgba(255,255,255,0.82);
+            font-size: 0.9rem;
+        }
+        .golden-shell-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .golden-shell-body {
+            padding: 16px;
+            background: #F7F9FC;
+        }
+        .golden-status-grid {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .golden-status-card {
+            border: 1px solid #E5EAF2;
+            border-radius: 14px;
+            padding: 14px;
+            background: #FFFFFF;
+            box-shadow: 0 8px 18px rgba(31, 41, 55, 0.05);
+            border-top: 4px solid #003399;
+            min-height: 112px;
+        }
+        .golden-status-card.is-green { border-top-color: #2DBE60; }
+        .golden-status-card.is-orange { border-top-color: #F4B400; }
+        .golden-status-card.is-blue { border-top-color: #2F6BFF; }
+        .golden-status-card.is-red { border-top-color: #D93025; }
+        .golden-status-label {
+            color: #6B7280;
+            font-size: 0.78rem;
+            font-weight: 750;
+            text-transform: uppercase;
+        }
+        .golden-status-value {
+            color: #1F2937;
+            font-size: 1.65rem;
+            font-weight: 850;
+            line-height: 1.05;
+            margin-top: 8px;
+        }
+        .golden-status-note {
+            color: #6B7280;
+            font-size: 0.84rem;
+            margin-top: 6px;
+        }
+        .golden-callout {
+            margin-top: 12px;
+            border: 1px solid #B7CCFF;
+            background: #EEF4FF;
+            color: #003399;
+            border-radius: 14px;
+            padding: 12px 14px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+        }
+        .golden-callout strong {
+            color: #003399;
+        }
         .px-muted {
             color: #6B7280;
             font-size: 0.92rem;
@@ -992,6 +1099,12 @@ with tabs[23]:
         }
         @media (max-width: 1000px) {
             .px-card-grid, .px-workflow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .golden-shell-header {
+                background: linear-gradient(180deg, #003399 0%, #0047CC 62%, #F7F9FC 62%, #FFFFFF 100%);
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .golden-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
         </style>
         """,
@@ -1122,6 +1235,15 @@ with tabs[23]:
         </div>
         """
 
+    def shell_status_card(label: str, value: object, note: str, tone: str = "blue") -> str:
+        return f"""
+        <div class="golden-status-card is-{html_escape(tone)}">
+            <div class="golden-status-label">{html_escape(label)}</div>
+            <div class="golden-status-value">{html_escape(value)}</div>
+            <div class="golden-status-note">{html_escape(note)}</div>
+        </div>
+        """
+
     def workflow_stage_card(stage: str) -> str:
         state = workflow_stage_status(stage)
         return f"""
@@ -1145,6 +1267,21 @@ with tabs[23]:
 
     def displayed_oci(record: dict[str, object]) -> int:
         return demo_oci(record) if is_demo_run else int(record.get("opportunity_confidence_index") or 0)
+
+    def recommended_action_text() -> str:
+        if not active_run:
+            return "Create a Golden Study run"
+        if not progress["signals_collected"]:
+            return "Add source-backed evidence"
+        if not progress["findings_created"]:
+            return "Generate findings"
+        if not progress["audits_completed"]:
+            return "Run audit batch"
+        if not progress["opportunities_approved"]:
+            return "Review opportunities"
+        if not progress["engineering_ready"]:
+            return "Create engineering specification"
+        return "Prepare executive brief"
 
     def workflow_stage_status(stage: str) -> str:
         values = {
@@ -1191,6 +1328,11 @@ with tabs[23]:
             with st.expander("Technical Details"):
                 st.json(flash["details"])
 
+    signals = list_signals(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
+    findings = list_findings(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
+    audits = list_finding_audits(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
+    opportunities = list_opportunities(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
+
     if is_demo_run:
         st.warning("DEMO RUN ACTIVE - sample evidence only. Do not approve as real market evidence.")
         st.info("Demo rehearsal mode: workflow can be tested safely, but no real opportunities are created.")
@@ -1199,6 +1341,53 @@ with tabs[23]:
     else:
         st.info("No active Golden Study run. Create a demo run or start a production run.")
     show_golden_flash()
+
+    top_problem_for_shell = findings[0] if findings else {}
+    top_opportunity_for_shell = opportunities[0] if opportunities else {}
+    shell_score = displayed_oci(top_opportunity_for_shell) if top_opportunity_for_shell else demo_oci(top_problem_for_shell)
+    shell_score_label = "Demo OCI" if is_demo_run else "Overall OCI"
+    shell_top_problem = str(
+        top_problem_for_shell.get("theme")
+        or top_opportunity_for_shell.get("recommended_component")
+        or "Waiting for evidence"
+    )
+    mode_label = "Demo Mode" if is_demo_run else "Production Mode" if is_production_run else "No Active Run"
+    mode_tone = "orange" if is_demo_run else "green" if is_production_run else "red"
+    evidence_note = f"{progress['source_coverage']} sources across {len(progress['countries_covered'])} countries"
+    st.markdown(
+        f"""
+        <div class="golden-shell">
+            <div class="golden-shell-header">
+                <div class="golden-shell-title">
+                    <div class="golden-brand-mark">PX</div>
+                    <div>
+                        <h2>Golden Study Executive Dashboard</h2>
+                        <p>Operational research workflow for maintenance communication opportunities</p>
+                    </div>
+                </div>
+                <div class="golden-shell-actions">
+                    {badge_html(mode_label)}
+                    {badge_html(str(run_status or "Waiting").title())}
+                </div>
+            </div>
+            <div class="golden-shell-body">
+                <div class="golden-status-grid">
+                    {shell_status_card("Current Run", mode_label, "Demo and production runs stay separated", mode_tone)}
+                    {shell_status_card("Signals", progress["signals_collected"], "Evidence captured in this run", "blue")}
+                    {shell_status_card("Findings", progress["findings_created"], "Problems formed from evidence", "blue")}
+                    {shell_status_card("Audits", progress["audits_completed"], "Evidence reviews completed", "blue")}
+                    {shell_status_card(shell_score_label, shell_score, "Demo score is rehearsal-only" if is_demo_run else "Production score excludes demo data", "orange" if is_demo_run else "green")}
+                    {shell_status_card("Engineering Ready", len(progress["engineering_ready"]), "Current-run specs only", "green" if progress["engineering_ready"] else "blue")}
+                </div>
+                <div class="golden-callout">
+                    <div><strong>Top opportunity:</strong> {html_escape(shell_top_problem)} &middot; {html_escape(evidence_note)}</div>
+                    <div><strong>Next action:</strong> {html_escape(recommended_action_text())}</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     workflow_tabs = st.tabs([
         "Overview",
@@ -1214,11 +1403,6 @@ with tabs[23]:
         "Archive / Demo History",
         "Raw Database View",
     ])
-
-    signals = list_signals(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
-    findings = list_findings(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
-    audits = list_finding_audits(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
-    opportunities = list_opportunities(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
 
     with workflow_tabs[0]:
         top_problem = findings[0] if findings else {}
