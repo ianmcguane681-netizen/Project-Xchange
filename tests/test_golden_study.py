@@ -2,18 +2,23 @@ from project_exchange.database import connect, fetch_all, init_db, utc_now
 from project_exchange.golden_study import (
     DEFAULT_STUDY_ID,
     approve_audited_opportunities,
+    approval_feedback,
     archive_record,
+    audit_batch_feedback,
     audit_finding,
     calculate_oci,
     create_signal,
     create_study,
     generate_executive_brief,
     generate_findings,
+    findings_feedback,
     get_active_study_run,
     get_or_create_default_study,
+    list_findings,
     list_signals,
     list_study_runs,
     list_opportunities,
+    mark_engineering_ready,
     switch_study_run_mode,
     run_audit_batch,
     run_research_batch,
@@ -270,14 +275,16 @@ def test_demo_data_is_labelled_and_blocked_from_approval(tmp_path):
     assert finding["is_demo"] == 1
     assert finding["data_origin"] == "demo"
     assert finding["verification_status"] == "unverified"
-    assert finding["status"] == "Insufficient Evidence"
+    assert finding["status"] == "Demo Finding"
+    audit = audit_finding(db_path, finding["id"])
+    opportunity = approve_audited_opportunities(db_path)[0]
 
-    try:
-        audit_finding(db_path, finding["id"])
-    except ValueError as exc:
-        assert "not auditable" in str(exc)
-    else:
-        raise AssertionError("Demo finding should not be auditable")
+    assert audit["status"] == "Demo Audited"
+    assert audit["decision"] == "Demo Audited"
+    assert opportunity["status"] == "Demo Opportunity"
+    assert opportunity["is_demo"] == 1
+    assert opportunity["data_origin"] == "demo"
+    assert opportunity["verification_status"] == "unverified"
 
 
 def test_switching_to_production_creates_clean_active_run(tmp_path):
@@ -422,3 +429,177 @@ def test_list_functions_default_to_active_run_but_raw_access_keeps_history(tmp_p
     assert active_signals[0]["study_run_id"] == production_run["id"]
     assert {signal["id"] for signal in raw_signals} == {demo_signal["id"], production_signal["id"]}
     assert demo_history["signals_collected"] == 1
+
+
+def test_demo_batch_feedback_and_visible_signals(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    batch = run_research_batch(
+        db_path,
+        [
+            {"source_name": "Demo A", "data_origin": "demo", "raw_text": "Property managers repeatedly complain maintenance updates are slow."},
+            {"source_name": "Demo B", "data_origin": "demo", "raw_text": "Tenants repeatedly complain maintenance updates are slow."},
+        ],
+    )
+    visible_signals = list_signals(db_path, include_demo=True)
+
+    assert len(batch["signals"]) == 2
+    assert len(visible_signals) == 2
+
+
+def test_demo_rehearsal_can_reach_demo_engineering_ready(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    run_research_batch(
+        db_path,
+        [
+            {"source_name": "Demo A", "data_origin": "demo", "raw_text": "Property managers repeatedly complain maintenance updates are slow."},
+            {"source_name": "Demo B", "data_origin": "demo", "raw_text": "Tenants repeatedly complain maintenance updates are slow."},
+        ],
+    )
+    finding = list_findings(db_path, include_demo=True)[0]
+    audits = run_audit_batch(db_path)
+    opportunities = approve_audited_opportunities(db_path)
+    ready = mark_engineering_ready(
+        db_path,
+        opportunities[0]["id"],
+        {
+            "recommended_component": "Demo Component",
+            "engineering_recommendation": "Demo recommendation",
+            "problem_scope": "Demo scope",
+            "target_users": "Demo users",
+            "required_inputs": "Demo inputs",
+            "expected_outputs": "Demo outputs",
+            "system_boundaries": "Demo boundaries",
+        },
+    )
+
+    assert finding["status"] == "Demo Finding"
+    assert audits[0]["decision"] == "Demo Audited"
+    assert opportunities[0]["status"] == "Demo Opportunity"
+    assert ready["status"] == "Demo Engineering Ready"
+    assert ready["engineering_status"] == "Demo Engineering Ready"
+    assert ready["is_demo"] == 1
+    assert ready["data_origin"] == "demo"
+    assert ready["verification_status"] == "unverified"
+
+    start_production_run(db_path)
+    production_progress = study_progress(db_path)
+    assert production_progress["signals_collected"] == 0
+    assert production_progress["engineering_ready"] == []
+    assert production_progress["average_oci"] == 0
+
+
+def test_demo_audit_batch_upgrades_legacy_insufficient_finding(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    run_research_batch(
+        db_path,
+        [
+            {"source_name": "Demo A", "data_origin": "demo", "raw_text": "Property managers repeatedly complain maintenance updates are slow."},
+            {"source_name": "Demo B", "data_origin": "demo", "raw_text": "Tenants repeatedly complain maintenance updates are slow."},
+        ],
+    )
+    finding = list_findings(db_path, include_demo=True)[0]
+    with connect(db_path) as connection:
+        connection.execute("UPDATE study_findings SET status = 'Insufficient Evidence' WHERE id = ?", (finding["id"],))
+
+    audits = run_audit_batch(db_path)
+    refreshed = list_findings(db_path, include_demo=True)[0]
+
+    assert audits
+    assert audits[0]["status"] == "Demo Audited"
+    assert refreshed["status"] == "Demo Audited"
+
+
+def test_generate_findings_feedback_messages(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    level, message = findings_feedback(generate_findings(db_path))
+    assert level == "warning"
+    assert message == "No findings generated. Need at least 2 supporting signals."
+
+    run_research_batch(
+        db_path,
+        [
+            {"source_name": "Demo A", "data_origin": "demo", "raw_text": "Property managers repeatedly complain maintenance updates are slow."},
+            {"source_name": "Demo B", "data_origin": "demo", "raw_text": "Tenants repeatedly complain maintenance updates are slow."},
+        ],
+    )
+    level, message = findings_feedback(generate_findings(db_path))
+    assert level == "success"
+    assert message.endswith("findings generated")
+
+
+def test_audit_batch_demo_feedback_is_clear(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    run_research_batch(
+        db_path,
+        [
+            {"source_name": "Demo A", "data_origin": "demo", "raw_text": "Property managers repeatedly complain maintenance updates are slow."},
+            {"source_name": "Demo B", "data_origin": "demo", "raw_text": "Tenants repeatedly complain maintenance updates are slow."},
+        ],
+    )
+    findings = list_findings(db_path, include_demo=True)
+    audits = run_audit_batch(db_path)
+    level, message = audit_batch_feedback(audits, findings)
+    approval_level, approval_message = approval_feedback(approve_audited_opportunities(db_path), demo_present=True)
+
+    assert audits
+    assert audits[0]["status"] == "Demo Audited"
+    assert level == "success"
+    assert message.endswith("audits completed")
+    assert approval_level == "success"
+    assert approval_message.endswith("demo opportunities created")
+
+
+def test_production_action_feedback_can_proceed_normally(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+
+    batch = run_research_batch(
+        db_path,
+        [
+            {
+                "country": "Ireland",
+                "stakeholder_type": "Property managers",
+                "source_name": "Irish source",
+                "data_origin": "verified_import",
+                "raw_text": "Property managers in Ireland repeatedly complain that maintenance updates are slow and tenants chase responses multiple times.",
+            },
+            {
+                "country": "United Kingdom",
+                "stakeholder_type": "Tenants",
+                "source_name": "UK source",
+                "data_origin": "verified_import",
+                "raw_text": "Tenants in the United Kingdom repeatedly complain that repair communication is poor and maintenance updates are delayed.",
+            },
+            {
+                "country": "United States",
+                "stakeholder_type": "Property owners",
+                "source_name": "US source",
+                "data_origin": "verified_import",
+                "raw_text": "Property owners in the United States repeatedly complain that maintenance coordination is manual, slow, and expensive.",
+            },
+        ],
+    )
+    findings_level, findings_message = findings_feedback(batch["findings"])
+    audits = run_audit_batch(db_path)
+    audit_level, audit_message = audit_batch_feedback(audits, list_findings(db_path))
+    opportunities = approve_audited_opportunities(db_path)
+    approval_level, approval_message = approval_feedback(opportunities)
+
+    assert findings_level == "success"
+    assert findings_message.endswith("findings generated")
+    assert audit_level == "success"
+    assert audit_message.endswith("audits completed")
+    assert approval_level == "success"
+    assert approval_message.endswith("opportunities approved")
+    assert opportunities

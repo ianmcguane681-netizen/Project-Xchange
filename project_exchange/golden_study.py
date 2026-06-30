@@ -584,13 +584,13 @@ def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, o
     contains_demo = any(bool(signal.get("is_demo")) for signal in signals)
     non_demo_only = not contains_demo
     sufficient = len(signals) >= 2 and len(sources) >= 2 and non_demo_only
-    status = "pending_audit" if sufficient else "Insufficient Evidence"
+    status = "Demo Finding" if contains_demo and len(signals) >= 2 else "pending_audit" if sufficient else "Insufficient Evidence"
     data_origin = "demo" if contains_demo else "verified_import"
     verification_status = "unverified" if contains_demo else "pending_review"
     confidence_reasoning = (
         f"{len(signals)} supporting signals, {len(sources)} independent sources, "
         f"{len(countries)} countries, {len(stakeholders)} stakeholder groups. "
-        f"{'Contains demo evidence; not auditable.' if contains_demo else 'Non-demo evidence only.'}"
+        f"{'Contains demo evidence; rehearsal only.' if contains_demo else 'Non-demo evidence only.'}"
     )
 
     with connect(db_path) as connection:
@@ -732,8 +732,18 @@ def calculate_oci(scores: dict[str, int]) -> int:
 
 def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
     finding = get_finding(db_path, finding_id)
-    if finding["status"] != "pending_audit":
+    is_demo_finding = bool(finding.get("is_demo"))
+    if is_demo_finding and finding["status"] == "Insufficient Evidence" and len(_loads_list(finding.get("representative_signals"))) >= 2:
+        with connect(db_path) as connection:
+            connection.execute(
+                "UPDATE study_findings SET status = ?, last_updated = ? WHERE id = ?",
+                ("Demo Finding", utc_now(), finding_id),
+            )
+        finding = get_finding(db_path, finding_id)
+    if finding["status"] not in {"pending_audit", "Demo Finding"}:
         raise ValueError("Finding is not auditable until it has at least 2 supporting non-demo signals from 2 independent sources.")
+    if is_demo_finding and finding["status"] != "Demo Finding":
+        raise ValueError("Demo findings must use the demo rehearsal audit path.")
     scores = score_finding(finding)
     signals = [get_signal(db_path, str(signal_id)) for signal_id in _loads_list(finding.get("representative_signals"))]
     contains_demo = any(bool(signal.get("is_demo")) for signal in signals) or bool(finding.get("is_demo"))
@@ -742,7 +752,7 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
     oci = calculate_oci(scores)
     if contains_demo:
         oci = 0
-    decision = "Approve Opportunity" if oci >= ENGINEERING_READY_OCI and not contains_demo else "Needs More Evidence" if oci >= 60 else "Reject"
+    decision = "Demo Audited" if contains_demo else "Approve Opportunity" if oci >= ENGINEERING_READY_OCI else "Needs More Evidence" if oci >= 60 else "Reject"
     missing = []
     if int(finding["independent_source_count"] or 0) < 2:
         missing.append("More independent sources")
@@ -793,8 +803,8 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
                 "No direct contradictions detected.",
                 ", ".join(missing) if missing else "None",
                 reasoning,
-                "Approve into Approved Opportunities." if decision == "Approve Opportunity" else "Collect more evidence before approval.",
-                "active",
+                "Create demo opportunity for rehearsal." if decision == "Demo Audited" else "Approve into Approved Opportunities." if decision == "Approve Opportunity" else "Collect more evidence before approval.",
+                "Demo Audited" if contains_demo else "active",
                 now,
                 "demo" if contains_demo else "verified_import",
                 "unverified" if contains_demo else "verified",
@@ -804,7 +814,7 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
                 now,
             ),
         )
-        connection.execute("UPDATE study_findings SET status = ? WHERE id = ?", ("audited", finding_id))
+        connection.execute("UPDATE study_findings SET status = ? WHERE id = ?", ("Demo Audited" if contains_demo else "audited", finding_id))
     add_event(db_path, "FindingAudited", "PX-A001", "PX-A001 audited finding", decision, audit_id)
     return get_finding_audit(db_path, audit_id)
 
@@ -866,25 +876,26 @@ def approve_audited_opportunities(db_path: str | Path, study_id: str = DEFAULT_S
     approved = []
     active_run = get_active_study_run(db_path, study_id)
     run_id = str((active_run or {}).get("id") or "")
+    is_demo_run = bool(active_run and active_run.get("study_mode") == "demo")
     with connect(db_path) as connection:
         rows = connection.execute(
-            """
+            f"""
             SELECT finding_audits.*
             FROM finding_audits
             LEFT JOIN opportunity_records ON opportunity_records.audit_id = finding_audits.id
             WHERE finding_audits.study_id = ?
               AND finding_audits.study_run_id = ?
               AND finding_audits.status != 'archived'
-              AND finding_audits.is_demo = 0
-              AND finding_audits.decision = 'Approve Opportunity'
+              AND finding_audits.is_demo = ?
+              AND finding_audits.decision = ?
               AND opportunity_records.id IS NULL
             ORDER BY finding_audits.created_at ASC
             """,
-            (study_id, run_id),
+            (study_id, run_id, 1 if is_demo_run else 0, "Demo Audited" if is_demo_run else "Approve Opportunity"),
         ).fetchall()
     for row in rows:
         audit = row_to_dict(row)
-        if bool(audit.get("is_demo")):
+        if bool(audit.get("is_demo")) and not is_demo_run:
             continue
         approved.append(create_opportunity_from_audit(db_path, audit))
     add_event(db_path, "OpportunitiesApproved", "PX-L001", "PX-L001 approved audited opportunities", str(len(approved)), study_id)
@@ -902,14 +913,16 @@ def promote_approved_opportunities(db_path: str | Path, study_id: str = DEFAULT_
 def create_opportunity_from_audit(db_path: str | Path, audit: dict[str, object]) -> dict[str, object]:
     finding = get_finding(db_path, str(audit["finding_id"]))
     signals = [get_signal(db_path, str(signal_id)) for signal_id in _loads_list(finding.get("representative_signals"))]
-    if bool(audit.get("is_demo")) or bool(finding.get("is_demo")) or any(bool(signal.get("is_demo")) for signal in signals):
+    is_demo_opportunity = bool(audit.get("is_demo")) or bool(finding.get("is_demo")) or any(bool(signal.get("is_demo")) for signal in signals)
+    active_run = get_active_study_run(db_path, str(audit["study_id"]))
+    if is_demo_opportunity and not (active_run and active_run.get("study_mode") == "demo" and audit.get("study_run_id") == active_run.get("id")):
         raise ValueError("Demo data cannot be approved into a real Opportunity.")
     now = utc_now()
     with connect(db_path) as connection:
         opportunity_id = next_sequence_id("OPP", count_rows(connection, "opportunity_records"))
         oci = int(audit["opportunity_confidence_index"] or 0)
-        status = "Approved Opportunity"
-        engineering_status = "Engineering Specification Required"
+        status = "Demo Opportunity" if is_demo_opportunity else "Approved Opportunity"
+        engineering_status = "Demo Opportunity" if is_demo_opportunity else "Engineering Specification Required"
         traceability_complete = traceability_complete_for_signals(signals)
         connection.execute(
             """
@@ -942,7 +955,7 @@ def create_opportunity_from_audit(db_path: str | Path, audit: dict[str, object])
                 "Existing products have market presence and workflow coverage.",
                 "Repeated complaints indicate gaps in speed, communication, cost, or usability.",
                 oci,
-                "High" if oci >= ENGINEERING_READY_OCI else "Medium",
+                "Demo" if is_demo_opportunity else "High" if oci >= ENGINEERING_READY_OCI else "Medium",
                 "Global niche-to-large SaaS opportunity",
                 "Low" if int(audit["build_complexity_score"] or 100) <= 40 else "Medium",
                 recommended_component(finding),
@@ -955,7 +968,7 @@ def create_opportunity_from_audit(db_path: str | Path, audit: dict[str, object])
                 "",
                 "",
                 1 if traceability_complete else 0,
-                1,
+                0 if is_demo_opportunity else 1,
                 audit["id"],
                 finding["id"],
                 status,
@@ -964,20 +977,21 @@ def create_opportunity_from_audit(db_path: str | Path, audit: dict[str, object])
                 "v1.0",
                 now,
                 now,
-                "verified_import",
-                "verified",
-                0,
+                "demo" if is_demo_opportunity else "verified_import",
+                "unverified" if is_demo_opportunity else "verified",
+                1 if is_demo_opportunity else 0,
                 audit.get("source_confidence"),
                 "PX-L001",
             ),
         )
-        connection.execute("UPDATE study_findings SET status = ? WHERE id = ?", ("opportunity_approved", finding["id"]))
-    add_notification(db_path, "opportunity_approved", f"Opportunity approved: {opportunity_id}", opportunity_id)
+        connection.execute("UPDATE study_findings SET status = ? WHERE id = ?", ("Demo Opportunity" if is_demo_opportunity else "opportunity_approved", finding["id"]))
+    add_notification(db_path, "demo_opportunity_created" if is_demo_opportunity else "opportunity_approved", f"{'Demo opportunity created' if is_demo_opportunity else 'Opportunity approved'}: {opportunity_id}", opportunity_id)
     return get_opportunity(db_path, opportunity_id)
 
 
 def mark_engineering_ready(db_path: str | Path, opportunity_id: str, spec: dict[str, object]) -> dict[str, object]:
     opportunity = get_opportunity(db_path, opportunity_id)
+    is_demo_opportunity = bool(opportunity.get("is_demo"))
     required = [
         "recommended_component",
         "engineering_recommendation",
@@ -992,7 +1006,7 @@ def mark_engineering_ready(db_path: str | Path, opportunity_id: str, spec: dict[
     chain = traceability_chain(db_path, opportunity_id)
     non_demo = not any(bool(record.get("is_demo")) for record in [chain["opportunity"], chain["audit"], chain["finding"], *chain["signals"]])
     traceability_complete = bool(chain["signals"]) and bool(chain["sources"])
-    if missing or not non_demo or not traceability_complete:
+    if missing or (not is_demo_opportunity and not non_demo) or not traceability_complete:
         return {"status": "blocked", "missing_fields": missing, "non_demo_evidence_only": non_demo, "traceability_chain_complete": traceability_complete}
     with connect(db_path) as connection:
         connection.execute(
@@ -1004,8 +1018,8 @@ def mark_engineering_ready(db_path: str | Path, opportunity_id: str, spec: dict[
             WHERE id = ?
             """,
             (
-                "Engineering Ready",
-                "Engineering Ready",
+                "Demo Engineering Ready" if is_demo_opportunity else "Engineering Ready",
+                "Demo Engineering Ready" if is_demo_opportunity else "Engineering Ready",
                 merged["engineering_recommendation"],
                 merged["problem_scope"],
                 merged["target_users"],
@@ -1156,12 +1170,12 @@ def study_progress(
         "signals_collected": len(signals),
         "findings_created": len(findings),
         "audits_completed": len(audits),
-        "opportunities_approved": len([opportunity for opportunity in opportunities if opportunity["status"] in {"Approved Opportunity", "Engineering Ready"}]),
+        "opportunities_approved": len([opportunity for opportunity in opportunities if opportunity["status"] in {"Approved Opportunity", "Engineering Ready", "Demo Opportunity", "Demo Engineering Ready"}]),
         "opportunities_rejected": len([audit for audit in audits if audit["decision"] == "Reject"]),
         "countries_covered": sorted({str(signal.get("country") or "Unknown") for signal in signals}),
         "stakeholders_covered": sorted({str(signal.get("stakeholder_type") or "Unknown") for signal in signals}),
         "source_coverage": len({str(signal.get("source_url") or signal.get("source_name") or signal["id"]) for signal in signals}),
-        "engineering_ready": [opportunity for opportunity in opportunities if opportunity.get("engineering_status") == "Engineering Ready"],
+        "engineering_ready": [opportunity for opportunity in opportunities if opportunity.get("engineering_status") in {"Engineering Ready", "Demo Engineering Ready"}],
         "top_opportunities": opportunities[:5],
         "weak_evidence": [finding for finding in findings if int(finding.get("research_confidence") or 0) < 75],
         "average_oci": round(sum(avg_oci_values) / len(avg_oci_values), 1) if avg_oci_values else 0,
@@ -1304,9 +1318,38 @@ def run_audit_batch(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> li
     active_run = get_active_study_run(db_path, study_id)
     include_demo = bool(active_run and active_run.get("study_mode") == "demo")
     for finding in list_findings(db_path, study_id, include_demo=include_demo):
-        if finding["status"] == "pending_audit":
+        demo_rehearsal_ready = bool(finding.get("is_demo")) and finding.get("status") == "Insufficient Evidence" and len(_loads_list(finding.get("representative_signals"))) >= 2
+        if finding["status"] in {"pending_audit", "Demo Finding"} or demo_rehearsal_ready:
             audits.append(audit_finding(db_path, str(finding["id"])))
     return audits
+
+
+def findings_feedback(findings: list[dict[str, object]]) -> tuple[str, str]:
+    count = len(findings)
+    if count:
+        return "success", f"{count} findings generated"
+    return "warning", "No findings generated. Need at least 2 supporting signals."
+
+
+def audit_batch_feedback(audits: list[dict[str, object]], findings: list[dict[str, object]]) -> tuple[str, str]:
+    count = len(audits)
+    if count:
+        return "success", f"{count} audits completed"
+    demo_ready = any(bool(finding.get("is_demo")) and finding.get("status") in {"Demo Finding", "Demo Audited", "Demo Opportunity"} for finding in findings)
+    if demo_ready:
+        return "success", "Demo audit rehearsal completed safely."
+    return "warning", "No auditable findings found"
+
+
+def approval_feedback(opportunities: list[dict[str, object]], demo_present: bool = False) -> tuple[str, str]:
+    count = len(opportunities)
+    if count:
+        if all(bool(opportunity.get("is_demo")) for opportunity in opportunities):
+            return "success", f"{count} demo opportunities created"
+        return "success", f"{count} opportunities approved"
+    if demo_present:
+        return "warning", "No demo opportunities available for rehearsal."
+    return "warning", "No approved opportunities available"
 
 
 def demo_warning_active(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> bool:
@@ -1424,12 +1467,12 @@ def validate_golden_study_integrity(db_path: str | Path, study_id: str = DEFAULT
     )
     check(
         "No demo record is approved",
-        not any(bool(row.get("is_demo")) and row.get("status") in {"Approved Opportunity", "Engineering Ready", "opportunity_approved"} for row in active_records),
+        not production_mode or not any(bool(row.get("is_demo")) and row.get("status") in {"Approved Opportunity", "Engineering Ready", "opportunity_approved"} for row in active_records),
         "Archive demo records and rerun approval with non-demo evidence only.",
     )
     check(
         "No demo record is Engineering Ready",
-        not any(bool(row.get("is_demo")) and (row.get("engineering_status") == "Engineering Ready" or row.get("status") == "Engineering Ready") for row in opportunities),
+        not production_mode or not any(bool(row.get("is_demo")) and (row.get("engineering_status") == "Engineering Ready" or row.get("status") == "Engineering Ready") for row in opportunities),
         "Remove Engineering Ready status from demo records and archive them.",
     )
     for signal in signals:
@@ -1448,7 +1491,7 @@ def validate_golden_study_integrity(db_path: str | Path, study_id: str = DEFAULT
     for audit in audits:
         check(f"Audit {audit['id']} links to finding", bool(audit.get("finding_id")), "Rerun audit from a valid finding.")
         check(f"Audit {audit['id']} has explainable OCI", bool(audit.get("score_breakdown") and audit.get("oci_reasoning")), "Rerun audit to create score breakdown and reasoning.")
-        check(f"Demo audit {audit['id']} is not approved", not (bool(audit.get("is_demo")) and audit.get("decision") == "Approve Opportunity"), "Archive demo audit and approve only non-demo evidence.")
+        check(f"Demo audit {audit['id']} is not approved", not production_mode or not (bool(audit.get("is_demo")) and audit.get("decision") == "Approve Opportunity"), "Archive demo audit and approve only non-demo evidence.")
     for opportunity in opportunities:
         try:
             chain = traceability_chain(db_path, str(opportunity["id"]), include_archived=False)
