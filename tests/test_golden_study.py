@@ -11,6 +11,7 @@ from project_exchange.golden_study import (
     generate_findings,
     get_active_study_run,
     get_or_create_default_study,
+    list_signals,
     list_study_runs,
     list_opportunities,
     switch_study_run_mode,
@@ -397,3 +398,27 @@ def test_production_evidence_increases_only_production_kpis(tmp_path):
     assert production_progress["findings_created"] == 1
     assert production_progress["demo_records_count"] == 0
     assert demo_history_progress["signals_collected"] == 1
+
+
+def test_list_functions_default_to_active_run_but_raw_access_keeps_history(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    demo_signal = create_signal(db_path, "Demo evidence about maintenance communication.", source_name="Demo A")
+    demo_run = get_active_study_run(db_path)
+    production_run = start_production_run(db_path)
+    production_signal = create_signal(
+        db_path,
+        "Real source says maintenance communication remains slow.",
+        source_name="Real source",
+        data_origin="manual",
+    )
+
+    active_signals = list_signals(db_path)
+    raw_signals = fetch_all(db_path, "study_signals")
+    demo_history = study_progress(db_path, study_run_id=demo_run["id"], include_archived=True, include_demo=True)
+
+    assert [signal["id"] for signal in active_signals] == [production_signal["id"]]
+    assert active_signals[0]["study_run_id"] == production_run["id"]
+    assert {signal["id"] for signal in raw_signals} == {demo_signal["id"], production_signal["id"]}
+    assert demo_history["signals_collected"] == 1

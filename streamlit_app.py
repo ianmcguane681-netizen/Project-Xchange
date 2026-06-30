@@ -69,6 +69,7 @@ from project_exchange.golden_study import (
     list_studies,
     list_study_runs,
     list_study_briefs,
+    mark_engineering_ready,
     run_audit_batch,
     run_research_batch,
     study_progress,
@@ -845,217 +846,438 @@ with tabs[22]:
 
 with tabs[23]:
     st.header("Golden Study 001")
-    st.caption("Traceable opportunity creation for the global Property Management market.")
+    st.caption("Operational research and audit workflow for the global Property Management market.")
+
     study = get_or_create_default_study(DB_PATH)
     active_run = get_active_study_run(DB_PATH, DEFAULT_STUDY_ID)
     active_run_id = str((active_run or {}).get("id") or "")
-    include_demo_view = bool(active_run and active_run.get("study_mode") == "demo")
-    progress = study_progress(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)
-    if demo_warning_active(DB_PATH, DEFAULT_STUDY_ID):
-        st.warning("GS-001 is currently using demo/sample data. Do not treat this as verified market evidence.")
+    run_mode = str((active_run or {}).get("study_mode") or "none")
+    run_status = str((active_run or {}).get("status") or "none")
+    is_demo_run = run_mode == "demo"
+    is_production_run = run_mode == "production"
+    include_demo_view = is_demo_run
+    progress = study_progress(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else {
+        "study_id": DEFAULT_STUDY_ID,
+        "active_run_id": "",
+        "run_status": "none",
+        "study_mode": "none",
+        "signals_collected": 0,
+        "findings_created": 0,
+        "audits_completed": 0,
+        "opportunities_approved": 0,
+        "engineering_ready": [],
+        "demo_records_count": 0,
+        "verification_pending_count": 0,
+        "average_oci": 0,
+        "countries_covered": [],
+        "stakeholders_covered": [],
+        "source_coverage": 0,
+        "top_opportunities": [],
+    }
+
+    def source_label(record: dict[str, object]) -> str:
+        return str(record.get("source_url") or record.get("source_name") or "No source")
+
+    def as_list_text(raw: object) -> str:
+        if not raw:
+            return ""
+        try:
+            parsed = json.loads(str(raw))
+        except json.JSONDecodeError:
+            return str(raw)
+        if isinstance(parsed, list):
+            return ", ".join(str(item) for item in parsed)
+        return str(parsed)
+
+    def compact_signals(records: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [
+            {
+                "Summary": row.get("summary"),
+                "Country": row.get("country"),
+                "Stakeholder": row.get("stakeholder_type"),
+                "Source": source_label(row),
+                "Data origin": row.get("data_origin"),
+                "Verification": row.get("verification_status"),
+                "Evidence strength": row.get("evidence_strength"),
+                "Status": row.get("status"),
+            }
+            for row in records
+        ]
+
+    def compact_findings(records: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [
+            {
+                "Theme": row.get("theme"),
+                "Problem statement": row.get("problem_statement"),
+                "Signal count": row.get("signal_count"),
+                "Independent sources": row.get("independent_source_count"),
+                "Countries": as_list_text(row.get("countries")),
+                "Confidence score": row.get("confidence_score"),
+                "Status": row.get("status"),
+            }
+            for row in records
+        ]
+
+    def compact_audits(records: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [
+            {
+                "Decision": row.get("decision"),
+                "OCI": row.get("opportunity_confidence_index"),
+                "Evidence score": row.get("evidence_score"),
+                "Frequency score": row.get("frequency_score"),
+                "Market size score": row.get("market_size_score"),
+                "Pain severity score": row.get("pain_severity_score"),
+                "Traceability score": row.get("traceability_score"),
+                "Missing evidence": row.get("missing_evidence"),
+                "Recommendation": row.get("recommendation"),
+            }
+            for row in records
+        ]
+
+    def compact_opportunities(records: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [
+            {
+                "Problem": row.get("problem"),
+                "OCI": row.get("opportunity_confidence_index"),
+                "Commercial potential": row.get("commercial_potential"),
+                "Engineering complexity": row.get("estimated_build_complexity"),
+                "Recommended component": row.get("recommended_component"),
+                "Engineering status": row.get("engineering_status"),
+                "Status": row.get("status"),
+            }
+            for row in records
+        ]
+
+    if is_demo_run:
+        st.warning("DEMO RUN ACTIVE - sample evidence only. Do not approve as real market evidence.")
+    elif is_production_run:
+        st.success("PRODUCTION RUN ACTIVE - only real, source-backed evidence is allowed.")
     else:
-        st.success(f"GS-001 run mode: {progress['study_mode'].title()} | Verification pending: {progress['verification_pending_count']} | Engineering Ready: {len(progress['engineering_ready'])}")
+        st.info("No active Golden Study run. Create a demo run or start a production run.")
 
-    metric_cols = st.columns(10)
-    metric_cols[0].metric("Study", study["id"])
-    metric_cols[1].metric("Active Run", active_run_id or "None")
-    metric_cols[2].metric("Run Mode", progress["study_mode"].title())
-    metric_cols[3].metric("Run Status", progress["run_status"].title())
-    metric_cols[4].metric("Signals", progress["signals_collected"])
-    metric_cols[5].metric("Findings", progress["findings_created"])
-    metric_cols[6].metric("Audits", progress["audits_completed"])
-    metric_cols[7].metric("Approved Opportunities", progress["opportunities_approved"])
-    metric_cols[8].metric("Engineering Ready", len(progress["engineering_ready"]))
-    metric_cols[9].metric("Average OCI", progress["average_oci"])
-    quality_cols = st.columns(4)
-    quality_cols[0].metric("Demo Records", progress["demo_records_count"])
-    quality_cols[1].metric("Pending Verification", progress["verification_pending_count"])
-    quality_cols[2].metric("Countries", len(progress["countries_covered"]))
-    quality_cols[3].metric("Evidence Sources", progress["source_coverage"])
+    workflow_tabs = st.tabs([
+        "Overview",
+        "Add Evidence",
+        "Signals",
+        "Findings",
+        "Audits",
+        "Opportunities",
+        "Engineering Specs",
+        "Evidence Chain",
+        "Executive Brief",
+        "Integrity Check",
+        "Archive / Demo History",
+        "Raw Database View",
+    ])
 
-    control_cols = st.columns(5)
-    with control_cols[0]:
-        st.warning("Switching to production will close the demo run and start a clean production run. Demo evidence will remain archived/history-only.")
-        production_confirmed = st.checkbox("Confirm production GS-001", key="gs001_production_confirmed")
-        if st.button("Start Production Run", key="gs001_start_production_run", disabled=progress["study_mode"] == "production"):
-            try:
-                result = switch_study_run_mode(DB_PATH, DEFAULT_STUDY_ID, "production", production_confirmed)
-                with st.expander("Study Run JSON"):
-                    st.json(result)
-            except ValueError as exc:
-                st.error(str(exc))
-    with control_cols[1]:
+    with workflow_tabs[0]:
+        metric_cols = st.columns(6)
+        metric_cols[0].metric("Study ID", study["id"])
+        metric_cols[1].metric("Active Run ID", active_run_id or "None")
+        metric_cols[2].metric("Run Mode", run_mode.title())
+        metric_cols[3].metric("Run Status", run_status.title())
+        metric_cols[4].metric("Signals", progress["signals_collected"])
+        metric_cols[5].metric("Findings", progress["findings_created"])
+        metric_cols_2 = st.columns(5)
+        metric_cols_2[0].metric("Audits", progress["audits_completed"])
+        metric_cols_2[1].metric("Approved Opportunities", progress["opportunities_approved"])
+        metric_cols_2[2].metric("Engineering Ready", len(progress["engineering_ready"]))
+        metric_cols_2[3].metric("Pending Verification", progress["verification_pending_count"])
+        metric_cols_2[4].metric("Average OCI", progress["average_oci"])
+
+        st.subheader("Current Workflow State")
+        if is_production_run and progress["signals_collected"] == 0:
+            st.info("Production run is clean and waiting for real, source-backed evidence.")
+        elif is_demo_run:
+            st.info("Demo run is available for sample workflow rehearsal. It is excluded from production metrics.")
+        elif progress["findings_created"] == 0:
+            st.info("Collect evidence, then generate findings.")
+        elif progress["audits_completed"] == 0:
+            st.info("Findings are ready for audit.")
+        else:
+            st.info("Audited findings can be approved into opportunities when evidence quality is sufficient.")
+
+        st.subheader("Next Recommended Action")
+        if is_demo_run:
+            st.write("Start a production run when you are ready to use real market evidence.")
+            production_confirmed = st.checkbox("Confirm production GS-001", key="gs001_overview_production_confirmed")
+            if st.button("Start Production Run", key="gs001_overview_start_production", type="primary"):
+                try:
+                    switch_study_run_mode(DB_PATH, DEFAULT_STUDY_ID, "production", production_confirmed)
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+        elif is_production_run:
+            st.write("Add real source-backed evidence, then generate findings once repeated signals exist.")
+        else:
+            st.write("Create a run before collecting Golden Study evidence.")
+
+        validation = validate_golden_study_integrity(DB_PATH, DEFAULT_STUDY_ID)
+        warnings = []
+        if is_demo_run:
+            warnings.append("Demo data active.")
+        if progress["verification_pending_count"]:
+            warnings.append("Evidence pending verification.")
+        if progress["signals_collected"] < 2:
+            warnings.append("Insufficient evidence for robust findings.")
+        if is_production_run and progress["signals_collected"] == 0:
+            warnings.append("Production run is empty.")
+        if not validation["passed"]:
+            warnings.append(f"{validation['failed_count']} integrity checks need attention.")
+        if warnings:
+            st.subheader("Warnings")
+            for warning in warnings:
+                st.warning(warning)
+
+    with workflow_tabs[1]:
+        if is_production_run:
+            st.subheader("Add Real Evidence")
+            with st.form("golden_real_evidence_form"):
+                source_cols = st.columns(3)
+                signal_source = source_cols[0].text_input("Source URL", key="golden_real_source")
+                signal_source_name = source_cols[1].text_input("Source name", key="golden_real_source_name")
+                signal_source_type = source_cols[2].selectbox("Source type", ["manual", "url", "pdf", "csv", "txt", "article", "provider"], key="golden_real_source_type")
+                meta_cols = st.columns(4)
+                signal_country = meta_cols[0].text_input("Country", value="Unknown", key="golden_real_country")
+                signal_stakeholder = meta_cols[1].text_input("Stakeholder type", value="Unknown", key="golden_real_stakeholder")
+                signal_product = meta_cols[2].text_input("Company / Product", key="golden_real_product")
+                signal_source_date = meta_cols[3].date_input("Evidence date", key="golden_real_source_date")
+                signal_origin = st.selectbox("Data origin", ["manual", "provider", "verified_import"], key="golden_real_origin")
+                signal_text = st.text_area("Raw evidence text", key="golden_real_text")
+                if st.form_submit_button("Add Real Evidence"):
+                    try:
+                        result = create_signal(
+                            DB_PATH,
+                            signal_text,
+                            DEFAULT_STUDY_ID,
+                            signal_source,
+                            signal_source_name,
+                            signal_source_type,
+                            signal_source_date.isoformat(),
+                            signal_country,
+                            signal_stakeholder,
+                            signal_product,
+                            signal_origin,
+                        )
+                        st.success("Evidence added to the active production run.")
+                        with st.expander("Technical Details"):
+                            st.json(result)
+                    except ValueError as exc:
+                        st.error(str(exc))
+        elif is_demo_run:
+            st.warning("This loader creates demo/sample records only. Do not treat them as real or verified market evidence.")
+            demo_sample_confirmed = st.checkbox("I understand this loads demo/sample data only.", key="gs001_demo_sample_confirmed")
+            if st.button("Load DEMO Sample GS-001 Batch", disabled=not demo_sample_confirmed, key="gs001_load_demo_sample_batch"):
+                sample = [
+                    {"country": "Ireland", "stakeholder_type": "Property managers", "source_name": "Irish property forum", "data_origin": "demo", "raw_text": "Property managers in Ireland repeatedly complain that maintenance updates are slow and tenants chase responses multiple times."},
+                    {"country": "United Kingdom", "stakeholder_type": "Tenants", "source_name": "UK tenant review", "data_origin": "demo", "raw_text": "Tenants in the United Kingdom complain that repair communication is poor, updates are delayed, and maintenance requests need repeated follow-up."},
+                    {"country": "United States", "stakeholder_type": "Property owners", "source_name": "US owner review", "data_origin": "demo", "raw_text": "Property owners in the United States say maintenance coordination is manual, slow, and expensive across property management software."},
+                ]
+                with st.expander("DEMO Sample Batch Technical Details", expanded=True):
+                    st.json(run_research_batch(DB_PATH, sample, DEFAULT_STUDY_ID))
+        else:
+            st.info("No active run is available.")
+
+    signals = list_signals(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
+    findings = list_findings(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
+    audits = list_finding_audits(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
+    opportunities = list_opportunities(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
+
+    with workflow_tabs[2]:
+        st.dataframe(compact_signals(signals), use_container_width=True, hide_index=True)
+        for signal in signals:
+            with st.expander(str(signal.get("summary") or signal["id"])):
+                st.write(f"Source: {source_label(signal)}")
+                if signal.get("source_url"):
+                    st.markdown(f"[View Source]({signal['source_url']})")
+                if st.button("Archive", key=f"archive_signal_{signal['id']}"):
+                    archive_record(DB_PATH, "study_signals", str(signal["id"]))
+                    st.rerun()
+                with st.expander("Technical Details"):
+                    st.json(signal)
+
+    with workflow_tabs[3]:
         if st.button("Generate Findings", key="gs001_generate_findings"):
-            with st.expander("Generated Findings JSON", expanded=True):
-                st.json(generate_findings(DB_PATH, DEFAULT_STUDY_ID))
-    with control_cols[2]:
+            st.json(generate_findings(DB_PATH, DEFAULT_STUDY_ID))
+        st.dataframe(compact_findings(findings), use_container_width=True, hide_index=True)
+        for finding in findings:
+            with st.expander(str(finding.get("theme") or finding["id"])):
+                st.write(finding.get("problem_statement"))
+                cols = st.columns(3)
+                if cols[0].button("Audit Finding", key=f"audit_finding_{finding['id']}"):
+                    try:
+                        st.json(audit_finding(DB_PATH, str(finding["id"])))
+                    except ValueError as exc:
+                        st.error(str(exc))
+                if cols[1].button("View Evidence Chain", key=f"finding_chain_{finding['id']}"):
+                    st.session_state["golden_chain_target_type"] = "Finding"
+                    st.session_state["golden_chain_target_id"] = str(finding["id"])
+                if cols[2].button("Archive", key=f"archive_finding_{finding['id']}"):
+                    archive_record(DB_PATH, "study_findings", str(finding["id"]))
+                    st.rerun()
+                with st.expander("Technical Details"):
+                    st.json(finding)
+
+    with workflow_tabs[4]:
         if st.button("Run Audit Batch", key="gs001_run_audit_batch"):
             try:
-                with st.expander("Audit Batch JSON", expanded=True):
-                    st.json(run_audit_batch(DB_PATH, DEFAULT_STUDY_ID))
+                st.json(run_audit_batch(DB_PATH, DEFAULT_STUDY_ID))
             except ValueError as exc:
                 st.error(str(exc))
-    with control_cols[3]:
-        if st.button("Approve Opportunities", key="gs001_approve_opportunities"):
-            try:
-                with st.expander("Approved Opportunities JSON", expanded=True):
-                    st.json(approve_audited_opportunities(DB_PATH, DEFAULT_STUDY_ID))
-            except ValueError as exc:
-                st.error(str(exc))
-    with control_cols[4]:
-        if st.button("Executive Brief", key="gs001_executive_brief"):
+        st.dataframe(compact_audits(audits), use_container_width=True, hide_index=True)
+        for audit in audits:
+            with st.expander(f"{audit.get('decision')} | OCI {audit.get('opportunity_confidence_index')}"):
+                st.write(audit.get("recommendation"))
+                cols = st.columns(2)
+                if cols[0].button("Approve Opportunity", key=f"approve_audit_{audit['id']}"):
+                    try:
+                        st.json(approve_audited_opportunities(DB_PATH, DEFAULT_STUDY_ID))
+                    except ValueError as exc:
+                        st.error(str(exc))
+                if cols[1].button("Archive", key=f"archive_audit_{audit['id']}"):
+                    archive_record(DB_PATH, "finding_audits", str(audit["id"]))
+                    st.rerun()
+                with st.expander("Technical Details"):
+                    st.json(audit)
+
+    with workflow_tabs[5]:
+        st.dataframe(compact_opportunities(opportunities), use_container_width=True, hide_index=True)
+        for opportunity in opportunities:
+            with st.expander(str(opportunity.get("problem") or opportunity["id"])):
+                st.write(f"Recommended component: {opportunity.get('recommended_component')}")
+                cols = st.columns(3)
+                if cols[0].button("View Evidence Chain", key=f"opp_chain_{opportunity['id']}"):
+                    st.session_state["golden_chain_target_type"] = "Opportunity"
+                    st.session_state["golden_chain_target_id"] = str(opportunity["id"])
+                if cols[1].button("Create / Edit Engineering Spec", key=f"opp_spec_{opportunity['id']}"):
+                    st.session_state["golden_spec_opportunity_id"] = str(opportunity["id"])
+                if cols[2].button("Archive", key=f"archive_opp_{opportunity['id']}"):
+                    archive_record(DB_PATH, "opportunity_records", str(opportunity["id"]))
+                    st.rerun()
+                with st.expander("Technical Details"):
+                    st.json(opportunity)
+
+    with workflow_tabs[6]:
+        spec_opportunities = [row for row in opportunities if row.get("engineering_status") in {"Engineering Specification Required", "Engineering Ready"}]
+        st.dataframe(
+            [
+                {
+                    "Recommended component": row.get("recommended_component"),
+                    "Engineering recommendation": row.get("engineering_recommendation"),
+                    "Problem scope": row.get("problem_scope"),
+                    "Target users": row.get("target_users"),
+                    "Required inputs": row.get("required_inputs"),
+                    "Expected outputs": row.get("expected_outputs"),
+                    "System boundaries": row.get("system_boundaries"),
+                    "Engineering status": row.get("engineering_status"),
+                }
+                for row in spec_opportunities
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+        selected_spec = st.selectbox("Opportunity", [row["id"] for row in spec_opportunities], key="golden_spec_select") if spec_opportunities else None
+        if selected_spec:
+            selected_row = next(row for row in spec_opportunities if row["id"] == selected_spec)
+            with st.form("golden_engineering_spec_form"):
+                spec = {
+                    "recommended_component": st.text_input("Recommended component", value=str(selected_row.get("recommended_component") or "")),
+                    "engineering_recommendation": st.text_area("Engineering recommendation", value=str(selected_row.get("engineering_recommendation") or "")),
+                    "problem_scope": st.text_area("Problem scope", value=str(selected_row.get("problem_scope") or "")),
+                    "target_users": st.text_area("Target users", value=str(selected_row.get("target_users") or "")),
+                    "required_inputs": st.text_area("Required inputs", value=str(selected_row.get("required_inputs") or "")),
+                    "expected_outputs": st.text_area("Expected outputs", value=str(selected_row.get("expected_outputs") or "")),
+                    "system_boundaries": st.text_area("System boundaries", value=str(selected_row.get("system_boundaries") or "")),
+                }
+                if st.form_submit_button("Mark Engineering Ready"):
+                    result = mark_engineering_ready(DB_PATH, str(selected_spec), spec)
+                    if result.get("status") == "blocked":
+                        st.error("Engineering Ready blocked. Complete missing fields or traceability.")
+                    else:
+                        st.success("Opportunity marked Engineering Ready.")
+                    with st.expander("Technical Details"):
+                        st.json(result)
+
+    with workflow_tabs[7]:
+        include_history = st.toggle("Include archived/demo history", value=False, key="golden_chain_include_history")
+        target_type = st.radio("Evidence target", ["Finding", "Opportunity"], horizontal=True, key="golden_chain_type")
+        if target_type == "Finding":
+            chain_findings = fetch_all(DB_PATH, "study_findings") if include_history else findings
+            selected = st.selectbox("Finding", [row["id"] for row in chain_findings], key="golden_chain_finding") if chain_findings else None
+            if selected:
+                try:
+                    chain = finding_evidence(DB_PATH, str(selected), include_archived=include_history)
+                    st.subheader(str(chain["finding"].get("theme") or selected))
+                    st.write(chain["finding"].get("problem_statement"))
+                    st.write("Signals")
+                    st.dataframe(compact_signals(chain["signals"]), use_container_width=True, hide_index=True)
+                    with st.expander("Technical Details"):
+                        st.json(chain)
+                except ValueError as exc:
+                    st.error(str(exc))
+        else:
+            chain_opportunities = fetch_all(DB_PATH, "opportunity_records") if include_history else opportunities
+            selected = st.selectbox("Opportunity", [row["id"] for row in chain_opportunities], key="golden_chain_opportunity") if chain_opportunities else None
+            if selected:
+                try:
+                    chain = traceability_chain(DB_PATH, str(selected), include_archived=include_history)
+                    st.write(f"Opportunity: {chain['opportunity'].get('problem')}")
+                    st.write(f"Audit: {chain['audit'].get('decision')} | OCI {chain['audit'].get('opportunity_confidence_index')}")
+                    st.write(f"Finding: {chain['finding'].get('theme')}")
+                    st.dataframe(compact_signals(chain["signals"]), use_container_width=True, hide_index=True)
+                    st.write("Sources")
+                    st.dataframe(chain["sources"], use_container_width=True, hide_index=True)
+                    with st.expander("Technical Details"):
+                        st.json(chain)
+                except ValueError as exc:
+                    st.error(str(exc))
+
+    with workflow_tabs[8]:
+        if st.button("Generate Executive Brief", key="gs001_executive_brief"):
             brief = generate_executive_brief(DB_PATH, DEFAULT_STUDY_ID)
             st.text(brief["body"])
             with st.expander("Raw Data"):
                 st.json(brief)
+        briefs = list_study_briefs(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
+        if briefs:
+            latest = briefs[0]
+            st.text(latest.get("body") or "")
+            with st.expander("Raw Data"):
+                st.json(latest)
 
-    validation_cols = st.columns(2)
-    with validation_cols[0]:
-        if st.button("Validate Golden Study Integrity", key="gs001_validate_integrity"):
-            validation = validate_golden_study_integrity(DB_PATH, DEFAULT_STUDY_ID)
-            if validation["passed"]:
-                st.success("Golden Study integrity checks passed.")
-            else:
-                st.error(f"{validation['failed_count']} integrity checks failed.")
-            st.dataframe(validation["checks"], use_container_width=True)
-    with validation_cols[1]:
-        if st.button("Archive Demo Data", key="gs001_archive_demo_data"):
-            archived = []
-            for table_name, rows in {
-                "study_signals": list_signals(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=True),
-                "study_findings": list_findings(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=True),
-                "finding_audits": list_finding_audits(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=True),
-                "opportunity_records": list_opportunities(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=True),
-            }.items():
-                for row in rows:
-                    if row.get("is_demo") and row.get("status") != "archived":
-                        archived.append(archive_record(DB_PATH, table_name, str(row["id"])))
-            with st.expander("Archive Result JSON", expanded=True):
-                st.json({"archived_demo_records": archived})
-
-    st.subheader("Signals")
-    with st.form("golden_signal_form"):
-        sig_cols = st.columns(3)
-        signal_study_id = sig_cols[0].text_input("Study ID", value=DEFAULT_STUDY_ID, key="golden_signal_study_id")
-        signal_country = sig_cols[1].text_input("Country", value="Unknown", key="golden_signal_country")
-        signal_product = sig_cols[2].text_input("Company / Product", key="golden_signal_product")
-        source_cols = st.columns(3)
-        signal_source = source_cols[0].text_input("Source URL", key="golden_signal_source")
-        signal_source_name = source_cols[1].text_input("Source name", key="golden_signal_source_name")
-        signal_source_type = source_cols[2].selectbox("Source type", ["manual", "url", "pdf", "csv", "txt", "article", "provider"], key="golden_signal_source_type")
-        meta_cols = st.columns(3)
-        signal_stakeholder = meta_cols[0].text_input("Stakeholder type", value="Unknown", key="golden_signal_stakeholder")
-        signal_source_date = meta_cols[1].date_input("Evidence date", key="golden_signal_source_date")
-        signal_origin = meta_cols[2].selectbox("Data origin", ["manual", "provider", "verified_import", "demo"], key="golden_signal_origin")
-        signal_text = st.text_area(
-            "Raw evidence text",
-            value="",
-            key="golden_signal_text",
+    with workflow_tabs[9]:
+        validation = validate_golden_study_integrity(DB_PATH, DEFAULT_STUDY_ID)
+        if validation["passed"]:
+            st.success("Passed")
+        else:
+            st.error(f"Failed: {validation['failed_count']} checks need attention.")
+        checks = sorted(validation["checks"], key=lambda row: bool(row.get("passed")))
+        st.dataframe(
+            [
+                {
+                    "Status": "Passed" if row.get("passed") else "Failed",
+                    "Check": row.get("check"),
+                    "Recommended fix": row.get("recommended_fix"),
+                    "Related record": row.get("record_id", ""),
+                    "Severity": "High" if not row.get("passed") else "OK",
+                }
+                for row in checks
+            ],
+            use_container_width=True,
+            hide_index=True,
         )
-        if st.form_submit_button("Create Signal"):
-            try:
-                result = create_signal(
-                    DB_PATH,
-                    signal_text,
-                    signal_study_id,
-                    signal_source,
-                    signal_source_name,
-                    signal_source_type,
-                    signal_source_date.isoformat(),
-                    signal_country,
-                    signal_stakeholder,
-                    signal_product,
-                    signal_origin,
-                )
-                with st.expander("Signal JSON", expanded=True):
-                    st.json(result)
-            except ValueError as exc:
-                st.error(str(exc))
 
-    with st.expander("Run DEMO Sample Research Batch"):
-        st.warning("This loader creates demo/sample records only. Do not treat them as real or verified market evidence.")
-        demo_sample_confirmed = st.checkbox("I understand this loads demo/sample data only.", key="gs001_demo_sample_confirmed")
-        if st.button("Load DEMO Sample GS-001 Batch", disabled=not demo_sample_confirmed, key="gs001_load_demo_sample_batch"):
-            sample = [
-                {
-                    "country": "Ireland",
-                    "stakeholder_type": "Property managers",
-                    "source_name": "Irish property forum",
-                    "data_origin": "demo",
-                    "raw_text": "Property managers in Ireland repeatedly complain that maintenance updates are slow and tenants chase responses multiple times.",
-                },
-                {
-                    "country": "United Kingdom",
-                    "stakeholder_type": "Tenants",
-                    "source_name": "UK tenant review",
-                    "data_origin": "demo",
-                    "raw_text": "Tenants in the United Kingdom complain that repair communication is poor, updates are delayed, and maintenance requests need repeated follow-up.",
-                },
-                {
-                    "country": "United States",
-                    "stakeholder_type": "Property owners",
-                    "source_name": "US owner review",
-                    "data_origin": "demo",
-                    "raw_text": "Property owners in the United States say maintenance coordination is manual, slow, and expensive across property management software.",
-                },
-            ]
-            with st.expander("DEMO Sample Batch JSON", expanded=True):
-                st.json(run_research_batch(DB_PATH, sample, DEFAULT_STUDY_ID))
+    with workflow_tabs[10]:
+        st.warning("These records are preserved for traceability but excluded from production metrics.")
+        demo_runs = [row for row in list_study_runs(DB_PATH, DEFAULT_STUDY_ID) if row.get("study_mode") == "demo" and row.get("status") in {"closed", "archived"}]
+        st.subheader("Archived Demo Runs")
+        st.dataframe(demo_runs, use_container_width=True)
+        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
+            rows = [row for row in fetch_all(DB_PATH, table_name) if row.get("study_id") == DEFAULT_STUDY_ID and row.get("is_demo") and row.get("status") == "archived"]
+            st.subheader(table_name.replace("_", " ").title())
+            st.dataframe(rows, use_container_width=True)
 
-    st.subheader("Study Records")
-    st.dataframe(list_studies(DB_PATH), use_container_width=True)
-    st.subheader("Study Runs")
-    st.dataframe(list_study_runs(DB_PATH, DEFAULT_STUDY_ID), use_container_width=True)
-    st.subheader("Signals")
-    signals = list_signals(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)
-    st.dataframe(signals, use_container_width=True)
-    st.subheader("Findings")
-    findings = list_findings(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)
-    st.dataframe(findings, use_container_width=True)
-    finding_ids = [record["id"] for record in findings]
-    selected_finding = st.selectbox("Finding detail", finding_ids, key="golden_selected_finding") if finding_ids else None
-    if selected_finding:
-        finding_cols = st.columns(3)
-        with finding_cols[0]:
-            if st.button("Audit Finding"):
-                try:
-                    with st.expander("Audit Finding JSON", expanded=True):
-                        st.json(audit_finding(DB_PATH, str(selected_finding)))
-                except ValueError as exc:
-                    st.error(str(exc))
-        with finding_cols[1]:
-            if st.button("View Evidence Chain"):
-                with st.expander("Finding Evidence Chain JSON", expanded=True):
-                    st.json(finding_evidence(DB_PATH, str(selected_finding)))
-        with finding_cols[2]:
-            if st.button("Archive Finding"):
-                with st.expander("Archive Finding JSON", expanded=True):
-                    st.json(archive_record(DB_PATH, "study_findings", str(selected_finding)))
-
-    st.subheader("Audits")
-    st.dataframe(list_finding_audits(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view), use_container_width=True)
-    st.subheader("Approved Opportunities")
-    opportunities = list_opportunities(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)
-    st.dataframe(opportunities, use_container_width=True)
-    opportunity_ids = [record["id"] for record in opportunities]
-    selected_opportunity = st.selectbox("Opportunity detail", opportunity_ids, key="golden_selected_opportunity") if opportunity_ids else None
-    if selected_opportunity:
-        opportunity_cols = st.columns(2)
-        with opportunity_cols[0]:
-            if st.button("View Traceability Chain"):
-                with st.expander("Opportunity Evidence Chain JSON", expanded=True):
-                    st.json(traceability_chain(DB_PATH, str(selected_opportunity)))
-        with opportunity_cols[1]:
-            if st.button("Archive Opportunity"):
-                with st.expander("Archive Opportunity JSON", expanded=True):
-                    st.json(archive_record(DB_PATH, "opportunity_records", str(selected_opportunity)))
-
-    st.subheader("Engineering Specs")
-    st.dataframe([row for row in opportunities if row.get("engineering_status")], use_container_width=True)
-    st.subheader("Executive Briefs")
-    st.dataframe(list_study_briefs(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view), use_container_width=True)
-    st.subheader("Coverage")
-    coverage_cols = st.columns(3)
-    coverage_cols[0].write(", ".join(progress["countries_covered"]) or "No countries yet")
-    coverage_cols[1].write(", ".join(progress["stakeholders_covered"]) or "No stakeholders yet")
-    coverage_cols[2].metric("Source Coverage", progress["source_coverage"])
+    with workflow_tabs[11]:
+        for table_name in ["studies", "study_runs", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]:
+            st.subheader(table_name)
+            st.dataframe(fetch_all(DB_PATH, table_name), use_container_width=True)
