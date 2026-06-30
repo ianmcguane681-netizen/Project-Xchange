@@ -60,16 +60,19 @@ from project_exchange.golden_study import (
     finding_evidence,
     generate_executive_brief,
     generate_findings,
+    get_active_study_run,
     get_or_create_default_study,
     list_finding_audits,
     list_findings,
     list_opportunities,
     list_signals,
     list_studies,
+    list_study_runs,
     list_study_briefs,
     run_audit_batch,
     run_research_batch,
     study_progress,
+    switch_study_run_mode,
     traceability_chain,
     validate_golden_study_integrity,
 )
@@ -844,48 +847,40 @@ with tabs[23]:
     st.header("Golden Study 001")
     st.caption("Traceable opportunity creation for the global Property Management market.")
     study = get_or_create_default_study(DB_PATH)
-    progress = study_progress(DB_PATH, DEFAULT_STUDY_ID)
+    active_run = get_active_study_run(DB_PATH, DEFAULT_STUDY_ID)
+    active_run_id = str((active_run or {}).get("id") or "")
+    include_demo_view = bool(active_run and active_run.get("study_mode") == "demo")
+    progress = study_progress(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)
     if demo_warning_active(DB_PATH, DEFAULT_STUDY_ID):
         st.warning("GS-001 is currently using demo/sample data. Do not treat this as verified market evidence.")
     else:
-        st.success(f"GS-001 mode: {progress['study_mode'].title()} | Verification pending: {progress['verification_pending_count']} | Engineering Ready: {len(progress['engineering_ready'])}")
+        st.success(f"GS-001 run mode: {progress['study_mode'].title()} | Verification pending: {progress['verification_pending_count']} | Engineering Ready: {len(progress['engineering_ready'])}")
 
-    metric_cols = st.columns(8)
+    metric_cols = st.columns(10)
     metric_cols[0].metric("Study", study["id"])
-    metric_cols[1].metric("Signals", progress["signals_collected"])
-    metric_cols[2].metric("Findings", progress["findings_created"])
-    metric_cols[3].metric("Audits", progress["audits_completed"])
-    metric_cols[4].metric("Approved Opportunities", progress["opportunities_approved"])
-    metric_cols[5].metric("Engineering Ready", len(progress["engineering_ready"]))
-    metric_cols[6].metric("Demo Records", progress["demo_records_count"])
-    metric_cols[7].metric("Average OCI", progress["average_oci"])
+    metric_cols[1].metric("Active Run", active_run_id or "None")
+    metric_cols[2].metric("Run Mode", progress["study_mode"].title())
+    metric_cols[3].metric("Run Status", progress["run_status"].title())
+    metric_cols[4].metric("Signals", progress["signals_collected"])
+    metric_cols[5].metric("Findings", progress["findings_created"])
+    metric_cols[6].metric("Audits", progress["audits_completed"])
+    metric_cols[7].metric("Approved Opportunities", progress["opportunities_approved"])
+    metric_cols[8].metric("Engineering Ready", len(progress["engineering_ready"]))
+    metric_cols[9].metric("Average OCI", progress["average_oci"])
     quality_cols = st.columns(4)
-    quality_cols[0].metric("Database Status", "Connected")
+    quality_cols[0].metric("Demo Records", progress["demo_records_count"])
     quality_cols[1].metric("Pending Verification", progress["verification_pending_count"])
     quality_cols[2].metric("Countries", len(progress["countries_covered"]))
     quality_cols[3].metric("Evidence Sources", progress["source_coverage"])
 
     control_cols = st.columns(5)
     with control_cols[0]:
-        study_mode = st.selectbox("Study mode", ["demo", "production"], index=0 if progress["study_mode"] == "demo" else 1, key="gs001_mode")
+        st.warning("Switching to production will close the demo run and start a clean production run. Demo evidence will remain archived/history-only.")
         production_confirmed = st.checkbox("Confirm production GS-001", key="gs001_production_confirmed")
-        if st.button("Create / Refresh GS-001", key="gs001_create_refresh"):
+        if st.button("Start Production Run", key="gs001_start_production_run", disabled=progress["study_mode"] == "production"):
             try:
-                result = create_study(
-                    DB_PATH,
-                    DEFAULT_STUDY_ID,
-                    "Global Property Management Golden Study",
-                    "Property Management",
-                    "Global",
-                    "Global",
-                    "Property managers, Tenants, Housing associations, Facilities managers, Estate management companies, Condo / HOA managers, Commercial property managers, Letting agents, Property owners, Maintenance contractors",
-                    "Find verified, traceable market opportunities backed by repeated complaints and evidence.",
-                    "Active",
-                    "Golden Study 001 default study.",
-                    study_mode=study_mode,
-                    production_confirmed=production_confirmed,
-                )
-                with st.expander("Study JSON"):
+                result = switch_study_run_mode(DB_PATH, DEFAULT_STUDY_ID, "production", production_confirmed)
+                with st.expander("Study Run JSON"):
                     st.json(result)
             except ValueError as exc:
                 st.error(str(exc))
@@ -927,10 +922,10 @@ with tabs[23]:
         if st.button("Archive Demo Data", key="gs001_archive_demo_data"):
             archived = []
             for table_name, rows in {
-                "study_signals": list_signals(DB_PATH, DEFAULT_STUDY_ID),
-                "study_findings": list_findings(DB_PATH, DEFAULT_STUDY_ID),
-                "finding_audits": list_finding_audits(DB_PATH, DEFAULT_STUDY_ID),
-                "opportunity_records": list_opportunities(DB_PATH, DEFAULT_STUDY_ID),
+                "study_signals": list_signals(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=True),
+                "study_findings": list_findings(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=True),
+                "finding_audits": list_finding_audits(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=True),
+                "opportunity_records": list_opportunities(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=True),
             }.items():
                 for row in rows:
                     if row.get("is_demo") and row.get("status") != "archived":
@@ -977,8 +972,10 @@ with tabs[23]:
             except ValueError as exc:
                 st.error(str(exc))
 
-    with st.expander("Run Sample Research Batch"):
-        if st.button("Load Sample GS-001 Batch"):
+    with st.expander("Run DEMO Sample Research Batch"):
+        st.warning("This loader creates demo/sample records only. Do not treat them as real or verified market evidence.")
+        demo_sample_confirmed = st.checkbox("I understand this loads demo/sample data only.", key="gs001_demo_sample_confirmed")
+        if st.button("Load DEMO Sample GS-001 Batch", disabled=not demo_sample_confirmed, key="gs001_load_demo_sample_batch"):
             sample = [
                 {
                     "country": "Ireland",
@@ -1002,15 +999,18 @@ with tabs[23]:
                     "raw_text": "Property owners in the United States say maintenance coordination is manual, slow, and expensive across property management software.",
                 },
             ]
-            st.json(run_research_batch(DB_PATH, sample, DEFAULT_STUDY_ID))
+            with st.expander("DEMO Sample Batch JSON", expanded=True):
+                st.json(run_research_batch(DB_PATH, sample, DEFAULT_STUDY_ID))
 
     st.subheader("Study Records")
     st.dataframe(list_studies(DB_PATH), use_container_width=True)
+    st.subheader("Study Runs")
+    st.dataframe(list_study_runs(DB_PATH, DEFAULT_STUDY_ID), use_container_width=True)
     st.subheader("Signals")
-    signals = list_signals(DB_PATH, DEFAULT_STUDY_ID)
+    signals = list_signals(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)
     st.dataframe(signals, use_container_width=True)
     st.subheader("Findings")
-    findings = list_findings(DB_PATH, DEFAULT_STUDY_ID)
+    findings = list_findings(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)
     st.dataframe(findings, use_container_width=True)
     finding_ids = [record["id"] for record in findings]
     selected_finding = st.selectbox("Finding detail", finding_ids, key="golden_selected_finding") if finding_ids else None
@@ -1033,9 +1033,9 @@ with tabs[23]:
                     st.json(archive_record(DB_PATH, "study_findings", str(selected_finding)))
 
     st.subheader("Audits")
-    st.dataframe(list_finding_audits(DB_PATH, DEFAULT_STUDY_ID), use_container_width=True)
+    st.dataframe(list_finding_audits(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view), use_container_width=True)
     st.subheader("Approved Opportunities")
-    opportunities = list_opportunities(DB_PATH, DEFAULT_STUDY_ID)
+    opportunities = list_opportunities(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)
     st.dataframe(opportunities, use_container_width=True)
     opportunity_ids = [record["id"] for record in opportunities]
     selected_opportunity = st.selectbox("Opportunity detail", opportunity_ids, key="golden_selected_opportunity") if opportunity_ids else None
@@ -1053,7 +1053,7 @@ with tabs[23]:
     st.subheader("Engineering Specs")
     st.dataframe([row for row in opportunities if row.get("engineering_status")], use_container_width=True)
     st.subheader("Executive Briefs")
-    st.dataframe(list_study_briefs(DB_PATH, DEFAULT_STUDY_ID), use_container_width=True)
+    st.dataframe(list_study_briefs(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view), use_container_width=True)
     st.subheader("Coverage")
     coverage_cols = st.columns(3)
     coverage_cols[0].write(", ".join(progress["countries_covered"]) or "No countries yet")

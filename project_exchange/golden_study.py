@@ -12,6 +12,7 @@ from project_exchange.ids import next_sequence_id
 DEFAULT_STUDY_ID = "GS-001"
 ENGINEERING_READY_OCI = 85
 PROVENANCE_TABLES = ["studies", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]
+RUN_SCOPED_TABLES = ["study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]
 
 STAKEHOLDER_KEYWORDS = {
     "Tenants": ["tenant", "renters", "resident"],
@@ -55,6 +56,7 @@ COUNTRY_HINTS = [
 def get_or_create_default_study(db_path: str | Path) -> dict[str, object]:
     study = get_study(db_path, DEFAULT_STUDY_ID)
     if study:
+        get_active_study_run(db_path, DEFAULT_STUDY_ID)
         return study
     return create_study(
         db_path,
@@ -89,6 +91,15 @@ def create_study(
         raise ValueError("Production GS-001 creation requires explicit confirmation.")
     if mode == "production" and data_origin == "demo":
         data_origin = "manual"
+    existing_study = get_study(db_path, study_id)
+    if existing_study:
+        with connect(db_path) as connection:
+            active = connection.execute(
+                "SELECT study_mode FROM study_runs WHERE study_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+                (study_id,),
+            ).fetchone()
+        if active and active["study_mode"] != mode:
+            raise ValueError("Use switch_study_run_mode to change GS-001 run mode.")
     provenance = provenance_values(data_origin, "PX-H001")
     with connect(db_path) as connection:
         now = utc_now()
@@ -139,6 +150,8 @@ def create_study(
             ),
         )
     add_event(db_path, "StudyCreated", "PX-H001", "Golden Study created", status, study_id)
+    if not get_active_study_run(db_path, study_id):
+        create_study_run(db_path, study_id, mode, provenance["data_origin"], "Initial Golden Study run.")
     return get_study(db_path, study_id) or {}
 
 
@@ -152,6 +165,201 @@ def list_studies(db_path: str | Path) -> list[dict[str, object]]:
     with connect(db_path) as connection:
         rows = connection.execute("SELECT * FROM studies ORDER BY started_at DESC").fetchall()
     return [row_to_dict(row) for row in rows]
+
+
+def list_study_runs(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            "SELECT * FROM study_runs WHERE study_id = ? ORDER BY created_at DESC",
+            (study_id,),
+        ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def get_active_study_run(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object] | None:
+    with connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM study_runs WHERE study_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+            (study_id,),
+        ).fetchone()
+    if not row:
+        study = get_study(db_path, study_id)
+        if not study:
+            return None
+        return create_study_run(
+            db_path,
+            study_id,
+            str(study.get("study_mode") or "demo"),
+            str(study.get("data_origin") or "demo"),
+            "Auto-created active study run.",
+        )
+    run = row_to_dict(row)
+    assign_legacy_records_to_runs(db_path, study_id, str(run["id"]))
+    return run
+
+
+def create_study_run(
+    db_path: str | Path,
+    study_id: str,
+    study_mode: str,
+    data_origin: str,
+    notes: str = "",
+) -> dict[str, object]:
+    mode = study_mode if study_mode in {"demo", "production"} else "demo"
+    origin = normalize_data_origin(data_origin)
+    if mode == "production" and origin == "demo":
+        origin = "manual"
+    provenance = provenance_values(origin, "PX-H001")
+    with connect(db_path) as connection:
+        active = connection.execute(
+            "SELECT id FROM study_runs WHERE study_id = ? AND status = 'active'",
+            (study_id,),
+        ).fetchone()
+        if active:
+            raise ValueError(f"Study {study_id} already has an active run: {active['id']}")
+        run_id = next_sequence_id("GSR", count_rows(connection, "study_runs"))
+        now = utc_now()
+        connection.execute(
+            """
+            INSERT INTO study_runs
+            (id, study_id, study_mode, status, created_at, data_origin, verification_status, is_demo, notes, created_by_worker)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                study_id,
+                mode,
+                "active",
+                now,
+                provenance["data_origin"],
+                provenance["verification_status"],
+                1 if provenance["is_demo"] else 0,
+                notes,
+                "PX-H001",
+            ),
+        )
+    add_event(db_path, "StudyRunCreated", "PX-H001", "Golden Study run created", mode, run_id)
+    return get_study_run(db_path, run_id)
+
+
+def get_study_run(db_path: str | Path, run_id: str) -> dict[str, object]:
+    with connect(db_path) as connection:
+        row = connection.execute("SELECT * FROM study_runs WHERE id = ?", (run_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"Study run not found: {run_id}")
+    return row_to_dict(row)
+
+
+def close_active_study_run(db_path: str | Path, study_id: str, reason: str = "") -> dict[str, object] | None:
+    run = get_active_study_run(db_path, study_id)
+    if not run:
+        return None
+    with connect(db_path) as connection:
+        connection.execute(
+            "UPDATE study_runs SET status = 'closed', closed_at = ?, notes = ? WHERE id = ?",
+            (utc_now(), reason or str(run.get("notes") or ""), run["id"]),
+        )
+    add_event(db_path, "StudyRunClosed", "PX-H001", "Golden Study run closed", reason, str(run["id"]))
+    return get_study_run(db_path, str(run["id"]))
+
+
+def switch_study_run_mode(
+    db_path: str | Path,
+    study_id: str,
+    target_mode: str,
+    production_confirmed: bool = False,
+) -> dict[str, object]:
+    mode = target_mode if target_mode in {"demo", "production"} else "demo"
+    if mode == "production" and not production_confirmed:
+        raise ValueError("Production GS-001 creation requires explicit confirmation.")
+    active = get_active_study_run(db_path, study_id)
+    if active and active["study_mode"] == mode:
+        return active
+    if active:
+        if active["study_mode"] == "demo":
+            archive_run_records(db_path, study_id, str(active["id"]), demo_only=True)
+        close_active_study_run(db_path, study_id, f"Switched to {mode} run.")
+    run = create_study_run(
+        db_path,
+        study_id,
+        mode,
+        "manual" if mode == "production" else "demo",
+        f"Active {mode} run for {study_id}.",
+    )
+    with connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE studies
+            SET study_mode = ?, data_origin = ?, verification_status = ?, is_demo = ?, last_updated = ?
+            WHERE id = ?
+            """,
+            (
+                mode,
+                "manual" if mode == "production" else "demo",
+                "pending_review" if mode == "production" else "unverified",
+                0 if mode == "production" else 1,
+                utc_now(),
+                study_id,
+            ),
+        )
+    return run
+
+
+def archive_run_records(db_path: str | Path, study_id: str, study_run_id: str, demo_only: bool = True) -> list[dict[str, object]]:
+    archived = []
+    with connect(db_path) as connection:
+        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
+            demo_clause = "AND is_demo = 1" if demo_only else ""
+            rows = connection.execute(
+                f"""
+                SELECT id FROM {table_name}
+                WHERE study_id = ? AND study_run_id = ? AND status != 'archived'
+                {demo_clause}
+                """,
+                (study_id, study_run_id),
+            ).fetchall()
+            archived.extend({"table": table_name, "id": row["id"]} for row in rows)
+    for row in archived:
+        archive_record(db_path, str(row["table"]), str(row["id"]))
+    return archived
+
+
+def assign_legacy_records_to_runs(db_path: str | Path, study_id: str, active_run_id: str) -> None:
+    demo_run_id = ensure_demo_history_run(db_path, study_id)
+    with connect(db_path) as connection:
+        for table_name in RUN_SCOPED_TABLES:
+            columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
+            if "study_run_id" not in columns:
+                continue
+            connection.execute(
+                f"UPDATE {table_name} SET study_run_id = ? WHERE study_id = ? AND study_run_id IS NULL AND is_demo = 1",
+                (demo_run_id, study_id),
+            )
+            connection.execute(
+                f"UPDATE {table_name} SET study_run_id = ? WHERE study_id = ? AND study_run_id IS NULL AND COALESCE(is_demo, 0) = 0",
+                (active_run_id, study_id),
+            )
+
+
+def ensure_demo_history_run(db_path: str | Path, study_id: str) -> str:
+    with connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT id FROM study_runs WHERE study_id = ? AND study_mode = 'demo' ORDER BY created_at ASC LIMIT 1",
+            (study_id,),
+        ).fetchone()
+        if row:
+            return str(row["id"])
+        run_id = next_sequence_id("GSR", count_rows(connection, "study_runs"))
+        now = utc_now()
+        connection.execute(
+            """
+            INSERT INTO study_runs
+            (id, study_id, study_mode, status, created_at, data_origin, verification_status, is_demo, notes, created_by_worker)
+            VALUES (?, ?, 'demo', 'archived', ?, 'demo', 'unverified', 1, ?, 'PX-H001')
+            """,
+            (run_id, study_id, now, "Legacy demo/history run."),
+        )
+    return run_id
 
 
 def create_signal(
@@ -173,20 +381,23 @@ def create_signal(
     study = get_or_create_default_study(db_path) if study_id == DEFAULT_STUDY_ID else get_study(db_path, study_id)
     if not study:
         raise ValueError(f"Study not found: {study_id}")
+    active_run = get_active_study_run(db_path, study_id)
+    if not active_run:
+        raise ValueError(f"Study has no active run: {study_id}")
     origin = normalize_data_origin(data_origin)
     if source_url.strip() and origin == "demo":
         origin = "manual"
     if origin != "demo":
         if not (source_url.strip() or source_name.strip()):
             raise ValueError("Non-demo evidence requires a Source URL or Source name.")
-        if demo_records_count(db_path, study_id) > 0:
+        if str(active_run["study_mode"]) != "production":
+            raise ValueError("Start a production run before adding production evidence.")
+        if demo_records_count(db_path, study_id, str(active_run["id"])) > 0:
             raise ValueError("Archive demo records before adding production evidence.")
-    elif non_demo_records_count(db_path, study_id) > 0:
-        raise ValueError("Demo evidence cannot be added after production evidence has started.")
-    if str(study.get("study_mode") or "demo") == "production" and origin == "demo":
+    elif str(active_run["study_mode"]) == "production":
         raise ValueError("Production studies cannot contain demo records.")
-    if str(study.get("study_mode") or "demo") == "demo" and origin != "demo" and demo_records_count(db_path, study_id) > 0:
-        raise ValueError("Archive demo records before adding production evidence.")
+    elif non_demo_records_count(db_path, study_id, str(active_run["id"])) > 0:
+        raise ValueError("Demo evidence cannot be added after production evidence has started.")
     enriched = enrich_signal(raw_text, country, stakeholder_type, company_product)
     provenance = provenance_values(origin, "PX-R001", source_confidence)
     with connect(db_path) as connection:
@@ -195,15 +406,16 @@ def create_signal(
         connection.execute(
             """
             INSERT INTO study_signals
-            (id, study_id, source_url, source_name, source_type, source_date, country, stakeholder_type,
+            (id, study_id, study_run_id, source_url, source_name, source_type, source_date, country, stakeholder_type,
              company_product, raw_text, complaint_category, summary, sentiment, evidence_strength,
              duplicate_group, status, created_at, data_origin, verification_status, is_demo, source_confidence,
              created_by_worker, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 signal_id,
                 study_id,
+                active_run["id"],
                 source_url,
                 source_name,
                 source_type,
@@ -239,12 +451,17 @@ def get_signal(db_path: str | Path, signal_id: str) -> dict[str, object]:
     return row_to_dict(row)
 
 
-def list_signals(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+def list_signals(
+    db_path: str | Path,
+    study_id: str = DEFAULT_STUDY_ID,
+    study_run_id: str | None = None,
+    include_archived: bool = False,
+    include_demo: bool = False,
+) -> list[dict[str, object]]:
+    run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
+    where, params = run_filter(study_id, run_id, include_archived, include_demo)
     with connect(db_path) as connection:
-        rows = connection.execute(
-            "SELECT * FROM study_signals WHERE study_id = ? ORDER BY created_at DESC",
-            (study_id,),
-        ).fetchall()
+        rows = connection.execute(f"SELECT * FROM study_signals WHERE {where} ORDER BY created_at DESC", params).fetchall()
     return [row_to_dict(row) for row in rows]
 
 
@@ -334,7 +551,9 @@ def normalize_group(text: str) -> str:
 
 
 def generate_findings(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID, min_signals: int = 2) -> list[dict[str, object]]:
-    signals = [signal for signal in list_signals(db_path, study_id) if signal["status"] == "active"]
+    active_run = get_active_study_run(db_path, study_id)
+    include_demo = bool(active_run and active_run.get("study_mode") == "demo")
+    signals = [signal for signal in list_signals(db_path, study_id, include_demo=include_demo) if signal["status"] == "active"]
     groups: dict[str, list[dict[str, object]]] = {}
     for signal in signals:
         key = str(signal["complaint_category"] or "Market problem")
@@ -351,6 +570,7 @@ def generate_findings(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID, min
 
 
 def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, object]]) -> dict[str, object]:
+    study_run_id = str(signals[0].get("study_run_id") or "")
     category = str(signals[0]["complaint_category"] or "Market problem")
     theme = category
     signal_ids = [str(signal["id"]) for signal in signals]
@@ -375,8 +595,8 @@ def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, o
 
     with connect(db_path) as connection:
         existing = connection.execute(
-            "SELECT * FROM study_findings WHERE study_id = ? AND theme = ? AND complaint_category = ? AND status != 'archived'",
-            (study_id, theme, category),
+            "SELECT * FROM study_findings WHERE study_id = ? AND study_run_id = ? AND theme = ? AND complaint_category = ? AND status != 'archived'",
+            (study_id, study_run_id, theme, category),
         ).fetchone()
         now = utc_now()
         if existing:
@@ -421,17 +641,18 @@ def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, o
             connection.execute(
                 """
                 INSERT INTO study_findings
-                (id, study_id, theme, problem_statement, complaint_category, signal_count,
+                (id, study_id, study_run_id, theme, problem_statement, complaint_category, signal_count,
                  independent_source_count, countries, stakeholder_types, products_mentioned,
                  representative_signals, evidence_summary, research_confidence, confidence_score, country_count,
                  stakeholder_count, supporting_evidence_count, contradictory_evidence_count, confidence_reasoning,
                  status, created_at, data_origin, verification_status, is_demo, source_confidence, created_by_worker,
                  last_updated)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     finding_id,
                     study_id,
+                    study_run_id,
                     theme,
                     problem,
                     category,
@@ -470,12 +691,17 @@ def get_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
     return row_to_dict(row)
 
 
-def list_findings(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+def list_findings(
+    db_path: str | Path,
+    study_id: str = DEFAULT_STUDY_ID,
+    study_run_id: str | None = None,
+    include_archived: bool = False,
+    include_demo: bool = False,
+) -> list[dict[str, object]]:
+    run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
+    where, params = run_filter(study_id, run_id, include_archived, include_demo)
     with connect(db_path) as connection:
-        rows = connection.execute(
-            "SELECT * FROM study_findings WHERE study_id = ? ORDER BY created_at DESC",
-            (study_id,),
-        ).fetchall()
+        rows = connection.execute(f"SELECT * FROM study_findings WHERE {where} ORDER BY created_at DESC", params).fetchall()
     return [row_to_dict(row) for row in rows]
 
 
@@ -536,17 +762,18 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
         connection.execute(
             """
             INSERT INTO finding_audits
-            (id, study_id, finding_id, decision, evidence_score, frequency_score, market_size_score,
+            (id, study_id, study_run_id, finding_id, decision, evidence_score, frequency_score, market_size_score,
              pain_severity_score, competition_gap_score, build_complexity_score, commercial_potential_score,
              strategic_fit_score, traceability_score, opportunity_confidence_index, final_oci, score_breakdown,
              oci_reasoning, missing_evidence_warnings, contradictions, missing_evidence, reasoning_summary,
              recommendation, status, created_at, data_origin, verification_status, is_demo, source_confidence,
              created_by_worker, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 audit_id,
                 finding["study_id"],
+                finding.get("study_run_id"),
                 finding_id,
                 decision,
                 scores["evidence_score"],
@@ -621,17 +848,24 @@ def get_finding_audit(db_path: str | Path, audit_id: str) -> dict[str, object]:
     return row_to_dict(row)
 
 
-def list_finding_audits(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+def list_finding_audits(
+    db_path: str | Path,
+    study_id: str = DEFAULT_STUDY_ID,
+    study_run_id: str | None = None,
+    include_archived: bool = False,
+    include_demo: bool = False,
+) -> list[dict[str, object]]:
+    run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
+    where, params = run_filter(study_id, run_id, include_archived, include_demo)
     with connect(db_path) as connection:
-        rows = connection.execute(
-            "SELECT * FROM finding_audits WHERE study_id = ? ORDER BY created_at DESC",
-            (study_id,),
-        ).fetchall()
+        rows = connection.execute(f"SELECT * FROM finding_audits WHERE {where} ORDER BY created_at DESC", params).fetchall()
     return [row_to_dict(row) for row in rows]
 
 
 def approve_audited_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
     approved = []
+    active_run = get_active_study_run(db_path, study_id)
+    run_id = str((active_run or {}).get("id") or "")
     with connect(db_path) as connection:
         rows = connection.execute(
             """
@@ -639,11 +873,14 @@ def approve_audited_opportunities(db_path: str | Path, study_id: str = DEFAULT_S
             FROM finding_audits
             LEFT JOIN opportunity_records ON opportunity_records.audit_id = finding_audits.id
             WHERE finding_audits.study_id = ?
+              AND finding_audits.study_run_id = ?
+              AND finding_audits.status != 'archived'
+              AND finding_audits.is_demo = 0
               AND finding_audits.decision = 'Approve Opportunity'
               AND opportunity_records.id IS NULL
             ORDER BY finding_audits.created_at ASC
             """,
-            (study_id,),
+            (study_id, run_id),
         ).fetchall()
     for row in rows:
         audit = row_to_dict(row)
@@ -677,7 +914,7 @@ def create_opportunity_from_audit(db_path: str | Path, audit: dict[str, object])
         connection.execute(
             """
             INSERT INTO opportunity_records
-            (id, study_id, industry, market, problem, evidence_summary, evidence_count, independent_sources,
+            (id, study_id, study_run_id, industry, market, problem, evidence_summary, evidence_count, independent_sources,
              countries, products_mentioned, stakeholder_types, customer_segments, current_solutions,
              strengths_existing_solutions, weaknesses_existing_solutions, opportunity_confidence_index,
              commercial_potential, estimated_market_size, estimated_build_complexity, recommended_component,
@@ -685,11 +922,12 @@ def create_opportunity_from_audit(db_path: str | Path, audit: dict[str, object])
              target_users, required_inputs, expected_outputs, system_boundaries, traceability_chain_complete,
              non_demo_evidence_only, audit_id, finding_id, status, engineering_status, owner, version, created_at,
              last_updated, data_origin, verification_status, is_demo, source_confidence, created_by_worker)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 opportunity_id,
                 audit["study_id"],
+                audit.get("study_run_id"),
                 "Property Management",
                 "Property Management",
                 finding["problem_statement"],
@@ -804,12 +1042,17 @@ def get_opportunity(db_path: str | Path, opportunity_id: str) -> dict[str, objec
     return row_to_dict(row)
 
 
-def list_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+def list_opportunities(
+    db_path: str | Path,
+    study_id: str = DEFAULT_STUDY_ID,
+    study_run_id: str | None = None,
+    include_archived: bool = False,
+    include_demo: bool = False,
+) -> list[dict[str, object]]:
+    run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
+    where, params = run_filter(study_id, run_id, include_archived, include_demo)
     with connect(db_path) as connection:
-        rows = connection.execute(
-            "SELECT * FROM opportunity_records WHERE study_id = ? ORDER BY opportunity_confidence_index DESC, created_at DESC",
-            (study_id,),
-        ).fetchall()
+        rows = connection.execute(f"SELECT * FROM opportunity_records WHERE {where} ORDER BY opportunity_confidence_index DESC, created_at DESC", params).fetchall()
     return [row_to_dict(row) for row in rows]
 
 
@@ -850,12 +1093,20 @@ def archive_record(db_path: str | Path, table_name: str, record_id: str) -> dict
     return {"table": table_name, "id": record_id, "status": "archived"}
 
 
-def traceability_chain(db_path: str | Path, opportunity_id: str) -> dict[str, object]:
+def traceability_chain(db_path: str | Path, opportunity_id: str, include_archived: bool = False) -> dict[str, object]:
     opportunity = get_opportunity(db_path, opportunity_id)
+    active_run = get_active_study_run(db_path, str(opportunity["study_id"]))
+    if not include_archived:
+        if opportunity.get("status") == "archived":
+            raise ValueError("Archived opportunity traceability requires include_archived=True.")
+        if active_run and opportunity.get("study_run_id") != active_run.get("id"):
+            raise ValueError("Opportunity is not part of the active study run.")
     audit = get_finding_audit(db_path, str(opportunity["audit_id"]))
     finding = get_finding(db_path, str(opportunity["finding_id"]))
     signal_ids = _loads_list(finding.get("representative_signals"))
     signals = [get_signal(db_path, str(signal_id)) for signal_id in signal_ids]
+    if not include_archived:
+        signals = [signal for signal in signals if signal.get("status") != "archived" and signal.get("study_run_id") == opportunity.get("study_run_id")]
     sources = [
         {
             "signal_id": signal["id"],
@@ -868,25 +1119,40 @@ def traceability_chain(db_path: str | Path, opportunity_id: str) -> dict[str, ob
     return {"opportunity": opportunity, "audit": audit, "finding": finding, "signals": signals, "sources": sources}
 
 
-def finding_evidence(db_path: str | Path, finding_id: str) -> dict[str, object]:
+def finding_evidence(db_path: str | Path, finding_id: str, include_archived: bool = False) -> dict[str, object]:
     finding = get_finding(db_path, finding_id)
+    if not include_archived and finding.get("status") == "archived":
+        raise ValueError("Archived finding evidence requires include_archived=True.")
     signals = [get_signal(db_path, str(signal_id)) for signal_id in _loads_list(finding.get("representative_signals"))]
+    if not include_archived:
+        signals = [signal for signal in signals if signal.get("status") != "archived" and signal.get("study_run_id") == finding.get("study_run_id")]
     return {"finding": finding, "signals": signals}
 
 
-def study_progress(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+def study_progress(
+    db_path: str | Path,
+    study_id: str = DEFAULT_STUDY_ID,
+    study_run_id: str | None = None,
+    include_archived: bool = False,
+    include_demo: bool = False,
+) -> dict[str, object]:
     study = get_study(db_path, study_id)
-    signals = list_signals(db_path, study_id)
-    findings = list_findings(db_path, study_id)
-    audits = list_finding_audits(db_path, study_id)
-    opportunities = list_opportunities(db_path, study_id)
-    archives = archived_count(db_path, study_id)
-    demo_count = demo_records_count(db_path, study_id)
+    active_run = get_active_study_run(db_path, study_id)
+    run_id = study_run_id or str((active_run or {}).get("id") or "")
+    run = get_study_run(db_path, run_id) if run_id else None
+    signals = list_signals(db_path, study_id, run_id, include_archived, include_demo)
+    findings = list_findings(db_path, study_id, run_id, include_archived, include_demo)
+    audits = list_finding_audits(db_path, study_id, run_id, include_archived, include_demo)
+    opportunities = list_opportunities(db_path, study_id, run_id, include_archived, include_demo)
+    archives = archived_count(db_path, study_id, run_id)
+    demo_count = demo_records_count(db_path, study_id, run_id, include_archived)
     pending_verification = sum(1 for row in [*signals, *findings, *audits, *opportunities] if row.get("verification_status") in {"unverified", "pending_review"})
     avg_oci_values = [int(opportunity.get("opportunity_confidence_index") or 0) for opportunity in opportunities]
     return {
         "study_id": study_id,
-        "study_mode": str((study or {}).get("study_mode") or "demo"),
+        "active_run_id": run_id,
+        "run_status": str((run or {}).get("status") or ""),
+        "study_mode": str((run or study or {}).get("study_mode") or "demo"),
         "signals_collected": len(signals),
         "findings_created": len(findings),
         "audits_completed": len(audits),
@@ -906,11 +1172,12 @@ def study_progress(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dic
     }
 
 
-def archived_count(db_path: str | Path, study_id: str) -> int:
+def archived_count(db_path: str | Path, study_id: str, study_run_id: str | None = None) -> int:
+    run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
     total = 0
     with connect(db_path) as connection:
         for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
-            total += int(connection.execute(f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND status = 'archived'", (study_id,)).fetchone()["count"])
+            total += int(connection.execute(f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND study_run_id = ? AND status = 'archived'", (study_id, run_id)).fetchone()["count"])
     return total
 
 
@@ -918,6 +1185,8 @@ def generate_executive_brief(db_path: str | Path, study_id: str = DEFAULT_STUDY_
     study = get_or_create_default_study(db_path) if study_id == DEFAULT_STUDY_ID else get_study(db_path, study_id)
     if not study:
         raise ValueError(f"Study not found: {study_id}")
+    active_run = get_active_study_run(db_path, study_id)
+    include_demo = bool(active_run and active_run.get("study_mode") == "demo")
     progress = study_progress(db_path, study_id)
     risks = []
     if not progress["countries_covered"]:
@@ -957,13 +1226,14 @@ def generate_executive_brief(db_path: str | Path, study_id: str = DEFAULT_STUDY_
         connection.execute(
             """
             INSERT INTO study_briefs
-            (id, study_id, brief_type, title, body, metrics, top_opportunities, risks, missing_evidence,
+            (id, study_id, study_run_id, brief_type, title, body, metrics, top_opportunities, risks, missing_evidence,
              engineering_recommendation, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 brief_id,
                 study_id,
+                str((active_run or {}).get("id") or ""),
                 "executive",
                 f"Executive Brief - {study_id}",
                 body,
@@ -987,12 +1257,22 @@ def get_study_brief(db_path: str | Path, brief_id: str) -> dict[str, object]:
     return row_to_dict(row)
 
 
-def list_study_briefs(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+def list_study_briefs(
+    db_path: str | Path,
+    study_id: str = DEFAULT_STUDY_ID,
+    study_run_id: str | None = None,
+    include_archived: bool = False,
+    include_demo: bool = False,
+) -> list[dict[str, object]]:
+    run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
+    clauses = ["study_id = ?", "study_run_id = ?"]
+    params: list[object] = [study_id, run_id]
+    if not include_archived:
+        clauses.append("(archived_at IS NULL OR archived_at = '')")
+    if not include_demo:
+        clauses.append("is_demo = 0")
     with connect(db_path) as connection:
-        rows = connection.execute(
-            "SELECT * FROM study_briefs WHERE study_id = ? ORDER BY created_at DESC",
-            (study_id,),
-        ).fetchall()
+        rows = connection.execute(f"SELECT * FROM study_briefs WHERE {' AND '.join(clauses)} ORDER BY created_at DESC", tuple(params)).fetchall()
     return [row_to_dict(row) for row in rows]
 
 
@@ -1021,7 +1301,9 @@ def run_research_batch(db_path: str | Path, raw_items: list[dict[str, object]], 
 
 def run_audit_batch(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
     audits = []
-    for finding in list_findings(db_path, study_id):
+    active_run = get_active_study_run(db_path, study_id)
+    include_demo = bool(active_run and active_run.get("study_mode") == "demo")
+    for finding in list_findings(db_path, study_id, include_demo=include_demo):
         if finding["status"] == "pending_audit":
             audits.append(audit_finding(db_path, str(finding["id"])))
     return audits
@@ -1031,50 +1313,114 @@ def demo_warning_active(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -
     return demo_records_count(db_path, study_id) > 0
 
 
-def demo_records_count(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> int:
+def demo_records_count(
+    db_path: str | Path,
+    study_id: str = DEFAULT_STUDY_ID,
+    study_run_id: str | None = None,
+    include_archived: bool = False,
+) -> int:
+    run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
+    archived_sql = "" if include_archived else "AND status != 'archived'"
     with connect(db_path) as connection:
         total = 0
         for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
             total += int(
                 connection.execute(
-                    f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND is_demo = 1 AND status != 'archived'",
-                    (study_id,),
+                    f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND study_run_id = ? AND is_demo = 1 {archived_sql}",
+                    (study_id, run_id),
                 ).fetchone()["count"]
             )
     return total
 
 
-def non_demo_records_count(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> int:
+def non_demo_records_count(
+    db_path: str | Path,
+    study_id: str = DEFAULT_STUDY_ID,
+    study_run_id: str | None = None,
+    include_archived: bool = False,
+) -> int:
+    run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
+    archived_sql = "" if include_archived else "AND status != 'archived'"
     with connect(db_path) as connection:
         total = 0
         for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
             total += int(
                 connection.execute(
-                    f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND is_demo = 0 AND status != 'archived'",
-                    (study_id,),
+                    f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND study_run_id = ? AND is_demo = 0 {archived_sql}",
+                    (study_id, run_id),
                 ).fetchone()["count"]
             )
     return total
+
+
+def run_filter(study_id: str, study_run_id: str, include_archived: bool, include_demo: bool) -> tuple[str, tuple[object, ...]]:
+    clauses = ["study_id = ?", "study_run_id = ?"]
+    params: list[object] = [study_id, study_run_id]
+    if not include_archived:
+        clauses.append("status != 'archived'")
+    if not include_demo:
+        clauses.append("is_demo = 0")
+    return " AND ".join(clauses), tuple(params)
 
 
 def validate_golden_study_integrity(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
     study = get_study(db_path, study_id)
-    signals = list_signals(db_path, study_id)
-    findings = list_findings(db_path, study_id)
-    audits = list_finding_audits(db_path, study_id)
-    opportunities = list_opportunities(db_path, study_id)
+    active_run = get_active_study_run(db_path, study_id)
+    active_run_id = str((active_run or {}).get("id") or "")
+    signals = list_signals(db_path, study_id, active_run_id, include_archived=False, include_demo=True)
+    findings = list_findings(db_path, study_id, active_run_id, include_archived=False, include_demo=True)
+    audits = list_finding_audits(db_path, study_id, active_run_id, include_archived=False, include_demo=True)
+    opportunities = list_opportunities(db_path, study_id, active_run_id, include_archived=False, include_demo=True)
+    production_progress = study_progress(db_path, study_id, active_run_id, include_archived=False, include_demo=False)
     checks = []
     def check(name: str, passed: bool, recommended_fix: str, **extra: object) -> None:
         row = {"check": name, "passed": passed, "recommended_fix": "" if passed else recommended_fix}
         row.update(extra)
         checks.append(row)
 
-    production_mode = str((study or {}).get("study_mode") or "demo") == "production"
+    runs = list_study_runs(db_path, study_id)
+    active_runs = [run for run in runs if run.get("status") == "active"]
+    check(
+        "Only one active run exists per study",
+        len(active_runs) == 1,
+        "Close duplicate active study runs so only one run is active.",
+        active_count=len(active_runs),
+    )
+    for table_name in RUN_SCOPED_TABLES:
+        missing = missing_run_id_count(db_path, table_name, study_id)
+        check(
+            f"All {table_name} records belong to a study run",
+            missing == 0,
+            f"Assign legacy {table_name} rows to their demo or production study run.",
+            missing_count=missing,
+        )
+    production_mode = str((active_run or study or {}).get("study_mode") or "demo") == "production"
     active_records = [*signals, *findings, *audits, *opportunities]
     check(
-        "No demo records in production study",
+        "Active production run contains no demo records",
         not production_mode or not any(bool(row.get("is_demo")) and row.get("status") != "archived" for row in active_records),
-        "Archive demo records before running GS-001 in production mode.",
+        "Switch to a clean production run or archive demo records under their demo run.",
+    )
+    check(
+        "Production KPIs exclude demo and archived records",
+        not production_mode or (production_progress["demo_records_count"] == 0 and production_progress["archived_count"] == 0),
+        "Calculate production KPIs from the active production run with include_demo=False and include_archived=False.",
+    )
+    check(
+        "Engineering Ready metrics are active production only",
+        not production_mode or all(
+            not bool(row.get("is_demo")) and row.get("study_run_id") == active_run_id and row.get("status") != "archived"
+            for row in production_progress["engineering_ready"]
+        ),
+        "Filter Engineering Ready metrics to the active production run only.",
+    )
+    check(
+        "OCI metrics are active production only",
+        not production_mode or all(
+            not bool(row.get("is_demo")) and row.get("study_run_id") == active_run_id and row.get("status") != "archived"
+            for row in production_progress["top_opportunities"]
+        ),
+        "Filter OCI metrics to active non-demo production opportunities.",
     )
     check(
         "No demo record is approved",
@@ -1105,7 +1451,7 @@ def validate_golden_study_integrity(db_path: str | Path, study_id: str = DEFAULT
         check(f"Demo audit {audit['id']} is not approved", not (bool(audit.get("is_demo")) and audit.get("decision") == "Approve Opportunity"), "Archive demo audit and approve only non-demo evidence.")
     for opportunity in opportunities:
         try:
-            chain = traceability_chain(db_path, str(opportunity["id"]))
+            chain = traceability_chain(db_path, str(opportunity["id"]), include_archived=False)
             chain_complete = bool(chain["audit"] and chain["finding"] and chain["signals"] and chain["sources"])
             non_demo = not any(bool(record.get("is_demo")) for record in [chain["opportunity"], chain["audit"], chain["finding"], *chain["signals"]])
             source_complete = all(source.get("source_url") or source.get("source_name") for source in chain["sources"])
@@ -1126,9 +1472,23 @@ def validate_golden_study_integrity(db_path: str | Path, study_id: str = DEFAULT
     archived_preserved = True
     with connect(db_path) as connection:
         archived_rows = connection.execute("SELECT COUNT(*) AS count FROM demo_archive").fetchone()["count"]
+        archived_demo_runs = connection.execute("SELECT COUNT(*) AS count FROM study_runs WHERE study_id = ? AND study_mode = 'demo' AND status IN ('closed', 'archived')", (study_id,)).fetchone()["count"]
     check("Archived demo records are preserved", archived_preserved, "Do not hard-delete archived demo records.", count=int(archived_rows))
+    check("Archived demo run remains traceable", int(archived_demo_runs) > 0 or production_mode is False, "Close demo runs instead of deleting them when switching to production.", count=int(archived_demo_runs))
     failed = [check for check in checks if not check["passed"]]
     return {"passed": not failed, "failed_count": len(failed), "checks": checks}
+
+
+def missing_run_id_count(db_path: str | Path, table_name: str, study_id: str) -> int:
+    if table_name not in RUN_SCOPED_TABLES:
+        raise ValueError(f"Unsupported run scoped table: {table_name}")
+    with connect(db_path) as connection:
+        return int(
+            connection.execute(
+                f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND (study_run_id IS NULL OR study_run_id = '')",
+                (study_id,),
+            ).fetchone()["count"]
+        )
 
 
 def normalize_data_origin(data_origin: str) -> str:

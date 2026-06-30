@@ -1,4 +1,4 @@
-from project_exchange.database import fetch_all, init_db
+from project_exchange.database import connect, fetch_all, init_db, utc_now
 from project_exchange.golden_study import (
     DEFAULT_STUDY_ID,
     approve_audited_opportunities,
@@ -9,8 +9,11 @@ from project_exchange.golden_study import (
     create_study,
     generate_executive_brief,
     generate_findings,
+    get_active_study_run,
     get_or_create_default_study,
+    list_study_runs,
     list_opportunities,
+    switch_study_run_mode,
     run_audit_batch,
     run_research_batch,
     study_progress,
@@ -19,20 +22,28 @@ from project_exchange.golden_study import (
 )
 
 
+def start_production_run(db_path):
+    return switch_study_run_mode(db_path, DEFAULT_STUDY_ID, "production", production_confirmed=True)
+
+
 def test_default_study_creation(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
 
     study = get_or_create_default_study(db_path)
+    active_run = get_active_study_run(db_path)
     assert study["id"] == DEFAULT_STUDY_ID
     assert study["market"] == "Property Management"
     assert study["status"] == "Active"
     assert study["study_mode"] == "demo"
+    assert active_run["study_mode"] == "demo"
+    assert active_run["status"] == "active"
 
 
 def test_signal_creation_and_finding_clustering(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
+    start_production_run(db_path)
 
     create_signal(
         db_path,
@@ -74,9 +85,10 @@ def test_oci_calculation_inverts_build_complexity():
     assert calculate_oci(low_complexity) > calculate_oci(high_complexity)
 
 
-def test_audit_promotion_and_traceability_chain(tmp_path):
+def test_audit_approval_and_traceability_chain(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
+    start_production_run(db_path)
 
     batch = run_research_batch(
         db_path,
@@ -151,6 +163,7 @@ def test_archive_instead_of_delete_and_executive_brief(tmp_path):
 def test_direct_audit_finding_path(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
+    start_production_run(db_path)
 
     create_signal(db_path, "Property managers repeatedly complain about expensive software pricing and missing integrations.", source_name="A", data_origin="verified_import")
     create_signal(db_path, "Letting agents complain about expensive software pricing and missing integrations in property tools.", source_name="B", data_origin="verified_import")
@@ -163,28 +176,20 @@ def test_direct_audit_finding_path(tmp_path):
     assert list_opportunities(db_path) == []
 
 
-def test_production_creation_requires_confirmation(tmp_path):
+def test_production_run_switch_requires_confirmation(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
 
     try:
-        create_study(db_path, DEFAULT_STUDY_ID, "GS-001", "Property Management", study_mode="production")
+        switch_study_run_mode(db_path, DEFAULT_STUDY_ID, "production")
     except ValueError as exc:
         assert "explicit confirmation" in str(exc)
     else:
-        raise AssertionError("Production study creation should require confirmation")
+        raise AssertionError("Production run creation should require confirmation")
 
-    study = create_study(
-        db_path,
-        DEFAULT_STUDY_ID,
-        "GS-001",
-        "Property Management",
-        data_origin="manual",
-        study_mode="production",
-        production_confirmed=True,
-    )
-    assert study["study_mode"] == "production"
-    assert study["verification_status"] == "pending_review"
+    run = start_production_run(db_path)
+    assert run["study_mode"] == "production"
+    assert run["verification_status"] == "pending_review"
 
 
 def test_demo_records_block_production_evidence_until_archived(tmp_path):
@@ -200,11 +205,12 @@ def test_demo_records_block_production_evidence_until_archived(tmp_path):
             data_origin="manual",
         )
     except ValueError as exc:
-        assert "Archive demo records" in str(exc)
+        assert "Start a production run" in str(exc)
     else:
         raise AssertionError("Production evidence should be blocked while demo records exist")
 
     archive_record(db_path, "study_signals", demo_signal["id"])
+    start_production_run(db_path)
     real_signal = create_signal(
         db_path,
         "Real source says maintenance communication remains slow.",
@@ -230,12 +236,13 @@ def test_non_demo_signal_requires_source_reference(tmp_path):
 def test_demo_signal_cannot_be_added_after_production_evidence(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
+    start_production_run(db_path)
 
     create_signal(db_path, "Real evidence starts the production run.", source_name="Real source", data_origin="manual")
     try:
         create_signal(db_path, "Demo evidence should not mix into the same run.")
     except ValueError as exc:
-        assert "after production evidence" in str(exc)
+        assert "Production studies cannot contain demo records" in str(exc)
     else:
         raise AssertionError("Demo evidence should not be allowed after production evidence")
 
@@ -270,3 +277,123 @@ def test_demo_data_is_labelled_and_blocked_from_approval(tmp_path):
         assert "not auditable" in str(exc)
     else:
         raise AssertionError("Demo finding should not be auditable")
+
+
+def test_switching_to_production_creates_clean_active_run(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    demo_signal = create_signal(db_path, "Demo evidence about maintenance communication.", source_name="Demo A")
+    demo_run = get_active_study_run(db_path)
+    assert demo_signal["study_run_id"] == demo_run["id"]
+
+    production_run = start_production_run(db_path)
+    runs = list_study_runs(db_path)
+    demo_run_after = [run for run in runs if run["id"] == demo_run["id"]][0]
+    progress = study_progress(db_path)
+
+    assert demo_run_after["status"] == "closed"
+    assert production_run["status"] == "active"
+    assert production_run["study_mode"] == "production"
+    assert progress["active_run_id"] == production_run["id"]
+    assert progress["signals_collected"] == 0
+    assert progress["findings_created"] == 0
+    assert progress["audits_completed"] == 0
+    assert progress["engineering_ready"] == []
+    assert progress["average_oci"] == 0
+    assert fetch_all(db_path, "study_signals")[0]["status"] == "archived"
+
+
+def test_demo_engineering_ready_and_oci_do_not_leak_into_production(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    demo_signal_a = create_signal(db_path, "Property managers repeatedly complain that maintenance communication is slow.", source_name="Demo A")
+    create_signal(db_path, "Tenants repeatedly complain that maintenance communication is slow.", source_name="Demo B")
+    demo_run = get_active_study_run(db_path)
+    finding = generate_findings(db_path)[0]
+    now = utc_now()
+    with connect(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO finding_audits
+            (id, study_id, study_run_id, finding_id, decision, opportunity_confidence_index, final_oci,
+             status, created_at, data_origin, verification_status, is_demo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("FAD-DEMO", DEFAULT_STUDY_ID, demo_run["id"], finding["id"], "Approve Opportunity", 99, 99, "active", now, "demo", "unverified", 1),
+        )
+        connection.execute(
+            """
+            INSERT INTO opportunity_records
+            (id, study_id, study_run_id, problem, opportunity_confidence_index, audit_id, finding_id, status,
+             engineering_status, created_at, last_updated, data_origin, verification_status, is_demo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "OPP-DEMO",
+                DEFAULT_STUDY_ID,
+                demo_run["id"],
+                "Demo opportunity",
+                99,
+                "FAD-DEMO",
+                finding["id"],
+                "Engineering Ready",
+                "Engineering Ready",
+                now,
+                now,
+                "demo",
+                "unverified",
+                1,
+            ),
+        )
+
+    production_run = start_production_run(db_path)
+    production_progress = study_progress(db_path)
+    archived_chain = traceability_chain(db_path, "OPP-DEMO", include_archived=True)
+
+    assert production_progress["active_run_id"] == production_run["id"]
+    assert production_progress["engineering_ready"] == []
+    assert production_progress["average_oci"] == 0
+    assert production_progress["top_opportunities"] == []
+    assert archived_chain["opportunity"]["id"] == "OPP-DEMO"
+    assert archived_chain["opportunity"]["study_run_id"] == demo_run["id"]
+    assert archived_chain["signals"][0]["study_run_id"] == demo_run["id"]
+    assert len(fetch_all(db_path, "demo_archive")) >= 1
+
+
+def test_production_evidence_increases_only_production_kpis(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    create_signal(db_path, "Demo evidence about maintenance communication.", source_name="Demo A")
+    demo_run = get_active_study_run(db_path)
+    production_run = start_production_run(db_path)
+    run_research_batch(
+        db_path,
+        [
+            {
+                "country": "Ireland",
+                "stakeholder_type": "Property managers",
+                "source_name": "Irish source",
+                "data_origin": "verified_import",
+                "raw_text": "Property managers in Ireland repeatedly complain that maintenance updates are slow and tenants chase responses multiple times.",
+            },
+            {
+                "country": "United Kingdom",
+                "stakeholder_type": "Tenants",
+                "source_name": "UK source",
+                "data_origin": "verified_import",
+                "raw_text": "Tenants in the United Kingdom repeatedly complain that repair communication is poor and maintenance updates are delayed.",
+            },
+        ],
+    )
+
+    production_progress = study_progress(db_path)
+    demo_history_progress = study_progress(db_path, study_run_id=demo_run["id"], include_archived=True, include_demo=True)
+
+    assert production_progress["active_run_id"] == production_run["id"]
+    assert production_progress["signals_collected"] == 2
+    assert production_progress["findings_created"] == 1
+    assert production_progress["demo_records_count"] == 0
+    assert demo_history_progress["signals_collected"] == 1

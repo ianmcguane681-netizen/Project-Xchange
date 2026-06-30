@@ -483,9 +483,24 @@ CREATE TABLE IF NOT EXISTS studies (
     previous_status TEXT
 );
 
+CREATE TABLE IF NOT EXISTS study_runs (
+    id TEXT PRIMARY KEY,
+    study_id TEXT NOT NULL,
+    study_mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    closed_at TEXT,
+    data_origin TEXT DEFAULT 'demo',
+    verification_status TEXT DEFAULT 'unverified',
+    is_demo INTEGER NOT NULL DEFAULT 1,
+    notes TEXT,
+    created_by_worker TEXT DEFAULT 'PX-H001'
+);
+
 CREATE TABLE IF NOT EXISTS study_signals (
     id TEXT PRIMARY KEY,
     study_id TEXT NOT NULL,
+    study_run_id TEXT,
     source_url TEXT,
     source_name TEXT,
     source_type TEXT,
@@ -516,6 +531,7 @@ CREATE TABLE IF NOT EXISTS study_signals (
 CREATE TABLE IF NOT EXISTS study_findings (
     id TEXT PRIMARY KEY,
     study_id TEXT NOT NULL,
+    study_run_id TEXT,
     theme TEXT NOT NULL,
     problem_statement TEXT NOT NULL,
     complaint_category TEXT,
@@ -550,6 +566,7 @@ CREATE TABLE IF NOT EXISTS study_findings (
 CREATE TABLE IF NOT EXISTS finding_audits (
     id TEXT PRIMARY KEY,
     study_id TEXT NOT NULL,
+    study_run_id TEXT,
     finding_id TEXT NOT NULL,
     decision TEXT NOT NULL,
     evidence_score INTEGER,
@@ -587,6 +604,7 @@ CREATE TABLE IF NOT EXISTS finding_audits (
 CREATE TABLE IF NOT EXISTS opportunity_records (
     id TEXT PRIMARY KEY,
     study_id TEXT NOT NULL,
+    study_run_id TEXT,
     industry TEXT,
     market TEXT,
     problem TEXT NOT NULL,
@@ -637,6 +655,7 @@ CREATE TABLE IF NOT EXISTS opportunity_records (
 CREATE TABLE IF NOT EXISTS study_briefs (
     id TEXT PRIMARY KEY,
     study_id TEXT NOT NULL,
+    study_run_id TEXT,
     brief_type TEXT NOT NULL,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
@@ -767,6 +786,7 @@ MIGRATIONS = {
         "previous_status": "TEXT",
     },
     "study_signals": {
+        "study_run_id": "TEXT",
         "data_origin": "TEXT DEFAULT 'demo'",
         "verification_status": "TEXT DEFAULT 'unverified'",
         "is_demo": "INTEGER NOT NULL DEFAULT 1",
@@ -779,6 +799,7 @@ MIGRATIONS = {
         "previous_status": "TEXT",
     },
     "study_findings": {
+        "study_run_id": "TEXT",
         "confidence_score": "INTEGER",
         "country_count": "INTEGER",
         "stakeholder_count": "INTEGER",
@@ -797,6 +818,7 @@ MIGRATIONS = {
         "previous_status": "TEXT",
     },
     "finding_audits": {
+        "study_run_id": "TEXT",
         "traceability_score": "INTEGER",
         "final_oci": "INTEGER",
         "score_breakdown": "TEXT",
@@ -814,6 +836,7 @@ MIGRATIONS = {
         "previous_status": "TEXT",
     },
     "opportunity_records": {
+        "study_run_id": "TEXT",
         "engineering_recommendation": "TEXT",
         "problem_scope": "TEXT",
         "target_users": "TEXT",
@@ -833,6 +856,7 @@ MIGRATIONS = {
         "previous_status": "TEXT",
     },
     "study_briefs": {
+        "study_run_id": "TEXT",
         "data_origin": "TEXT DEFAULT 'demo'",
         "verification_status": "TEXT DEFAULT 'unverified'",
         "is_demo": "INTEGER NOT NULL DEFAULT 1",
@@ -865,6 +889,7 @@ def init_db(db_path: str | Path = DEFAULT_DB_PATH) -> None:
         migrate_db(connection)
         seed_registries(connection)
         seed_default_studies(connection)
+        seed_default_study_runs(connection)
         mark_existing_golden_study_records_demo(connection)
 
 
@@ -1025,6 +1050,29 @@ def seed_default_studies(connection: sqlite3.Connection) -> None:
     )
 
 
+def seed_default_study_runs(connection: sqlite3.Connection) -> None:
+    now = utc_now()
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO study_runs
+        (id, study_id, study_mode, status, created_at, data_origin, verification_status, is_demo, notes, created_by_worker)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "GSR-2026-000001",
+            "GS-001",
+            "demo",
+            "active",
+            now,
+            "demo",
+            "unverified",
+            1,
+            "Default demo run for GS-001.",
+            "PX-H001",
+        ),
+    )
+
+
 def mark_existing_golden_study_records_demo(connection: sqlite3.Connection) -> None:
     now = utc_now()
     for table_name in ["studies", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]:
@@ -1090,6 +1138,7 @@ def fetch_all(db_path: str | Path, table_name: str) -> list[dict[str, Any]]:
         "research_performance",
         "prompt_usage",
         "studies",
+        "study_runs",
         "study_signals",
         "study_findings",
         "finding_audits",
