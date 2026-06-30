@@ -81,7 +81,14 @@ def create_study(
     status: str = "Active",
     notes: str = "",
     data_origin: str = "demo",
+    study_mode: str = "demo",
+    production_confirmed: bool = False,
 ) -> dict[str, object]:
+    mode = study_mode if study_mode in {"demo", "production"} else "demo"
+    if mode == "production" and not production_confirmed:
+        raise ValueError("Production GS-001 creation requires explicit confirmation.")
+    if mode == "production" and data_origin == "demo":
+        data_origin = "manual"
     provenance = provenance_values(data_origin, "PX-H001")
     with connect(db_path) as connection:
         now = utc_now()
@@ -89,9 +96,9 @@ def create_study(
             """
             INSERT INTO studies
             (id, name, market, scope, countries, stakeholders, objective, status, started_at, lead_worker,
-             research_worker, audit_worker, library_worker, notes, data_origin, verification_status, is_demo,
+             research_worker, audit_worker, library_worker, notes, study_mode, data_origin, verification_status, is_demo,
              source_confidence, created_by_worker, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 market = excluded.market,
@@ -101,6 +108,7 @@ def create_study(
                 objective = excluded.objective,
                 status = excluded.status,
                 notes = excluded.notes,
+                study_mode = excluded.study_mode,
                 data_origin = excluded.data_origin,
                 verification_status = excluded.verification_status,
                 is_demo = excluded.is_demo,
@@ -121,6 +129,7 @@ def create_study(
                 "PX-A001",
                 "PX-L001",
                 notes,
+                mode,
                 provenance["data_origin"],
                 provenance["verification_status"],
                 1 if provenance["is_demo"] else 0,
@@ -164,8 +173,22 @@ def create_signal(
     study = get_or_create_default_study(db_path) if study_id == DEFAULT_STUDY_ID else get_study(db_path, study_id)
     if not study:
         raise ValueError(f"Study not found: {study_id}")
+    origin = normalize_data_origin(data_origin)
+    if source_url.strip() and origin == "demo":
+        origin = "manual"
+    if origin != "demo":
+        if not (source_url.strip() or source_name.strip()):
+            raise ValueError("Non-demo evidence requires a Source URL or Source name.")
+        if demo_records_count(db_path, study_id) > 0:
+            raise ValueError("Archive demo records before adding production evidence.")
+    elif non_demo_records_count(db_path, study_id) > 0:
+        raise ValueError("Demo evidence cannot be added after production evidence has started.")
+    if str(study.get("study_mode") or "demo") == "production" and origin == "demo":
+        raise ValueError("Production studies cannot contain demo records.")
+    if str(study.get("study_mode") or "demo") == "demo" and origin != "demo" and demo_records_count(db_path, study_id) > 0:
+        raise ValueError("Archive demo records before adding production evidence.")
     enriched = enrich_signal(raw_text, country, stakeholder_type, company_product)
-    provenance = provenance_values(data_origin, "PX-R001", source_confidence)
+    provenance = provenance_values(origin, "PX-R001", source_confidence)
     with connect(db_path) as connection:
         signal_id = next_sequence_id("SIG", count_rows(connection, "study_signals"))
         now = utc_now()
@@ -543,7 +566,7 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
                 "No direct contradictions detected.",
                 ", ".join(missing) if missing else "None",
                 reasoning,
-                "Approve into Opportunity Database." if decision == "Approve Opportunity" else "Collect more evidence before approval.",
+                "Approve into Approved Opportunities." if decision == "Approve Opportunity" else "Collect more evidence before approval.",
                 "active",
                 now,
                 "demo" if contains_demo else "verified_import",
@@ -607,7 +630,7 @@ def list_finding_audits(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -
     return [row_to_dict(row) for row in rows]
 
 
-def approve_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+def approve_audited_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
     approved = []
     with connect(db_path) as connection:
         rows = connection.execute(
@@ -631,8 +654,12 @@ def approve_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID)
     return approved
 
 
+def approve_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    return approve_audited_opportunities(db_path, study_id)
+
+
 def promote_approved_opportunities(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
-    return approve_opportunities(db_path, study_id)
+    return approve_audited_opportunities(db_path, study_id)
 
 
 def create_opportunity_from_audit(db_path: str | Path, audit: dict[str, object]) -> dict[str, object]:
@@ -706,8 +733,8 @@ def create_opportunity_from_audit(db_path: str | Path, audit: dict[str, object])
                 "PX-L001",
             ),
         )
-        connection.execute("UPDATE study_findings SET status = ? WHERE id = ?", ("opportunity_promoted", finding["id"]))
-    add_notification(db_path, "opportunity_promoted", f"Opportunity promoted: {opportunity_id}", opportunity_id)
+        connection.execute("UPDATE study_findings SET status = ? WHERE id = ?", ("opportunity_approved", finding["id"]))
+    add_notification(db_path, "opportunity_approved", f"Opportunity approved: {opportunity_id}", opportunity_id)
     return get_opportunity(db_path, opportunity_id)
 
 
@@ -848,16 +875,18 @@ def finding_evidence(db_path: str | Path, finding_id: str) -> dict[str, object]:
 
 
 def study_progress(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    study = get_study(db_path, study_id)
     signals = list_signals(db_path, study_id)
     findings = list_findings(db_path, study_id)
     audits = list_finding_audits(db_path, study_id)
     opportunities = list_opportunities(db_path, study_id)
     archives = archived_count(db_path, study_id)
-    demo_count = sum(1 for row in [*signals, *findings, *audits, *opportunities] if bool(row.get("is_demo")))
+    demo_count = demo_records_count(db_path, study_id)
     pending_verification = sum(1 for row in [*signals, *findings, *audits, *opportunities] if row.get("verification_status") in {"unverified", "pending_review"})
     avg_oci_values = [int(opportunity.get("opportunity_confidence_index") or 0) for opportunity in opportunities]
     return {
         "study_id": study_id,
+        "study_mode": str((study or {}).get("study_mode") or "demo"),
         "signals_collected": len(signals),
         "findings_created": len(findings),
         "audits_completed": len(audits),
@@ -999,49 +1028,115 @@ def run_audit_batch(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> li
 
 
 def demo_warning_active(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> bool:
-    return study_progress(db_path, study_id)["demo_records_count"] > 0
+    return demo_records_count(db_path, study_id) > 0
+
+
+def demo_records_count(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> int:
+    with connect(db_path) as connection:
+        total = 0
+        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
+            total += int(
+                connection.execute(
+                    f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND is_demo = 1 AND status != 'archived'",
+                    (study_id,),
+                ).fetchone()["count"]
+            )
+    return total
+
+
+def non_demo_records_count(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> int:
+    with connect(db_path) as connection:
+        total = 0
+        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
+            total += int(
+                connection.execute(
+                    f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND is_demo = 0 AND status != 'archived'",
+                    (study_id,),
+                ).fetchone()["count"]
+            )
+    return total
 
 
 def validate_golden_study_integrity(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    study = get_study(db_path, study_id)
+    signals = list_signals(db_path, study_id)
     findings = list_findings(db_path, study_id)
     audits = list_finding_audits(db_path, study_id)
     opportunities = list_opportunities(db_path, study_id)
     checks = []
+    def check(name: str, passed: bool, recommended_fix: str, **extra: object) -> None:
+        row = {"check": name, "passed": passed, "recommended_fix": "" if passed else recommended_fix}
+        row.update(extra)
+        checks.append(row)
+
+    production_mode = str((study or {}).get("study_mode") or "demo") == "production"
+    active_records = [*signals, *findings, *audits, *opportunities]
+    check(
+        "No demo records in production study",
+        not production_mode or not any(bool(row.get("is_demo")) and row.get("status") != "archived" for row in active_records),
+        "Archive demo records before running GS-001 in production mode.",
+    )
+    check(
+        "No demo record is approved",
+        not any(bool(row.get("is_demo")) and row.get("status") in {"Approved Opportunity", "Engineering Ready", "opportunity_approved"} for row in active_records),
+        "Archive demo records and rerun approval with non-demo evidence only.",
+    )
+    check(
+        "No demo record is Engineering Ready",
+        not any(bool(row.get("is_demo")) and (row.get("engineering_status") == "Engineering Ready" or row.get("status") == "Engineering Ready") for row in opportunities),
+        "Remove Engineering Ready status from demo records and archive them.",
+    )
+    for signal in signals:
+        if not bool(signal.get("is_demo")) and signal.get("status") != "archived":
+            check(
+                f"Non-demo signal {signal['id']} has source",
+                bool(signal.get("source_url") or signal.get("source_name")),
+                "Add a source URL or source name to the signal.",
+            )
     for finding in findings:
-        checks.append({
-            "check": f"Finding {finding['id']} links to signals",
-            "passed": bool(_loads_list(finding.get("representative_signals"))),
-        })
+        check(
+            f"Finding {finding['id']} links to signals",
+            bool(_loads_list(finding.get("representative_signals"))),
+            "Regenerate findings from sourced signals.",
+        )
     for audit in audits:
-        checks.append({"check": f"Audit {audit['id']} links to finding", "passed": bool(audit.get("finding_id"))})
-        checks.append({"check": f"Audit {audit['id']} has explainable OCI", "passed": bool(audit.get("score_breakdown") and audit.get("oci_reasoning"))})
-        checks.append({"check": f"Demo audit {audit['id']} is not approved", "passed": not (bool(audit.get("is_demo")) and audit.get("decision") == "Approve Opportunity")})
+        check(f"Audit {audit['id']} links to finding", bool(audit.get("finding_id")), "Rerun audit from a valid finding.")
+        check(f"Audit {audit['id']} has explainable OCI", bool(audit.get("score_breakdown") and audit.get("oci_reasoning")), "Rerun audit to create score breakdown and reasoning.")
+        check(f"Demo audit {audit['id']} is not approved", not (bool(audit.get("is_demo")) and audit.get("decision") == "Approve Opportunity"), "Archive demo audit and approve only non-demo evidence.")
     for opportunity in opportunities:
         try:
             chain = traceability_chain(db_path, str(opportunity["id"]))
             chain_complete = bool(chain["audit"] and chain["finding"] and chain["signals"] and chain["sources"])
             non_demo = not any(bool(record.get("is_demo")) for record in [chain["opportunity"], chain["audit"], chain["finding"], *chain["signals"]])
+            source_complete = all(source.get("source_url") or source.get("source_name") for source in chain["sources"])
         except Exception:
             chain_complete = False
             non_demo = False
+            source_complete = False
         required = ["recommended_component", "engineering_recommendation", "problem_scope", "target_users", "required_inputs", "expected_outputs", "system_boundaries"]
         missing_engineering = [field for field in required if not opportunity.get(field)]
-        checks.extend([
-            {"check": f"Opportunity {opportunity['id']} links to audit", "passed": bool(opportunity.get("audit_id"))},
-            {"check": f"Opportunity {opportunity['id']} traces to sources", "passed": chain_complete},
-            {"check": f"Opportunity {opportunity['id']} uses non-demo evidence", "passed": non_demo},
-            {"check": f"Engineering Ready {opportunity['id']} has required fields", "passed": opportunity.get("engineering_status") != "Engineering Ready" or not missing_engineering},
-        ])
+        check(f"Opportunity {opportunity['id']} links to audit", bool(opportunity.get("audit_id")), "Recreate opportunity from an audited finding.")
+        check(f"Opportunity {opportunity['id']} traces to sources", chain_complete and source_complete, "View Evidence Chain and add missing source metadata.")
+        check(f"Opportunity {opportunity['id']} uses non-demo evidence", non_demo, "Archive demo evidence and approve from production evidence only.")
+        check(
+            f"Engineering Ready {opportunity['id']} has required fields",
+            opportunity.get("engineering_status") != "Engineering Ready" or not missing_engineering,
+            f"Complete engineering fields: {', '.join(missing_engineering)}.",
+        )
     archived_preserved = True
     with connect(db_path) as connection:
         archived_rows = connection.execute("SELECT COUNT(*) AS count FROM demo_archive").fetchone()["count"]
-    checks.append({"check": "Archived demo records are preserved", "passed": archived_preserved, "count": int(archived_rows)})
+    check("Archived demo records are preserved", archived_preserved, "Do not hard-delete archived demo records.", count=int(archived_rows))
     failed = [check for check in checks if not check["passed"]]
     return {"passed": not failed, "failed_count": len(failed), "checks": checks}
 
 
+def normalize_data_origin(data_origin: str) -> str:
+    return data_origin if data_origin in {"demo", "manual", "verified_import", "provider"} else "demo"
+
+
 def provenance_values(data_origin: str, worker_id: str, source_confidence: float | None = None) -> dict[str, object]:
-    origin = data_origin if data_origin in {"demo", "manual", "verified_import", "provider"} else "demo"
+    origin = normalize_data_origin(data_origin)
     is_demo = origin == "demo"
     verification_status = "unverified" if is_demo else "verified" if origin == "verified_import" else "pending_review"
     return {

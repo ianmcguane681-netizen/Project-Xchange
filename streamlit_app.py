@@ -51,7 +51,7 @@ from project_exchange.eos import (
 from project_exchange.json_io import read_json, write_json
 from project_exchange.golden_study import (
     DEFAULT_STUDY_ID,
-    approve_opportunities,
+    approve_audited_opportunities,
     archive_record,
     audit_finding,
     create_signal,
@@ -846,28 +846,32 @@ with tabs[23]:
     study = get_or_create_default_study(DB_PATH)
     progress = study_progress(DB_PATH, DEFAULT_STUDY_ID)
     if demo_warning_active(DB_PATH, DEFAULT_STUDY_ID):
-        st.warning("Demo data loaded. Not suitable for production Opportunity approval.")
+        st.warning("GS-001 is currently using demo/sample data. Do not treat this as verified market evidence.")
+    else:
+        st.success(f"GS-001 mode: {progress['study_mode'].title()} | Verification pending: {progress['verification_pending_count']} | Engineering Ready: {len(progress['engineering_ready'])}")
 
-    metric_cols = st.columns(6)
+    metric_cols = st.columns(8)
     metric_cols[0].metric("Study", study["id"])
     metric_cols[1].metric("Signals", progress["signals_collected"])
     metric_cols[2].metric("Findings", progress["findings_created"])
     metric_cols[3].metric("Audits", progress["audits_completed"])
-    metric_cols[4].metric("Approved", progress["opportunities_approved"])
+    metric_cols[4].metric("Approved Opportunities", progress["opportunities_approved"])
     metric_cols[5].metric("Engineering Ready", len(progress["engineering_ready"]))
-    quality_cols = st.columns(6)
-    quality_cols[0].metric("Evidence Sources", progress["source_coverage"])
-    quality_cols[1].metric("Countries", len(progress["countries_covered"]))
-    quality_cols[2].metric("Stakeholders", len(progress["stakeholders_covered"]))
-    quality_cols[3].metric("Average OCI", progress["average_oci"])
-    quality_cols[4].metric("Demo Records", progress["demo_records_count"])
-    quality_cols[5].metric("Pending Verification", progress["verification_pending_count"])
+    metric_cols[6].metric("Demo Records", progress["demo_records_count"])
+    metric_cols[7].metric("Average OCI", progress["average_oci"])
+    quality_cols = st.columns(4)
+    quality_cols[0].metric("Database Status", "Connected")
+    quality_cols[1].metric("Pending Verification", progress["verification_pending_count"])
+    quality_cols[2].metric("Countries", len(progress["countries_covered"]))
+    quality_cols[3].metric("Evidence Sources", progress["source_coverage"])
 
     control_cols = st.columns(5)
     with control_cols[0]:
-        if st.button("Create / Refresh GS-001"):
-            st.json(
-                create_study(
+        study_mode = st.selectbox("Study mode", ["demo", "production"], index=0 if progress["study_mode"] == "demo" else 1, key="gs001_mode")
+        production_confirmed = st.checkbox("Confirm production GS-001", key="gs001_production_confirmed")
+        if st.button("Create / Refresh GS-001", key="gs001_create_refresh"):
+            try:
+                result = create_study(
                     DB_PATH,
                     DEFAULT_STUDY_ID,
                     "Global Property Management Golden Study",
@@ -878,25 +882,33 @@ with tabs[23]:
                     "Find verified, traceable market opportunities backed by repeated complaints and evidence.",
                     "Active",
                     "Golden Study 001 default study.",
+                    study_mode=study_mode,
+                    production_confirmed=production_confirmed,
                 )
-            )
+                with st.expander("Study JSON"):
+                    st.json(result)
+            except ValueError as exc:
+                st.error(str(exc))
     with control_cols[1]:
-        if st.button("Generate Findings"):
-            st.json(generate_findings(DB_PATH, DEFAULT_STUDY_ID))
+        if st.button("Generate Findings", key="gs001_generate_findings"):
+            with st.expander("Generated Findings JSON", expanded=True):
+                st.json(generate_findings(DB_PATH, DEFAULT_STUDY_ID))
     with control_cols[2]:
-        if st.button("Run Audit Batch"):
+        if st.button("Run Audit Batch", key="gs001_run_audit_batch"):
             try:
-                st.json(run_audit_batch(DB_PATH, DEFAULT_STUDY_ID))
+                with st.expander("Audit Batch JSON", expanded=True):
+                    st.json(run_audit_batch(DB_PATH, DEFAULT_STUDY_ID))
             except ValueError as exc:
                 st.error(str(exc))
     with control_cols[3]:
-        if st.button("Approve Opportunities"):
+        if st.button("Approve Opportunities", key="gs001_approve_opportunities"):
             try:
-                st.json(approve_opportunities(DB_PATH, DEFAULT_STUDY_ID))
+                with st.expander("Approved Opportunities JSON", expanded=True):
+                    st.json(approve_audited_opportunities(DB_PATH, DEFAULT_STUDY_ID))
             except ValueError as exc:
                 st.error(str(exc))
     with control_cols[4]:
-        if st.button("Executive Brief"):
+        if st.button("Executive Brief", key="gs001_executive_brief"):
             brief = generate_executive_brief(DB_PATH, DEFAULT_STUDY_ID)
             st.text(brief["body"])
             with st.expander("Raw Data"):
@@ -904,7 +916,7 @@ with tabs[23]:
 
     validation_cols = st.columns(2)
     with validation_cols[0]:
-        if st.button("Validate Golden Study Integrity"):
+        if st.button("Validate Golden Study Integrity", key="gs001_validate_integrity"):
             validation = validate_golden_study_integrity(DB_PATH, DEFAULT_STUDY_ID)
             if validation["passed"]:
                 st.success("Golden Study integrity checks passed.")
@@ -912,7 +924,7 @@ with tabs[23]:
                 st.error(f"{validation['failed_count']} integrity checks failed.")
             st.dataframe(validation["checks"], use_container_width=True)
     with validation_cols[1]:
-        if st.button("Clear Demo Data"):
+        if st.button("Archive Demo Data", key="gs001_archive_demo_data"):
             archived = []
             for table_name, rows in {
                 "study_signals": list_signals(DB_PATH, DEFAULT_STUDY_ID),
@@ -923,39 +935,45 @@ with tabs[23]:
                 for row in rows:
                     if row.get("is_demo") and row.get("status") != "archived":
                         archived.append(archive_record(DB_PATH, table_name, str(row["id"])))
-            st.json({"archived_demo_records": archived})
+            with st.expander("Archive Result JSON", expanded=True):
+                st.json({"archived_demo_records": archived})
 
-    st.subheader("Create Signal")
+    st.subheader("Signals")
     with st.form("golden_signal_form"):
         sig_cols = st.columns(3)
-        signal_country = sig_cols[0].text_input("Country", value="Ireland", key="golden_signal_country")
-        signal_stakeholder = sig_cols[1].text_input("Stakeholder type", value="Property managers", key="golden_signal_stakeholder")
+        signal_study_id = sig_cols[0].text_input("Study ID", value=DEFAULT_STUDY_ID, key="golden_signal_study_id")
+        signal_country = sig_cols[1].text_input("Country", value="Unknown", key="golden_signal_country")
         signal_product = sig_cols[2].text_input("Company / Product", key="golden_signal_product")
-        signal_origin = sig_cols[2].selectbox("Data origin", ["demo", "manual", "verified_import", "provider"], key="golden_signal_origin")
-        signal_source = st.text_input("Source URL", key="golden_signal_source")
-        signal_source_name = st.text_input("Source name", value="Manual source", key="golden_signal_source_name")
+        source_cols = st.columns(3)
+        signal_source = source_cols[0].text_input("Source URL", key="golden_signal_source")
+        signal_source_name = source_cols[1].text_input("Source name", key="golden_signal_source_name")
+        signal_source_type = source_cols[2].selectbox("Source type", ["manual", "url", "pdf", "csv", "txt", "article", "provider"], key="golden_signal_source_type")
+        meta_cols = st.columns(3)
+        signal_stakeholder = meta_cols[0].text_input("Stakeholder type", value="Unknown", key="golden_signal_stakeholder")
+        signal_source_date = meta_cols[1].date_input("Evidence date", key="golden_signal_source_date")
+        signal_origin = meta_cols[2].selectbox("Data origin", ["manual", "provider", "verified_import", "demo"], key="golden_signal_origin")
         signal_text = st.text_area(
             "Raw evidence text",
-            value="Property managers in Ireland repeatedly complain that maintenance updates are slow, tenants chase responses multiple times, and existing software communication tools are expensive.",
+            value="",
             key="golden_signal_text",
         )
         if st.form_submit_button("Create Signal"):
             try:
-                st.json(
-                    create_signal(
-                        DB_PATH,
-                        signal_text,
-                        DEFAULT_STUDY_ID,
-                        signal_source,
-                        signal_source_name,
-                        "manual",
-                        "",
-                        signal_country,
-                        signal_stakeholder,
-                        signal_product,
-                        signal_origin,
-                    )
+                result = create_signal(
+                    DB_PATH,
+                    signal_text,
+                    signal_study_id,
+                    signal_source,
+                    signal_source_name,
+                    signal_source_type,
+                    signal_source_date.isoformat(),
+                    signal_country,
+                    signal_stakeholder,
+                    signal_product,
+                    signal_origin,
                 )
+                with st.expander("Signal JSON", expanded=True):
+                    st.json(result)
             except ValueError as exc:
                 st.error(str(exc))
 
@@ -1001,19 +1019,22 @@ with tabs[23]:
         with finding_cols[0]:
             if st.button("Audit Finding"):
                 try:
-                    st.json(audit_finding(DB_PATH, str(selected_finding)))
+                    with st.expander("Audit Finding JSON", expanded=True):
+                        st.json(audit_finding(DB_PATH, str(selected_finding)))
                 except ValueError as exc:
                     st.error(str(exc))
         with finding_cols[1]:
             if st.button("View Evidence Chain"):
-                st.json(finding_evidence(DB_PATH, str(selected_finding)))
+                with st.expander("Finding Evidence Chain JSON", expanded=True):
+                    st.json(finding_evidence(DB_PATH, str(selected_finding)))
         with finding_cols[2]:
             if st.button("Archive Finding"):
-                st.json(archive_record(DB_PATH, "study_findings", str(selected_finding)))
+                with st.expander("Archive Finding JSON", expanded=True):
+                    st.json(archive_record(DB_PATH, "study_findings", str(selected_finding)))
 
     st.subheader("Audits")
     st.dataframe(list_finding_audits(DB_PATH, DEFAULT_STUDY_ID), use_container_width=True)
-    st.subheader("Opportunity Database")
+    st.subheader("Approved Opportunities")
     opportunities = list_opportunities(DB_PATH, DEFAULT_STUDY_ID)
     st.dataframe(opportunities, use_container_width=True)
     opportunity_ids = [record["id"] for record in opportunities]
@@ -1022,15 +1043,19 @@ with tabs[23]:
         opportunity_cols = st.columns(2)
         with opportunity_cols[0]:
             if st.button("View Traceability Chain"):
-                st.json(traceability_chain(DB_PATH, str(selected_opportunity)))
+                with st.expander("Opportunity Evidence Chain JSON", expanded=True):
+                    st.json(traceability_chain(DB_PATH, str(selected_opportunity)))
         with opportunity_cols[1]:
             if st.button("Archive Opportunity"):
-                st.json(archive_record(DB_PATH, "opportunity_records", str(selected_opportunity)))
+                with st.expander("Archive Opportunity JSON", expanded=True):
+                    st.json(archive_record(DB_PATH, "opportunity_records", str(selected_opportunity)))
 
+    st.subheader("Engineering Specs")
+    st.dataframe([row for row in opportunities if row.get("engineering_status")], use_container_width=True)
     st.subheader("Executive Briefs")
     st.dataframe(list_study_briefs(DB_PATH, DEFAULT_STUDY_ID), use_container_width=True)
     st.subheader("Coverage")
     coverage_cols = st.columns(3)
-    coverage_cols[0].json(progress["countries_covered"])
-    coverage_cols[1].json(progress["stakeholders_covered"])
+    coverage_cols[0].write(", ".join(progress["countries_covered"]) or "No countries yet")
+    coverage_cols[1].write(", ".join(progress["stakeholders_covered"]) or "No stakeholders yet")
     coverage_cols[2].metric("Source Coverage", progress["source_coverage"])

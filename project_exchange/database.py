@@ -470,6 +470,7 @@ CREATE TABLE IF NOT EXISTS studies (
     audit_worker TEXT,
     library_worker TEXT,
     notes TEXT,
+    study_mode TEXT DEFAULT 'demo',
     data_origin TEXT DEFAULT 'demo',
     verification_status TEXT DEFAULT 'unverified',
     is_demo INTEGER NOT NULL DEFAULT 1,
@@ -753,6 +754,7 @@ MIGRATIONS = {
         "success_rate": "REAL NOT NULL DEFAULT 0",
     },
     "studies": {
+        "study_mode": "TEXT DEFAULT 'demo'",
         "data_origin": "TEXT DEFAULT 'demo'",
         "verification_status": "TEXT DEFAULT 'unverified'",
         "is_demo": "INTEGER NOT NULL DEFAULT 1",
@@ -994,8 +996,9 @@ def seed_default_studies(connection: sqlite3.Connection) -> None:
         """
         INSERT OR IGNORE INTO studies
         (id, name, market, scope, countries, stakeholders, objective, status, started_at, lead_worker,
-         research_worker, audit_worker, library_worker, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         research_worker, audit_worker, library_worker, notes, study_mode, data_origin, verification_status, is_demo,
+         created_by_worker, last_updated)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             "GS-001",
@@ -1012,6 +1015,12 @@ def seed_default_studies(connection: sqlite3.Connection) -> None:
             "PX-A001",
             "PX-L001",
             "Default Golden Study for the global Property Management market.",
+            "demo",
+            "demo",
+            "unverified",
+            1,
+            "PX-H001",
+            now,
         ),
     )
 
@@ -1022,10 +1031,12 @@ def mark_existing_golden_study_records_demo(connection: sqlite3.Connection) -> N
         columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
         if {"data_origin", "verification_status", "is_demo", "last_updated"} <= columns:
             where = "study_id = 'GS-001'" if "study_id" in columns else "id = 'GS-001'"
+            study_mode_sql = "study_mode = COALESCE(study_mode, 'demo')," if table_name == "studies" and "study_mode" in columns else ""
             connection.execute(
                 f"""
                 UPDATE {table_name}
-                SET data_origin = COALESCE(data_origin, 'demo'),
+                SET {study_mode_sql}
+                    data_origin = COALESCE(data_origin, 'demo'),
                     verification_status = CASE
                         WHEN COALESCE(is_demo, 1) = 1 THEN 'unverified'
                         ELSE COALESCE(verification_status, 'pending_review')

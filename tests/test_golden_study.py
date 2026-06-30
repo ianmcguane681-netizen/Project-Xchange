@@ -1,19 +1,21 @@
 from project_exchange.database import fetch_all, init_db
 from project_exchange.golden_study import (
     DEFAULT_STUDY_ID,
+    approve_audited_opportunities,
     archive_record,
     audit_finding,
     calculate_oci,
     create_signal,
+    create_study,
     generate_executive_brief,
     generate_findings,
     get_or_create_default_study,
     list_opportunities,
-    promote_approved_opportunities,
     run_audit_batch,
     run_research_batch,
     study_progress,
     traceability_chain,
+    validate_golden_study_integrity,
 )
 
 
@@ -25,6 +27,7 @@ def test_default_study_creation(tmp_path):
     assert study["id"] == DEFAULT_STUDY_ID
     assert study["market"] == "Property Management"
     assert study["status"] == "Active"
+    assert study["study_mode"] == "demo"
 
 
 def test_signal_creation_and_finding_clustering(tmp_path):
@@ -108,7 +111,7 @@ def test_audit_promotion_and_traceability_chain(tmp_path):
     assert audits
     assert audits[0]["opportunity_confidence_index"] >= 85
 
-    opportunities = promote_approved_opportunities(db_path)
+    opportunities = approve_audited_opportunities(db_path)
     assert opportunities
     opportunity = opportunities[0]
     assert opportunity["engineering_status"] == "Engineering Specification Required"
@@ -158,6 +161,94 @@ def test_direct_audit_finding_path(tmp_path):
     assert audit["reasoning_summary"]
     assert fetch_all(db_path, "finding_audits")
     assert list_opportunities(db_path) == []
+
+
+def test_production_creation_requires_confirmation(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    try:
+        create_study(db_path, DEFAULT_STUDY_ID, "GS-001", "Property Management", study_mode="production")
+    except ValueError as exc:
+        assert "explicit confirmation" in str(exc)
+    else:
+        raise AssertionError("Production study creation should require confirmation")
+
+    study = create_study(
+        db_path,
+        DEFAULT_STUDY_ID,
+        "GS-001",
+        "Property Management",
+        data_origin="manual",
+        study_mode="production",
+        production_confirmed=True,
+    )
+    assert study["study_mode"] == "production"
+    assert study["verification_status"] == "pending_review"
+
+
+def test_demo_records_block_production_evidence_until_archived(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    demo_signal = create_signal(db_path, "Demo evidence about maintenance communication.", source_name="Demo source")
+    try:
+        create_signal(
+            db_path,
+            "Real source says maintenance communication remains slow.",
+            source_name="Real source",
+            data_origin="manual",
+        )
+    except ValueError as exc:
+        assert "Archive demo records" in str(exc)
+    else:
+        raise AssertionError("Production evidence should be blocked while demo records exist")
+
+    archive_record(db_path, "study_signals", demo_signal["id"])
+    real_signal = create_signal(
+        db_path,
+        "Real source says maintenance communication remains slow.",
+        source_name="Real source",
+        data_origin="manual",
+    )
+    assert real_signal["verification_status"] == "pending_review"
+    assert real_signal["is_demo"] == 0
+
+
+def test_non_demo_signal_requires_source_reference(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    try:
+        create_signal(db_path, "Real evidence without source.", data_origin="manual")
+    except ValueError as exc:
+        assert "Source URL or Source name" in str(exc)
+    else:
+        raise AssertionError("Non-demo evidence should require a source")
+
+
+def test_demo_signal_cannot_be_added_after_production_evidence(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    create_signal(db_path, "Real evidence starts the production run.", source_name="Real source", data_origin="manual")
+    try:
+        create_signal(db_path, "Demo evidence should not mix into the same run.")
+    except ValueError as exc:
+        assert "after production evidence" in str(exc)
+    else:
+        raise AssertionError("Demo evidence should not be allowed after production evidence")
+
+
+def test_integrity_failures_include_recommended_fix(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    create_signal(db_path, "Demo evidence about maintenance communication.", source_name="Demo source")
+    validation = validate_golden_study_integrity(db_path)
+
+    assert validation["checks"]
+    assert all("recommended_fix" in check for check in validation["checks"])
 
 
 def test_demo_data_is_labelled_and_blocked_from_approval(tmp_path):
