@@ -877,9 +877,138 @@ with tabs[23]:
         "source_coverage": 0,
         "top_opportunities": [],
     }
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            border: 1px solid #E5EAF2;
+            border-radius: 12px;
+            box-shadow: 0 8px 22px rgba(31, 41, 55, 0.06);
+            background: #FFFFFF;
+        }
+        div.stButton > button {
+            border-radius: 10px;
+            border: 1px solid #B7CCFF;
+            color: #003399;
+            background: #FFFFFF;
+            font-weight: 650;
+        }
+        div.stButton > button[kind="primary"] {
+            border-color: #003399;
+            background: #003399;
+            color: #FFFFFF;
+        }
+        div.stButton > button:hover {
+            border-color: #0047CC;
+            background: #F3F7FF;
+            color: #003399;
+        }
+        .px-hero {
+            border: 1px solid #D7E2F6;
+            border-radius: 18px;
+            padding: 22px 24px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #F7F9FC 100%);
+            box-shadow: 0 12px 36px rgba(31, 41, 55, 0.08);
+            margin-bottom: 18px;
+        }
+        .px-hero h2 {
+            margin: 0 0 4px 0;
+            color: #1F2937;
+        }
+        .px-muted {
+            color: #6B7280;
+            font-size: 0.92rem;
+        }
+        .px-card-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin: 12px 0 16px 0;
+        }
+        .px-metric-card {
+            border: 1px solid #E5EAF2;
+            border-radius: 14px;
+            padding: 16px;
+            background: #FFFFFF;
+            box-shadow: 0 8px 20px rgba(31, 41, 55, 0.05);
+        }
+        .px-metric-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .px-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #EEF4FF;
+            color: #003399;
+            font-weight: 800;
+            font-size: 0.78rem;
+        }
+        .px-metric-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #1F2937;
+            line-height: 1;
+        }
+        .px-card-title {
+            font-weight: 750;
+            color: #1F2937;
+            margin-bottom: 4px;
+        }
+        .px-badge {
+            border-radius: 999px;
+            padding: 4px 9px;
+            font-size: 0.72rem;
+            font-weight: 750;
+            border: 1px solid #E5EAF2;
+            color: #1F2937;
+            background: #F7F9FC;
+            white-space: nowrap;
+        }
+        .px-badge-blue { color: #003399; background: #EEF4FF; border-color: #B7CCFF; }
+        .px-badge-green { color: #137333; background: #EAF7EF; border-color: #BFE8CD; }
+        .px-badge-orange { color: #9A5B00; background: #FFF6DF; border-color: #FFE0A3; }
+        .px-badge-yellow { color: #7A5A00; background: #FFFBEA; border-color: #F8E69A; }
+        .px-badge-red { color: #A50E0E; background: #FCEDEA; border-color: #F5C2BD; }
+        .px-badge-grey { color: #4B5563; background: #F3F4F6; border-color: #E5E7EB; }
+        .px-workflow {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 10px;
+            margin: 12px 0 18px 0;
+        }
+        .px-stage {
+            border: 1px solid #E5EAF2;
+            border-radius: 14px;
+            padding: 14px;
+            background: #FFFFFF;
+        }
+        @media (max-width: 1000px) {
+            .px-card-grid, .px-workflow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     def source_label(record: dict[str, object]) -> str:
         return str(record.get("source_url") or record.get("source_name") or "No source")
+
+    def html_escape(value: object) -> str:
+        return (
+            str(value or "")
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
 
     def as_list_text(raw: object) -> str:
         if not raw:
@@ -891,6 +1020,15 @@ with tabs[23]:
         if isinstance(parsed, list):
             return ", ".join(str(item) for item in parsed)
         return str(parsed)
+
+    def list_count(raw: object) -> int:
+        if not raw:
+            return 0
+        try:
+            parsed = json.loads(str(raw))
+        except json.JSONDecodeError:
+            return 0
+        return len(parsed) if isinstance(parsed, list) else 0
 
     def compact_signals(records: list[dict[str, object]]) -> list[dict[str, object]]:
         return [
@@ -953,6 +1091,45 @@ with tabs[23]:
 
     def badge_text(value: object) -> str:
         return str(value or "Not started")
+
+    def badge_class(value: object) -> str:
+        text = str(value or "").lower()
+        if "ready" in text or "complete" in text or "verified" in text or "active" in text:
+            return "green"
+        if "demo" in text:
+            return "orange"
+        if "pending" in text or "progress" in text or "waiting" in text:
+            return "yellow"
+        if "missing" in text or "blocked" in text or "failed" in text:
+            return "red"
+        if "archived" in text or "not started" in text:
+            return "grey"
+        return "blue"
+
+    def badge_html(value: object) -> str:
+        return f'<span class="px-badge px-badge-{badge_class(value)}">{html_escape(badge_text(value))}</span>'
+
+    def metric_card(icon: str, title: str, value: object, description: str, status: object = "Active") -> str:
+        return f"""
+        <div class="px-metric-card">
+            <div class="px-metric-top">
+                <span class="px-icon">{html_escape(icon)}</span>
+                {badge_html(status)}
+            </div>
+            <div class="px-card-title">{html_escape(title)}</div>
+            <div class="px-metric-value">{html_escape(value)}</div>
+            <div class="px-muted">{html_escape(description)}</div>
+        </div>
+        """
+
+    def workflow_stage_card(stage: str) -> str:
+        state = workflow_stage_status(stage)
+        return f"""
+        <div class="px-stage">
+            <div class="px-card-title">{html_escape(stage)}</div>
+            {badge_html(state)}
+        </div>
+        """
 
     def demo_oci(record: dict[str, object]) -> int:
         if not record:
@@ -1048,25 +1225,38 @@ with tabs[23]:
         top_opportunity = opportunities[0] if opportunities else {}
         highest_score = displayed_oci(top_opportunity) if top_opportunity else demo_oci(top_problem)
         score_label = "Demo OCI" if is_demo_run else "Highest OCI"
-        metric_cols = st.columns(6)
-        metric_cols[0].metric("Run Mode", run_mode.title())
-        metric_cols[1].metric("Run Status", run_status.title())
-        metric_cols[2].metric("Signals", progress["signals_collected"])
-        metric_cols[3].metric("Findings", progress["findings_created"])
-        metric_cols[4].metric("Audits", progress["audits_completed"])
-        metric_cols[5].metric(score_label, highest_score)
-        metric_cols_2 = st.columns(5)
-        metric_cols_2[0].metric("Approved Opportunities", progress["opportunities_approved"])
-        metric_cols_2[1].metric("Engineering Ready", len(progress["engineering_ready"]))
-        metric_cols_2[2].metric("Pending Verification", progress["verification_pending_count"])
-        metric_cols_2[3].metric("Countries", len(progress["countries_covered"]))
-        metric_cols_2[4].metric("Sources", progress["source_coverage"])
+        st.markdown(
+            f"""
+            <div class="px-hero">
+                <div class="px-muted">Golden Study</div>
+                <h2>Executive Operating Dashboard</h2>
+                <div>{badge_html(run_mode.title())} {badge_html(run_status.title())}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div class="px-workflow">'
+            + "".join(workflow_stage_card(stage) for stage in ["Signals", "Findings", "Audits", "Opportunities", "Engineering Specs", "Engineering Ready"])
+            + "</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div class="px-card-grid">'
+            + metric_card("SG", "Signals", progress["signals_collected"], "Evidence items in current run", workflow_stage_status("Signals"))
+            + metric_card("FN", "Findings", progress["findings_created"], "Problems formed from evidence", workflow_stage_status("Findings"))
+            + metric_card("AU", "Audits", progress["audits_completed"], "Verification reviews completed", workflow_stage_status("Audits"))
+            + metric_card("OP", "Opportunities", progress["opportunities_approved"], "Approved or demo opportunities", workflow_stage_status("Opportunities"))
+            + metric_card("SP", "Engineering Specs", len([row for row in opportunities if row.get("engineering_status")]), "Blueprints awaiting readiness", workflow_stage_status("Engineering Specs"))
+            + metric_card("BR", "Executive Brief", len(list_study_briefs(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)) if active_run_id else 0, "Current run brief count", "Complete" if list_study_briefs(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) else "Waiting")
+            + "</div>",
+            unsafe_allow_html=True,
+        )
 
-        st.subheader("Workflow Progress")
-        stage_cols = st.columns(6)
-        for col, stage in zip(stage_cols, ["Signals", "Findings", "Audits", "Opportunities", "Engineering Specs", "Engineering Ready"]):
-            col.markdown(f"**{stage}**")
-            col.caption(workflow_stage_status(stage))
+        summary_cols = st.columns(3)
+        summary_cols[0].metric("Evidence Health", f"{progress['source_coverage']} sources")
+        summary_cols[1].metric(score_label, highest_score)
+        summary_cols[2].metric("Countries", len(progress["countries_covered"]))
 
         st.subheader("Evidence Coverage")
         st.write(f"Countries: {', '.join(progress['countries_covered']) or 'None'}")
@@ -1077,6 +1267,10 @@ with tabs[23]:
         st.write(problem_label)
         if top_problem.get("problem_statement"):
             st.caption(str(top_problem["problem_statement"]))
+        if top_opportunity:
+            st.subheader("Current Top Opportunity")
+            st.write(str(top_opportunity.get("recommended_component") or top_opportunity.get("problem") or "Opportunity"))
+            st.caption(str(top_opportunity.get("problem") or ""))
 
         st.subheader("Recommended Next Action")
         if is_demo_run:
@@ -1176,10 +1370,15 @@ with tabs[23]:
             st.info("No active run is available.")
 
     with workflow_tabs[2]:
-        st.dataframe(compact_signals(signals), use_container_width=True, hide_index=True)
         for signal in signals:
-            with st.expander(str(signal.get("summary") or signal["id"])):
-                st.write(f"Source: {source_label(signal)}")
+            with st.container(border=True):
+                st.markdown(f"**{html_escape(signal.get('country') or 'Unknown')} | {html_escape(signal.get('stakeholder_type') or 'Unknown stakeholder')}**")
+                st.markdown(badge_html(signal.get("verification_status")), unsafe_allow_html=True)
+                st.write(str(signal.get("summary") or signal.get("raw_text") or "No evidence summary"))
+                cols = st.columns(3)
+                cols[0].metric("Evidence Strength", signal.get("evidence_strength") or 0)
+                cols[1].write(f"Source: {source_label(signal)}")
+                cols[2].write(f"Origin: {signal.get('data_origin')}")
                 if signal.get("source_url"):
                     st.markdown(f"[View Source]({signal['source_url']})")
                 if st.button("Archive", key=f"archive_signal_{signal['id']}"):
@@ -1282,6 +1481,11 @@ with tabs[23]:
                     opportunity.get("problem"),
                 )
                 st.caption(f"Engineering status: {opportunity.get('engineering_status') or 'Not started'}")
+                opp_cols = st.columns(4)
+                opp_cols[0].metric("Commercial Potential", opportunity.get("commercial_potential") or "Not set")
+                opp_cols[1].metric("Engineering Complexity", opportunity.get("estimated_build_complexity") or "Not set")
+                opp_cols[2].metric("Evidence Quality", opportunity.get("source_confidence") or opportunity.get("opportunity_confidence_index") or 0)
+                opp_cols[3].metric("Countries", list_count(opportunity.get("countries")))
                 cols = st.columns(3)
                 if cols[0].button("View Evidence Chain", key=f"opp_chain_{opportunity['id']}"):
                     st.session_state["golden_chain_target_type"] = "Opportunity"
@@ -1297,15 +1501,19 @@ with tabs[23]:
     with workflow_tabs[6]:
         spec_opportunities = [row for row in opportunities if row.get("engineering_status") in {"Engineering Specification Required", "Engineering Ready", "Demo Opportunity", "Demo Engineering Ready"}]
         for row in spec_opportunities:
+            demo_prefix = "Demo " if bool(row.get("is_demo")) else ""
             with st.container(border=True):
                 st.markdown(f"**{row.get('recommended_component') or 'Component'}**")
-                st.caption(str(row.get("engineering_status") or "Not started"))
-                st.write(f"Purpose: {row.get('problem_scope') or row.get('problem') or 'Not specified'}")
-                st.write(f"Target Users: {row.get('target_users') or 'Not specified'}")
-                st.write(f"Inputs: {row.get('required_inputs') or 'Not specified'}")
-                st.write(f"Outputs: {row.get('expected_outputs') or 'Not specified'}")
-                st.write(f"System Boundaries: {row.get('system_boundaries') or 'Not specified'}")
-                st.write(f"Engineering Recommendation: {row.get('engineering_recommendation') or 'Not specified'}")
+                st.markdown(badge_html(row.get("engineering_status") or "Not started"), unsafe_allow_html=True)
+                st.write(f"Purpose: {row.get('problem_scope') or row.get('problem') or demo_prefix + 'rehearsal scope based on the current problem statement.'}")
+                st.write(f"Primary Users: {row.get('target_users') or demo_prefix + 'property managers and operations teams'}")
+                st.write(f"Secondary Users: {demo_prefix + 'tenants, owners, and support teams'}")
+                st.write(f"Inputs: {row.get('required_inputs') or demo_prefix + 'maintenance requests, status updates, source evidence, user notes'}")
+                st.write(f"Outputs: {row.get('expected_outputs') or demo_prefix + 'prioritised workflow, notifications, evidence summary, audit trail'}")
+                st.write(f"Dependencies: {demo_prefix + 'PX-R001 research, PX-A001 audit, PX-L001 library'}")
+                st.write(f"System Boundaries: {row.get('system_boundaries') or demo_prefix + 'no production automation until verified evidence exists'}")
+                st.write(f"Architecture Recommendation: {row.get('engineering_recommendation') or demo_prefix + 'component-first workflow with traceable evidence chain'}")
+                st.write(f"Implementation Complexity: {row.get('estimated_build_complexity') or 'Not specified'}")
                 with st.expander("Technical Details"):
                     st.json(row)
         spec_options = {str(row.get("recommended_component") or row.get("problem") or row["id"]): row["id"] for row in spec_opportunities}
