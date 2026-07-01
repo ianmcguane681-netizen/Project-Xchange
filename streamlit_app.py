@@ -74,6 +74,7 @@ from project_exchange.golden_study import (
     list_study_runs,
     list_study_briefs,
     mark_engineering_ready,
+    production_pipeline_statuses,
     pull_real_market_evidence,
     run_audit_batch,
     run_research_batch,
@@ -1217,6 +1218,10 @@ with tabs[23]:
             return parsed
         return {}
 
+    def signal_source_name(record: dict[str, object]) -> str:
+        metadata = signal_provider_metadata(record)
+        return str(metadata.get("original_title") or record.get("source_name") or record.get("source_url") or "No source name")
+
     def source_label(record: dict[str, object]) -> str:
         metadata = signal_provider_metadata(record)
         return str(
@@ -1226,6 +1231,58 @@ with tabs[23]:
             or record.get("source_name")
             or "No source"
         )
+
+    def render_signal_trace_card(signal: dict[str, object]) -> None:
+        provider_metadata = signal_provider_metadata(signal)
+        provider_name = str(provider_metadata.get("provider_name") or signal.get("data_origin") or "Manual")
+        original_query = str(provider_metadata.get("original_query") or "Manual entry")
+        retrieved_at = str(provider_metadata.get("retrieved_at") or signal.get("source_date") or signal.get("created_at") or "Unknown")
+        source_url = str(signal.get("source_url") or "No source URL")
+        with st.container(border=True):
+            render_business_card(
+                signal_source_name(signal),
+                signal.get("verification_status"),
+                signal.get("raw_text") or signal.get("summary") or "No evidence quote",
+                [
+                    ("Provider", provider_name),
+                    ("Source URL", source_url),
+                    ("Country", signal.get("country") or "Unknown"),
+                    ("Stakeholder", signal.get("stakeholder_type") or "Unknown"),
+                    ("Retrieved", retrieved_at),
+                    ("Evidence strength", signal.get("evidence_strength") or 0),
+                ],
+            )
+            st.caption(f"Original query: {original_query}")
+            if signal.get("source_url"):
+                st.markdown(f"[Open source]({signal['source_url']})")
+            with st.expander("Technical Details"):
+                st.json(signal)
+
+    def render_research_run_result(result: dict[str, object]) -> None:
+        if result.get("status") == "completed":
+            st.success("Research Run Complete")
+        elif result.get("status") == "blocked":
+            st.warning(str(result.get("message") or "Research run blocked"))
+        else:
+            st.warning(str(result.get("message") or "Research run finished with no stored signals"))
+        summary_cols = st.columns(4)
+        summary_cols[0].metric("Sources searched", result.get("sources_searched", 0))
+        summary_cols[1].metric("Candidate evidence found", result.get("candidate_results_found", 0))
+        summary_cols[2].metric("Signals stored", result.get("signals_stored", 0))
+        summary_cols[3].metric("Duplicates skipped", result.get("skipped_duplicates", 0))
+        detail_cols = st.columns(4)
+        detail_cols[0].metric("Invalid sources skipped", result.get("skipped_missing_source_or_text", 0))
+        detail_cols[1].metric("Providers used", ", ".join(str(provider) for provider in result.get("providers_used", [])) or "None")
+        detail_cols[2].metric("Run ID", result.get("active_run_id") or "No run")
+        detail_cols[3].metric("Status", result.get("status") or "Unknown")
+        stored_signals = result.get("signals") or []
+        if stored_signals:
+            st.subheader("New Production Signals")
+            for signal in stored_signals:
+                if isinstance(signal, dict):
+                    render_signal_trace_card(signal)
+        with st.expander("Technical Details"):
+            st.json(result)
 
     def as_list_text(raw: object) -> str:
         if not raw:
@@ -1375,28 +1432,7 @@ with tabs[23]:
             st.info(message)
 
     def production_timeline_status(stage: str) -> str:
-        values = {
-            "Evidence Collection": progress["signals_collected"],
-            "Signal Detection": progress["signals_collected"],
-            "Finding Generation": progress["findings_created"],
-            "Audit": progress["audits_completed"],
-            "Opportunity": progress["opportunities_approved"],
-            "Engineering Spec": len([row for row in opportunities if row.get("engineering_status")]),
-            "Prototype": 0,
-            "Internal Validation": 0,
-            "External Validation": 0,
-            "Commercial Ready": 0,
-        }
-        order = list(values)
-        current = values.get(stage, 0)
-        if current:
-            return "Completed"
-        index = order.index(stage)
-        if index == 0:
-            return "Active"
-        if values.get(order[index - 1], 0):
-            return "Active"
-        return "Locked" if progress["signals_collected"] == 0 else "Waiting"
+        return production_pipeline_statuses(progress).get(stage, "Locked")
 
     def render_workflow_timeline(stages: list[str]) -> None:
         cols = st.columns(5)
@@ -1706,33 +1742,41 @@ with tabs[23]:
             with st.container(border=True):
                 st.caption("Production provider pull")
                 st.markdown("**Pull Real Market Evidence**")
+                st.write("Run the configured research providers against the GS-001 query set. No manual form input is required.")
                 scope_cols = st.columns(4)
                 scope_cols[0].metric("Market", "United States")
                 scope_cols[1].metric("Industry", "Residential Property Management")
                 scope_cols[2].metric("Focus", "Maintenance Communication")
                 scope_cols[3].metric("Max sources", 10)
                 if st.button("Pull Real Market Evidence", key="gs001_pull_real_market_evidence", type="primary"):
-                    result = pull_real_market_evidence(DB_PATH, DEFAULT_STUDY_ID)
+                    with st.status("Starting research run", expanded=True) as status:
+                        progress_bar = st.progress(0)
+                        st.write("Checking providers")
+                        progress_bar.progress(15)
+                        st.write("Searching queries")
+                        progress_bar.progress(35)
+                        result = pull_real_market_evidence(DB_PATH, DEFAULT_STUDY_ID)
+                        st.write("Normalising evidence")
+                        progress_bar.progress(55)
+                        st.write("Deduplicating")
+                        progress_bar.progress(70)
+                        st.write("Saving production signals")
+                        progress_bar.progress(90)
+                        progress_bar.progress(100)
+                        status.update(label="Complete", state="complete", expanded=True)
+                    st.session_state["gs001_last_research_run"] = result
                     if result["status"] == "blocked":
-                        set_golden_flash("warning", str(result["message"]), result.get("technical_details"))
+                        set_golden_flash("warning", str(result["message"]), result)
                     elif result["status"] == "empty":
                         set_golden_flash("warning", str(result["message"]), result)
                     else:
-                        providers = ", ".join(str(provider) for provider in result.get("providers_used", [])) or "None"
-                        set_golden_flash(
-                            "success",
-                            (
-                                "Research Run Complete. "
-                                f"Sources searched: {result['sources_searched']}. "
-                                f"Candidate results found: {result['candidate_results_found']}. "
-                                f"Signals stored: {result['signals_stored']}. "
-                                f"Skipped duplicates: {result['skipped_duplicates']}. "
-                                f"Skipped missing source/text: {result['skipped_missing_source_or_text']}. "
-                                f"Providers used: {providers}."
-                            ),
-                            result,
-                        )
+                        set_golden_flash("success", "Research Run Complete", result)
                     st.rerun()
+            last_research_run = st.session_state.get("gs001_last_research_run")
+            if isinstance(last_research_run, dict):
+                with st.container(border=True):
+                    render_research_run_result(last_research_run)
+            st.subheader("Add Manual Verified Evidence")
             with st.form("golden_real_evidence_form"):
                 source_cols = st.columns(3)
                 signal_source = source_cols[0].text_input("Source URL", key="golden_real_source")
@@ -1791,34 +1835,10 @@ with tabs[23]:
                 "No demo signals yet. Load the demo sample batch to rehearse evidence collection.",
             )
         for signal in signals:
-            provider_metadata = signal_provider_metadata(signal)
-            provider_name = str(provider_metadata.get("provider_name") or signal.get("data_origin") or "Manual")
-            original_query = str(provider_metadata.get("original_query") or "Manual entry")
-            retrieved_at = str(provider_metadata.get("retrieved_at") or signal.get("source_date") or signal.get("created_at") or "Unknown")
-            source_url = str(signal.get("source_url") or "No source URL")
-            with st.container(border=True):
-                render_business_card(
-                    f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown stakeholder'}",
-                    signal.get("verification_status"),
-                    signal.get("summary") or signal.get("raw_text") or "No evidence summary",
-                    [
-                        ("Evidence strength", signal.get("evidence_strength") or 0),
-                        ("Provider", provider_name),
-                        ("Original query", original_query),
-                        ("Source URL", source_url),
-                        ("Retrieved at", retrieved_at),
-                        ("Origin", signal.get("data_origin")),
-                        ("Status", signal.get("status")),
-                    ],
-                )
-                cols = st.columns(3)
-                if signal.get("source_url"):
-                    cols[0].markdown(f"[View Source]({signal['source_url']})")
-                if st.button("Archive", key=f"archive_signal_{signal['id']}"):
-                    archive_record(DB_PATH, "study_signals", str(signal["id"]))
-                    st.rerun()
-                with st.expander("Technical Details"):
-                    st.json(signal)
+            render_signal_trace_card(signal)
+            if st.button("Archive", key=f"archive_signal_{signal['id']}"):
+                archive_record(DB_PATH, "study_signals", str(signal["id"]))
+                st.rerun()
 
     with workflow_tabs[3]:
         section_header("Findings", "Problems generated from repeated supporting signals in the active run.", workflow_stage_status("Findings"))

@@ -23,6 +23,7 @@ from project_exchange.golden_study import (
     list_study_runs,
     list_opportunities,
     mark_engineering_ready,
+    production_pipeline_statuses,
     pull_real_market_evidence,
     switch_study_run_mode,
     run_audit_batch,
@@ -724,6 +725,85 @@ def test_openai_output_alone_cannot_create_production_evidence(tmp_path):
     assert result["skipped_openai_only"] >= 1
     assert any(item["reason"] == "openai_not_evidence" for item in result["skipped"])
     assert list_signals(db_path) == []
+
+
+def test_production_pull_needs_no_manual_form_and_updates_mission_control_counts(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    production_run = start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "US renters report maintenance update gaps",
+                "https://example.com/us-renters-maintenance",
+                "US renters complain that apartment maintenance updates are unclear and property managers leave repair timelines unresolved.",
+                "article",
+            ),
+            ProviderResult(
+                "Tavily",
+                "Property managers cite maintenance communication load",
+                "https://example.com/property-manager-maintenance-load",
+                "Property managers say maintenance communication is fragmented across email, phone calls, and tenant portals.",
+                "article",
+            ),
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+    progress = study_progress(db_path)
+    pipeline = production_pipeline_statuses(progress)
+
+    assert result["status"] == "completed"
+    assert result["signals_stored"] == 2
+    assert result["active_run_id"] == production_run["id"]
+    assert progress["signals_collected"] == 2
+    assert progress["verification_pending_count"] == 2
+    assert progress["countries_covered"] == ["United States"]
+    assert pipeline["Evidence Collection"] == "Completed"
+    assert pipeline["Signal Detection"] == "Completed"
+    assert pipeline["Finding Generation"] == "Active"
+    assert pipeline["Audit"] == "Locked"
+    for signal in list_signals(db_path):
+        assert signal["verification_status"] == "pending_verification"
+        assert signal["is_demo"] == 0
+        assert signal["data_origin"] == "provider"
+        metadata = json.loads(signal["source_name"])
+        assert metadata["provider_name"] == "Tavily"
+        assert metadata["original_query"]
+        assert metadata["retrieved_at"]
+        assert metadata["original_title"]
+
+
+def test_production_pipeline_unlocks_only_after_required_records(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+
+    empty_pipeline = production_pipeline_statuses(study_progress(db_path))
+    assert empty_pipeline["Evidence Collection"] == "Active"
+    assert empty_pipeline["Signal Detection"] == "Locked"
+    assert empty_pipeline["Finding Generation"] == "Locked"
+    assert empty_pipeline["Audit"] == "Locked"
+    assert empty_pipeline["Opportunity"] == "Locked"
+
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Signal A", "https://example.com/a", "Tenants complain maintenance communication updates are unclear.", "article"),
+            ProviderResult("Tavily", "Signal B", "https://example.com/b", "Property managers complain maintenance communication updates require repeated manual chasing.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    signal_pipeline = production_pipeline_statuses(study_progress(db_path))
+    assert signal_pipeline["Signal Detection"] == "Completed"
+    assert signal_pipeline["Finding Generation"] == "Active"
+    assert signal_pipeline["Audit"] == "Locked"
+
+    generate_findings(db_path)
+    finding_pipeline = production_pipeline_statuses(study_progress(db_path))
+    assert finding_pipeline["Finding Generation"] == "Completed"
+    assert finding_pipeline["Audit"] == "Active"
+    assert finding_pipeline["Opportunity"] == "Locked"
 
 
 def test_demo_rehearsal_can_reach_demo_engineering_ready(tmp_path):

@@ -1259,6 +1259,28 @@ def study_progress(
     }
 
 
+def production_pipeline_statuses(progress: dict[str, object]) -> dict[str, str]:
+    signals = int(progress.get("signals_collected") or 0)
+    findings = int(progress.get("findings_created") or 0)
+    audits = int(progress.get("audits_completed") or 0)
+    opportunities = int(progress.get("opportunities_approved") or 0)
+    specs = len(progress.get("top_opportunities") or []) if opportunities else 0
+    engineering_ready = len(progress.get("engineering_ready") or [])
+
+    return {
+        "Evidence Collection": "Completed" if signals else "Active",
+        "Signal Detection": "Completed" if signals else "Locked",
+        "Finding Generation": "Completed" if findings else "Active" if signals else "Locked",
+        "Audit": "Completed" if audits else "Active" if findings else "Locked",
+        "Opportunity": "Completed" if opportunities else "Active" if audits else "Locked",
+        "Engineering Spec": "Completed" if engineering_ready else "Active" if opportunities or specs else "Locked",
+        "Prototype": "Locked",
+        "Internal Validation": "Locked",
+        "External Validation": "Locked",
+        "Commercial Ready": "Locked",
+    }
+
+
 def archived_count(db_path: str | Path, study_id: str, study_run_id: str | None = None) -> int:
     run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
     total = 0
