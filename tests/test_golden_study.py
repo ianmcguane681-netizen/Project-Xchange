@@ -1,3 +1,5 @@
+import json
+
 from project_exchange.database import connect, fetch_all, init_db, utc_now
 from project_exchange.provider_base import ProviderResult
 from project_exchange.golden_study import (
@@ -680,8 +682,12 @@ def test_pull_real_market_evidence_creates_provider_signal_in_active_production_
     assert signal["source_url"] == "https://example.com/tenant-maintenance"
     assert signal["source_type"] == "article"
     assert signal["country"] == "United States"
-    assert "Tavily" in signal["source_name"]
-    assert "Query:" in signal["source_name"]
+    metadata = json.loads(signal["source_name"])
+    assert metadata["metadata_type"] == "provider_evidence"
+    assert metadata["provider_name"] == "Tavily"
+    assert metadata["original_query"] == result["queries"][0]
+    assert metadata["retrieved_at"]
+    assert metadata["original_title"] == "Tenant maintenance complaints rise"
 
 
 def test_pull_real_market_evidence_skips_duplicate_url_and_raw_text(tmp_path):

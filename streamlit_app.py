@@ -1196,9 +1196,6 @@ with tabs[23]:
         unsafe_allow_html=True,
     )
 
-    def source_label(record: dict[str, object]) -> str:
-        return str(record.get("source_url") or record.get("source_name") or "No source")
-
     def html_escape(value: object) -> str:
         return (
             str(value or "")
@@ -1206,6 +1203,28 @@ with tabs[23]:
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace('"', "&quot;")
+        )
+
+    def signal_provider_metadata(record: dict[str, object]) -> dict[str, object]:
+        raw = str(record.get("source_name") or "").strip()
+        if not raw.startswith("{"):
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(parsed, dict) and parsed.get("metadata_type") == "provider_evidence":
+            return parsed
+        return {}
+
+    def source_label(record: dict[str, object]) -> str:
+        metadata = signal_provider_metadata(record)
+        return str(
+            record.get("source_url")
+            or metadata.get("original_title")
+            or metadata.get("provider_name")
+            or record.get("source_name")
+            or "No source"
         )
 
     def as_list_text(raw: object) -> str:
@@ -1772,6 +1791,11 @@ with tabs[23]:
                 "No demo signals yet. Load the demo sample batch to rehearse evidence collection.",
             )
         for signal in signals:
+            provider_metadata = signal_provider_metadata(signal)
+            provider_name = str(provider_metadata.get("provider_name") or signal.get("data_origin") or "Manual")
+            original_query = str(provider_metadata.get("original_query") or "Manual entry")
+            retrieved_at = str(provider_metadata.get("retrieved_at") or signal.get("source_date") or signal.get("created_at") or "Unknown")
+            source_url = str(signal.get("source_url") or "No source URL")
             with st.container(border=True):
                 render_business_card(
                     f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown stakeholder'}",
@@ -1779,7 +1803,10 @@ with tabs[23]:
                     signal.get("summary") or signal.get("raw_text") or "No evidence summary",
                     [
                         ("Evidence strength", signal.get("evidence_strength") or 0),
-                        ("Source", source_label(signal)),
+                        ("Provider", provider_name),
+                        ("Original query", original_query),
+                        ("Source URL", source_url),
+                        ("Retrieved at", retrieved_at),
                         ("Origin", signal.get("data_origin")),
                         ("Status", signal.get("status")),
                     ],

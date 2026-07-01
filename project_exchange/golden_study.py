@@ -1478,7 +1478,9 @@ def pull_real_market_evidence(
             skipped_openai += 1
             skipped.append({"reason": "openai_not_evidence", "candidate": candidate})
             continue
-        if not (str(candidate.get("source_url") or "").strip() or str(candidate.get("source_name") or "").strip()):
+        has_source_url = bool(str(candidate.get("source_url") or "").strip())
+        has_source_title = bool(str(candidate.get("original_title") or "").strip())
+        if not (has_source_url or has_source_title):
             skipped_missing += 1
             skipped.append({"reason": "missing_source", "candidate": candidate})
             continue
@@ -1552,11 +1554,6 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
     title = str(getattr(result, "title", "") or "").strip()
     url = str(getattr(result, "url", "") or "").strip()
     snippet = str(getattr(result, "snippet", "") or "").strip()
-    source_name_parts = [provider_name]
-    if title:
-        source_name_parts.append(title)
-    source_name_parts.append(f"Query: {query}")
-    source_name_parts.append(f"Retrieved: {retrieved_at}")
     raw_text = snippet if snippet else ""
     source_type = normalize_source_type(str(getattr(result, "source_type", "") or ""), url, title)
     return {
@@ -1565,7 +1562,7 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
         "retrieved_at": retrieved_at,
         "original_title": title,
         "source_url": url,
-        "source_name": " | ".join(source_name_parts) if title else "",
+        "source_name": encode_provider_signal_metadata(provider_name, query, retrieved_at, title),
         "source_type": source_type,
         "source_date": retrieved_at,
         "country": "United States",
@@ -1574,6 +1571,17 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
         "summary": summarize(snippet or title),
         "source_confidence": rough_provider_evidence_strength(provider_name, url, snippet),
     }
+
+
+def encode_provider_signal_metadata(provider_name: str, original_query: str, retrieved_at: str, original_title: str) -> str:
+    metadata = {
+        "metadata_type": "provider_evidence",
+        "provider_name": provider_name,
+        "original_query": original_query,
+        "retrieved_at": retrieved_at,
+        "original_title": original_title,
+    }
+    return json.dumps(metadata, sort_keys=True)
 
 
 def configured_gs001_evidence_providers() -> list[object]:
