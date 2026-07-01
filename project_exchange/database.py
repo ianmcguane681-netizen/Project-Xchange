@@ -687,6 +687,47 @@ CREATE TABLE IF NOT EXISTS demo_archive (
     archived_at TEXT NOT NULL,
     archived_by TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS discovery_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    study_id TEXT NOT NULL,
+    study_run_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    query TEXT NOT NULL,
+    query_group TEXT,
+    urls_returned INTEGER NOT NULL DEFAULT 0,
+    urls_skipped INTEGER NOT NULL DEFAULT 0,
+    accepted_signals INTEGER NOT NULL DEFAULT 0,
+    rejected_vendor INTEGER NOT NULL DEFAULT 0,
+    rejected_market_context INTEGER NOT NULL DEFAULT 0,
+    rejected_community INTEGER NOT NULL DEFAULT 0,
+    rejected_unknown INTEGER NOT NULL DEFAULT 0,
+    duplicates INTEGER NOT NULL DEFAULT 0,
+    average_trust_score REAL NOT NULL DEFAULT 0,
+    accepted_domains TEXT,
+    rejected_domains TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS discovery_memory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    study_id TEXT NOT NULL,
+    memory_type TEXT NOT NULL,
+    memory_key TEXT NOT NULL,
+    provider TEXT,
+    query TEXT,
+    score REAL NOT NULL DEFAULT 0,
+    accepted_count INTEGER NOT NULL DEFAULT 0,
+    rejected_count INTEGER NOT NULL DEFAULT 0,
+    vendor_count INTEGER NOT NULL DEFAULT 0,
+    market_context_count INTEGER NOT NULL DEFAULT 0,
+    community_count INTEGER NOT NULL DEFAULT 0,
+    duplicate_count INTEGER NOT NULL DEFAULT 0,
+    average_trust_score REAL NOT NULL DEFAULT 0,
+    last_seen_at TEXT NOT NULL,
+    UNIQUE(study_id, memory_type, memory_key)
+);
 """
 
 
@@ -1147,6 +1188,8 @@ def fetch_all(db_path: str | Path, table_name: str) -> list[dict[str, Any]]:
         "opportunity_records",
         "study_briefs",
         "demo_archive",
+        "discovery_runs",
+        "discovery_memory",
     }:
         raise ValueError(f"Unsupported table: {table_name}")
     with connect(db_path) as connection:

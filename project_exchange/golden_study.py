@@ -1742,6 +1742,7 @@ def pull_real_market_evidence(
         providers = configured_gs001_evidence_providers()
 
     retrieved_at = utc_now()
+    research_run_id = f"GSDR-{retrieved_at.replace('-', '').replace(':', '').replace('T', '-')[:15]}"
     provider_names: list[str] = []
     candidates: list[dict[str, object]] = []
     skipped: list[dict[str, object]] = []
@@ -1749,7 +1750,8 @@ def pull_real_market_evidence(
     sources_searched = 0
     urls_retrieved = 0
     urls_skipped = 0
-    query_runs = [(group, query) for group, queries in GS001_EVIDENCE_QUERY_GROUPS.items() for query in queries]
+    query_runs = prioritized_query_runs(db_path, study_id)
+    memory = discovery_domain_memory(db_path, study_id)
     for query_group, query in query_runs:
         sources_searched += 1
         command = {
@@ -1762,6 +1764,10 @@ def pull_real_market_evidence(
             "objective": "collect real, source-backed evidence of recurring problems, complaints, inefficiencies, or unmet needs",
             "preferred_sources": ["government", "regulators", "courts", "BBB", "Consumer Affairs", "ombudsman", "major news", "review platforms", "forums"],
             "avoid_sources": ["vendor websites", "pricing pages", "feature pages", "product landing pages", "software blogs"],
+            "trusted_domains": memory["trusted_domains"][:10],
+            "vendor_domains": memory["vendor_domains"][:10],
+            "high_yield_queries": memory["high_yield_queries"][:10],
+            "low_yield_queries": memory["low_yield_queries"][:10],
         }
         for provider in providers:
             provider_name = str(getattr(provider, "name", provider.__class__.__name__))
@@ -1872,6 +1878,15 @@ def pull_real_market_evidence(
             )
         stored.append(get_signal(db_path, str(signal["id"])))
 
+    discovery_update = record_discovery_learning(
+        db_path,
+        study_id,
+        str(active_run["id"]),
+        research_run_id,
+        candidates,
+        skipped,
+        stored,
+    )
     status = "completed" if stored else "empty"
     message = "Research Run Complete" if stored else "No source-backed evidence found for this run."
     result = {
@@ -1895,19 +1910,24 @@ def pull_real_market_evidence(
         "skipped_openai_only": skipped_openai,
         "providers_used": provider_names,
         "active_run_id": str(active_run["id"]),
-        "queries": GS001_REAL_EVIDENCE_QUERIES,
+        "run_id": research_run_id,
+        "queries": [query for _, query in query_runs],
         "stored_signal_ids": [str(signal["id"]) for signal in stored],
         "skipped": skipped,
         "signals": stored,
+        "discovery_learning_update": discovery_update,
         "technical_details": {
             "study_id": study_id,
             "study_run_id": active_run["id"],
-            "queries": GS001_REAL_EVIDENCE_QUERIES,
+            "run_id": research_run_id,
+            "queries": [query for _, query in query_runs],
             "query_groups": GS001_EVIDENCE_QUERY_GROUPS,
+            "discovery_memory_used": memory,
             "retrieved_at": retrieved_at,
             "skipped": skipped,
             "candidates": candidates,
             "domain_learning": discovery_domain_learning(candidates),
+            "discovery_learning_update": discovery_update,
             "discovery_metrics": {
                 "queries_executed": sources_searched,
                 "urls_retrieved": urls_retrieved,
@@ -2279,6 +2299,272 @@ def discovery_domain_learning(candidates: list[dict[str, object]]) -> dict[str, 
         "trusted_domains": [domain for domain in trusted_domains if domain],
         "vendor_domains": [domain for domain in vendor_domains if domain],
         "rejected_domains": [domain for domain in rejected_domains if domain],
+    }
+
+
+def discovery_memory_rows(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            "SELECT * FROM discovery_memory WHERE study_id = ? ORDER BY score DESC, last_seen_at DESC",
+            (study_id,),
+        ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def discovery_learning_dashboard(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    rows = discovery_memory_rows(db_path, study_id)
+    runs = []
+    with connect(db_path) as connection:
+        run_rows = connection.execute(
+            "SELECT * FROM discovery_runs WHERE study_id = ? ORDER BY created_at DESC",
+            (study_id,),
+        ).fetchall()
+    runs = [row_to_dict(row) for row in run_rows]
+    provider_rows = [row for row in rows if row.get("memory_type") == "provider"]
+    best_provider = max(provider_rows, key=lambda row: float(row.get("score") or 0), default={})
+    accepted_total = sum(int(row.get("accepted_count") or 0) for row in provider_rows)
+    rejected_total = sum(int(row.get("rejected_count") or 0) for row in provider_rows)
+    total = accepted_total + rejected_total
+    trust_values = [float(row.get("average_trust_score") or 0) for row in rows if float(row.get("average_trust_score") or 0) > 0]
+    return {
+        "best_domains": [row for row in rows if row.get("memory_type") == "trusted_domain"][:5],
+        "worst_domains": [row for row in rows if row.get("memory_type") in {"rejected_domain", "vendor_domain"}][:5],
+        "best_queries": [row for row in rows if row.get("memory_type") == "high_yield_query"][:5],
+        "worst_queries": [row for row in rows if row.get("memory_type") == "low_yield_query"][:5],
+        "best_provider": best_provider,
+        "acceptance_rate": round((accepted_total / total) * 100, 1) if total else 0,
+        "average_trust_score": round(sum(trust_values) / len(trust_values), 1) if trust_values else 0,
+        "runs_analysed": len({str(row.get("run_id")) for row in runs}),
+        "rows": rows,
+        "runs": runs,
+    }
+
+
+def prioritized_query_runs(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[tuple[str, str]]:
+    base = [(group, query) for group, queries in GS001_EVIDENCE_QUERY_GROUPS.items() for query in queries]
+    memory = discovery_memory_rows(db_path, study_id)
+    scores = {str(row.get("memory_key")): float(row.get("score") or 0) for row in memory if row.get("memory_type") in {"high_yield_query", "low_yield_query"}}
+    indexed = list(enumerate(base))
+    ranked = sorted(indexed, key=lambda item: (scores.get(item[1][1], 0), -item[0]), reverse=True)
+    # Keep a little exploration by appending any base query not already ordered exactly once.
+    seen: set[str] = set()
+    ordered: list[tuple[str, str]] = []
+    for _, query_run in ranked:
+        if query_run[1] not in seen:
+            ordered.append(query_run)
+            seen.add(query_run[1])
+    return ordered
+
+
+def discovery_domain_memory(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, list[str]]:
+    rows = discovery_memory_rows(db_path, study_id)
+    return {
+        "trusted_domains": [str(row.get("memory_key")) for row in rows if row.get("memory_type") == "trusted_domain"],
+        "rejected_domains": [str(row.get("memory_key")) for row in rows if row.get("memory_type") == "rejected_domain"],
+        "vendor_domains": [str(row.get("memory_key")) for row in rows if row.get("memory_type") == "vendor_domain"],
+        "high_yield_queries": [str(row.get("memory_key")) for row in rows if row.get("memory_type") == "high_yield_query"],
+        "low_yield_queries": [str(row.get("memory_key")) for row in rows if row.get("memory_type") == "low_yield_query"],
+    }
+
+
+def upsert_discovery_memory(
+    db_path: str | Path,
+    study_id: str,
+    memory_type: str,
+    memory_key: str,
+    accepted: int = 0,
+    rejected: int = 0,
+    vendor: int = 0,
+    market_context: int = 0,
+    community: int = 0,
+    duplicates: int = 0,
+    trust_score: float = 0,
+    provider: str = "",
+    query: str = "",
+) -> None:
+    if not memory_key:
+        return
+    score = accepted * 10 + trust_score - rejected * 3 - vendor * 8 - market_context * 4 - community * 2 - duplicates
+    now = utc_now()
+    with connect(db_path) as connection:
+        existing = connection.execute(
+            "SELECT * FROM discovery_memory WHERE study_id = ? AND memory_type = ? AND memory_key = ?",
+            (study_id, memory_type, memory_key),
+        ).fetchone()
+        if existing:
+            old = row_to_dict(existing)
+            new_accepted = int(old.get("accepted_count") or 0) + accepted
+            new_rejected = int(old.get("rejected_count") or 0) + rejected
+            old_trust = float(old.get("average_trust_score") or 0)
+            new_trust = round(((old_trust + trust_score) / 2), 1) if old_trust and trust_score else trust_score or old_trust
+            connection.execute(
+                """
+                UPDATE discovery_memory
+                SET score = score + ?, accepted_count = ?, rejected_count = ?,
+                    vendor_count = vendor_count + ?, market_context_count = market_context_count + ?,
+                    community_count = community_count + ?, duplicate_count = duplicate_count + ?,
+                    average_trust_score = ?, provider = COALESCE(NULLIF(?, ''), provider),
+                    query = COALESCE(NULLIF(?, ''), query), last_seen_at = ?
+                WHERE id = ?
+                """,
+                (score, new_accepted, new_rejected, vendor, market_context, community, duplicates, new_trust, provider, query, now, old["id"]),
+            )
+        else:
+            connection.execute(
+                """
+                INSERT INTO discovery_memory
+                (study_id, memory_type, memory_key, provider, query, score, accepted_count, rejected_count,
+                 vendor_count, market_context_count, community_count, duplicate_count, average_trust_score, last_seen_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (study_id, memory_type, memory_key, provider, query, score, accepted, rejected, vendor, market_context, community, duplicates, trust_score, now),
+            )
+
+
+def _candidate_domain(candidate: dict[str, object]) -> str:
+    return url_domain(str(candidate.get("source_url") or ""))
+
+
+def _candidate_query_key(candidate: dict[str, object]) -> tuple[str, str, str]:
+    provider = str(candidate.get("provider_name") or "Unknown Provider")
+    query = str(candidate.get("query") or "")
+    query_group = str(candidate.get("query_group") or "")
+    return provider, query, query_group
+
+
+def record_discovery_learning(
+    db_path: str | Path,
+    study_id: str,
+    study_run_id: str,
+    run_id: str,
+    candidates: list[dict[str, object]],
+    skipped: list[dict[str, object]],
+    stored_signals: list[dict[str, object]],
+) -> dict[str, object]:
+    stored_urls = {str(signal.get("source_url") or "").strip().lower() for signal in stored_signals if signal.get("source_url")}
+    duplicate_keys = {
+        (
+            str((item.get("candidate") or {}).get("provider_name") or item.get("provider") or "Unknown Provider"),
+            str((item.get("candidate") or {}).get("query") or item.get("query") or ""),
+        )
+        for item in skipped
+        if item.get("reason") == "duplicate"
+    }
+    grouped: dict[tuple[str, str, str], list[dict[str, object]]] = {}
+    for candidate in candidates:
+        grouped.setdefault(_candidate_query_key(candidate), []).append(candidate)
+
+    inserted_rows: list[dict[str, object]] = []
+    now = utc_now()
+    with connect(db_path) as connection:
+        for (provider, query, query_group), rows in grouped.items():
+            accepted = [row for row in rows if str(row.get("source_url") or "").strip().lower() in stored_urls]
+            rejected = [row for row in rows if row not in accepted]
+            vendor = [row for row in rejected if row.get("classification") == "vendor_content"]
+            market_context = [row for row in rejected if row.get("classification") == "market_context" or row.get("evidence_relevance") == "market_size_only"]
+            community = [row for row in rejected if row.get("source_type_detected") in {"forum", "social_media", "facebook_group"}]
+            unknown = [row for row in rejected if row.get("classification") in {"unknown", None, ""}]
+            accepted_domains = sorted({domain for domain in (_candidate_domain(row) for row in accepted) if domain})
+            rejected_domains = sorted({domain for domain in (_candidate_domain(row) for row in rejected) if domain})
+            trust_values = [int(row.get("source_trust_score") or 0) for row in accepted if int(row.get("source_trust_score") or 0) > 0]
+            avg_trust = round(sum(trust_values) / len(trust_values), 1) if trust_values else 0
+            duplicates = 1 if (provider, query) in duplicate_keys else 0
+            values = (
+                study_id,
+                study_run_id,
+                run_id,
+                provider,
+                query,
+                query_group,
+                len(rows),
+                len(rejected),
+                len(accepted),
+                len(vendor),
+                len(market_context),
+                len(community),
+                len(unknown),
+                duplicates,
+                avg_trust,
+                json.dumps(accepted_domains),
+                json.dumps(rejected_domains),
+                now,
+            )
+            connection.execute(
+                """
+                INSERT INTO discovery_runs
+                (study_id, study_run_id, run_id, provider, query, query_group, urls_returned, urls_skipped,
+                 accepted_signals, rejected_vendor, rejected_market_context, rejected_community,
+                 rejected_unknown, duplicates, average_trust_score, accepted_domains, rejected_domains, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                values,
+            )
+            inserted_rows.append(
+                {
+                    "provider": provider,
+                    "query": query,
+                    "query_group": query_group,
+                    "urls_returned": len(rows),
+                    "accepted_signals": len(accepted),
+                    "rejected_vendor": len(vendor),
+                    "rejected_market_context": len(market_context),
+                    "rejected_community": len(community),
+                    "rejected_unknown": len(unknown),
+                    "duplicates": duplicates,
+                    "average_trust_score": avg_trust,
+                    "accepted_domains": accepted_domains,
+                    "rejected_domains": rejected_domains,
+                }
+            )
+
+    for row in inserted_rows:
+        accepted_count = int(row["accepted_signals"])
+        rejected_count = int(row["urls_returned"]) - accepted_count
+        trust_score = float(row["average_trust_score"] or 0)
+        provider = str(row["provider"])
+        query = str(row["query"])
+        for domain in row["accepted_domains"]:
+            upsert_discovery_memory(db_path, study_id, "trusted_domain", str(domain), accepted=accepted_count, trust_score=trust_score, provider=provider, query=query)
+        for domain in row["rejected_domains"]:
+            upsert_discovery_memory(db_path, study_id, "rejected_domain", str(domain), rejected=1, provider=provider, query=query)
+        for candidate in candidates:
+            if _candidate_query_key(candidate)[:2] != (provider, query):
+                continue
+            domain = _candidate_domain(candidate)
+            if candidate.get("classification") == "vendor_content" and domain:
+                upsert_discovery_memory(db_path, study_id, "vendor_domain", domain, rejected=1, vendor=1, provider=provider, query=query)
+        if accepted_count:
+            upsert_discovery_memory(db_path, study_id, "high_yield_query", query, accepted=accepted_count, rejected=rejected_count, trust_score=trust_score, provider=provider, query=query)
+        elif rejected_count:
+            upsert_discovery_memory(db_path, study_id, "low_yield_query", query, rejected=rejected_count, provider=provider, query=query)
+        upsert_discovery_memory(
+            db_path,
+            study_id,
+            "provider",
+            provider,
+            accepted=accepted_count,
+            rejected=rejected_count,
+            vendor=int(row["rejected_vendor"]),
+            market_context=int(row["rejected_market_context"]),
+            community=int(row["rejected_community"]),
+            duplicates=int(row["duplicates"]),
+            trust_score=trust_score,
+            provider=provider,
+            query=query,
+        )
+
+    dashboard = discovery_learning_dashboard(db_path, study_id)
+    vendor_domains = [str(row.get("memory_key")) for row in dashboard["rows"] if row.get("memory_type") == "vendor_domain"][:5]
+    accepted_domains = sorted({domain for row in inserted_rows for domain in row["accepted_domains"]})
+    best_query_row = max((row for row in dashboard["rows"] if row.get("memory_type") == "high_yield_query"), key=lambda row: float(row.get("score") or 0), default={})
+    provider_rows = [row for row in inserted_rows if row.get("provider")]
+    return {
+        "run_id": run_id,
+        "accepted_domains": accepted_domains,
+        "rejected_vendor_domains": vendor_domains,
+        "best_query": best_query_row.get("memory_key") or "",
+        "provider_performance": provider_rows,
+        "dashboard": dashboard,
     }
 
 

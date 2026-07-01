@@ -61,6 +61,7 @@ from project_exchange.golden_study import (
     create_signal,
     demo_warning_active,
     delete_archived_demo_data,
+    discovery_learning_dashboard,
     findings_feedback,
     create_study,
     finding_evidence,
@@ -1336,7 +1337,22 @@ with tabs[23]:
         skip_cols[3].metric("Skipped market/generic/marketing", result.get("skipped_market_size_generic_or_marketing", 0))
         run_cols = st.columns(2)
         run_cols[0].metric("Providers used", ", ".join(str(provider) for provider in result.get("providers_used", [])) or "None")
-        run_cols[1].metric("Run ID", result.get("active_run_id") or "No run")
+        run_cols[1].metric("Run ID", result.get("run_id") or result.get("active_run_id") or "No run")
+        learning = result.get("discovery_learning_update")
+        if isinstance(learning, dict):
+            st.subheader("Discovery Learning Update")
+            accepted_domains = learning.get("accepted_domains") or []
+            vendor_domains = learning.get("rejected_vendor_domains") or []
+            st.write("Accepted evidence came from: " + (", ".join(str(domain) for domain in accepted_domains) if accepted_domains else "No accepted domains this run."))
+            st.write("Rejected vendor-heavy domains: " + (", ".join(str(domain) for domain in vendor_domains) if vendor_domains else "None recorded."))
+            st.write(f"Best performing query: {learning.get('best_query') or 'Not enough accepted evidence yet.'}")
+            provider_rows = learning.get("provider_performance") or []
+            if provider_rows:
+                for provider_row in provider_rows[:6]:
+                    provider = provider_row.get("provider", "Provider")
+                    returned = provider_row.get("urls_returned", 0)
+                    accepted = provider_row.get("accepted_signals", 0)
+                    st.caption(f"{provider} returned {returned} candidates, {accepted} accepted.")
         stored_signals = result.get("signals") or []
         if stored_signals:
             st.subheader("New Production Signals")
@@ -1345,6 +1361,55 @@ with tabs[23]:
                     render_signal_trace_card(signal)
         with st.expander("Technical Details"):
             st.json(result)
+
+    def render_discovery_learning_dashboard() -> None:
+        dashboard = discovery_learning_dashboard(DB_PATH, DEFAULT_STUDY_ID)
+        st.subheader("Discovery Learning")
+        metric_cols = st.columns(4)
+        metric_cols[0].metric("Runs Analysed", dashboard["runs_analysed"])
+        metric_cols[1].metric("Acceptance Rate", f"{dashboard['acceptance_rate']}%")
+        metric_cols[2].metric("Average Trust", dashboard["average_trust_score"])
+        best_provider = dashboard.get("best_provider") or {}
+        metric_cols[3].metric("Best Provider", best_provider.get("memory_key") or "None yet")
+
+        card_cols = st.columns(2)
+        with card_cols[0]:
+            with st.container(border=True):
+                st.markdown("**Best domains**")
+                rows = dashboard.get("best_domains") or []
+                if rows:
+                    for row in rows:
+                        st.write(f"{row.get('memory_key')} - {row.get('accepted_count')} accepted")
+                else:
+                    st.caption("No trusted domains learned yet.")
+            with st.container(border=True):
+                st.markdown("**Best queries**")
+                rows = dashboard.get("best_queries") or []
+                if rows:
+                    for row in rows:
+                        st.write(f"{row.get('memory_key')} - score {row.get('score')}")
+                else:
+                    st.caption("No high-yield queries learned yet.")
+        with card_cols[1]:
+            with st.container(border=True):
+                st.markdown("**Worst domains**")
+                rows = dashboard.get("worst_domains") or []
+                if rows:
+                    for row in rows:
+                        label = "Vendor" if row.get("memory_type") == "vendor_domain" else "Rejected"
+                        st.write(f"{row.get('memory_key')} - {label}")
+                else:
+                    st.caption("No rejected/vendor domains learned yet.")
+            with st.container(border=True):
+                st.markdown("**Worst queries**")
+                rows = dashboard.get("worst_queries") or []
+                if rows:
+                    for row in rows:
+                        st.write(f"{row.get('memory_key')} - {row.get('rejected_count')} rejected")
+                else:
+                    st.caption("No low-yield queries learned yet.")
+        with st.expander("Technical Details"):
+            st.json(dashboard)
 
     def as_list_text(raw: object) -> str:
         if not raw:
@@ -1625,6 +1690,7 @@ with tabs[23]:
         "Integrity Check",
         "Archive / Demo History",
         "Raw Database View",
+        "Discovery Learning",
     ])
 
     with workflow_tabs[0]:
@@ -1707,6 +1773,8 @@ with tabs[23]:
             render_status_card("Community Signals", quality_dashboard["community_signals"], "Require verification.", "Waiting" if quality_dashboard["community_signals"] else "Complete")
         with mix_cols[3]:
             render_status_card("Rejected", quality_dashboard["rejected"], "Not eligible for production findings.", "Waiting" if quality_dashboard["rejected"] else "Complete")
+
+        render_discovery_learning_dashboard()
 
         st.subheader("Current Top Opportunity")
         if top_opportunity:
@@ -2355,6 +2423,10 @@ with tabs[23]:
 
     with workflow_tabs[11]:
         section_header("Raw Database View - technical audit only", "Full ID-heavy tables are intentionally kept here for inspection.", "Technical")
-        for table_name in ["studies", "study_runs", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]:
+        for table_name in ["studies", "study_runs", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs", "discovery_runs", "discovery_memory"]:
             st.subheader(table_name)
             st.dataframe(fetch_all(DB_PATH, table_name), use_container_width=True)
+
+    with workflow_tabs[12]:
+        section_header("Discovery Learning", "GS-001 memory for evidence queries, source domains, and provider performance.", "Learning")
+        render_discovery_learning_dashboard()

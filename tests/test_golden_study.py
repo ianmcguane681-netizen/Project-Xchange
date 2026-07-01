@@ -14,6 +14,8 @@ from project_exchange.golden_study import (
     calculate_oci,
     create_signal,
     create_study,
+    discovery_learning_dashboard,
+    discovery_memory_rows,
     evidence_quality_profile,
     generate_executive_brief,
     generate_findings,
@@ -26,6 +28,7 @@ from project_exchange.golden_study import (
     list_opportunities,
     mark_engineering_ready,
     production_pipeline_statuses,
+    prioritized_query_runs,
     pull_real_market_evidence,
     switch_study_run_mode,
     run_audit_batch,
@@ -790,6 +793,86 @@ def test_evidence_discovery_runs_focused_query_groups_and_prioritizes_trusted_so
     assert result["signals_stored"] == 2
     assert result["technical_details"]["domain_learning"]["trusted_domains"]
     assert all("vendor.example.com" not in str(signal.get("source_url")) for signal in signals)
+
+
+def test_discovery_learning_stores_successful_domains_as_trusted(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+
+    result = pull_real_market_evidence(db_path, providers=[QueryAwareEvidenceProvider()], max_sources=2)
+    memory = discovery_memory_rows(db_path)
+    dashboard = discovery_learning_dashboard(db_path)
+
+    trusted = [row for row in memory if row["memory_type"] == "trusted_domain"]
+    assert result["signals_stored"] == 2
+    assert any("bbb.org" in str(row["memory_key"]) for row in trusted)
+    assert dashboard["runs_analysed"] == 1
+    assert dashboard["acceptance_rate"] > 0
+
+
+def test_discovery_learning_stores_vendor_domains(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+
+    pull_real_market_evidence(db_path, providers=[QueryAwareEvidenceProvider()], max_sources=2)
+    memory = discovery_memory_rows(db_path)
+
+    vendor_domains = [row for row in memory if row["memory_type"] == "vendor_domain"]
+    assert any(row["memory_key"] == "vendor.example.com" for row in vendor_domains)
+
+
+def test_discovery_learning_prioritises_high_yield_queries_and_deprioritises_low_yield(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+
+    pull_real_market_evidence(db_path, providers=[QueryAwareEvidenceProvider()], max_sources=2)
+    ordered_queries = [query for _, query in prioritized_query_runs(db_path)]
+    memory = discovery_memory_rows(db_path)
+    high_yield = [str(row["memory_key"]) for row in memory if row["memory_type"] == "high_yield_query"]
+    low_yield = [str(row["memory_key"]) for row in memory if row["memory_type"] == "low_yield_query"]
+
+    assert high_yield
+    assert low_yield
+    assert ordered_queries.index(high_yield[0]) < ordered_queries.index(low_yield[0])
+
+
+def test_discovery_memory_does_not_override_evidence_quality_rules(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    pull_real_market_evidence(db_path, providers=[QueryAwareEvidenceProvider()], max_sources=2)
+    before = len(list_signals(db_path))
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "BBB property management background",
+                "https://www.bbb.org/property-management-background",
+                "Property management companies operate in many US rental markets with large apartment portfolios.",
+                "search_result",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+
+    assert result["signals_stored"] == 0
+    assert len(list_signals(db_path)) == before
+    assert result["skipped_market_size_generic_or_marketing"] + result["skipped_not_complaint_or_pain_evidence"] >= 1
+
+
+def test_demo_runs_do_not_contaminate_production_discovery_memory(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    result = pull_real_market_evidence(db_path, providers=[QueryAwareEvidenceProvider()])
+
+    assert result["status"] == "blocked"
+    assert discovery_memory_rows(db_path) == []
+    assert fetch_all(db_path, "discovery_runs") == []
 
 
 def test_pull_real_market_evidence_skips_duplicate_url_and_raw_text(tmp_path):
