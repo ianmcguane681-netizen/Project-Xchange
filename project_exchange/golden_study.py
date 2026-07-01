@@ -1821,6 +1821,7 @@ def encode_provider_signal_metadata(
         metadata.update(
             {
                 "evidence_relevance": quality.get("evidence_relevance"),
+                "evidence_classification": quality.get("classification"),
                 "classification": quality.get("classification"),
                 "production_eligible": quality.get("production_eligible"),
                 "source_type": quality.get("source_type_detected"),
@@ -1964,6 +1965,7 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
         skip_reason = "not_complaint_or_pain_evidence"
     return {
         "classification": classification,
+        "evidence_classification": classification,
         "production_eligible": production_eligible,
         "source_type_detected": source_type,
         "source_trust_score": trust_score,
@@ -1978,8 +1980,8 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
 
 def signal_quality_metadata(signal: dict[str, object]) -> dict[str, object]:
     metadata = provider_signal_metadata(signal)
-    if metadata.get("classification") or metadata.get("evidence_relevance"):
-        classification = metadata.get("classification") or {
+    if metadata.get("evidence_classification") or metadata.get("classification") or metadata.get("evidence_relevance"):
+        classification = metadata.get("evidence_classification") or metadata.get("classification") or {
             "complaint": "verified_complaint",
             "operational_pain": "operational_pain",
             "workflow_inefficiency": "workflow_inefficiency",
@@ -1992,6 +1994,7 @@ def signal_quality_metadata(signal: dict[str, object]) -> dict[str, object]:
             production_eligible = classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS and bool(metadata.get("pain_keywords_matched")) and bool(metadata.get("context_keywords_matched"))
         return {
             "classification": classification,
+            "evidence_classification": classification,
             "production_eligible": production_eligible,
             "source_type_detected": metadata.get("source_type") or "unknown",
             "source_trust_score": int(metadata.get("source_trust_score") or 0),
@@ -2066,6 +2069,7 @@ def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
         "verification_status": str(signal.get("verification_status") or "Not recorded"),
         "evidence_strength": str(signal.get("evidence_strength") or 0),
         "classification": str(quality.get("classification") or "unknown"),
+        "evidence_classification": str(quality.get("evidence_classification") or quality.get("classification") or "unknown"),
         "source_type": str(quality.get("source_type_detected") or "unknown"),
         "source_trust_score": str(quality.get("source_trust_score") or 0),
         "production_eligible": "YES" if quality.get("production_eligible") else "NO",

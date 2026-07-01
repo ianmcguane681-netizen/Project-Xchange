@@ -1250,7 +1250,7 @@ with tabs[23]:
                         ("Country", view["country"]),
                         ("Stakeholder", view["stakeholder"]),
                         ("Retrieved", view["retrieved"]),
-                        ("Evidence Classification", view["classification"]),
+                        ("Evidence Classification", view["evidence_classification"]),
                         ("Source Type", view["source_type"]),
                         ("Trust", view["source_trust_score"]),
                         ("Production Eligible", view["production_eligible"]),

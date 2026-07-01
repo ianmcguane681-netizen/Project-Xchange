@@ -788,6 +788,7 @@ def test_v2_vendor_blog_classifies_as_vendor_content():
     )
 
     assert quality["classification"] == "vendor_content"
+    assert quality["evidence_classification"] == "vendor_content"
     assert quality["production_eligible"] is False
     assert quality["source_trust_score"] == 20
 
@@ -800,6 +801,7 @@ def test_v2_facebook_classifies_as_community_signal():
     )
 
     assert quality["classification"] == "community_signal"
+    assert quality["evidence_classification"] == "community_signal"
     assert quality["production_eligible"] is False
     assert quality["source_type_detected"] == "facebook_group"
 
@@ -812,6 +814,7 @@ def test_v2_market_statistics_classifies_as_market_context():
     )
 
     assert quality["classification"] == "market_context"
+    assert quality["evidence_classification"] == "market_context"
     assert quality["production_eligible"] is False
 
 
@@ -829,6 +832,7 @@ def test_v2_consumer_affairs_bbb_and_government_are_verified_complaints():
             title=title,
         )
         assert quality["classification"] == "verified_complaint"
+        assert quality["evidence_classification"] == "verified_complaint"
         assert quality["production_eligible"] is True
         assert quality["source_trust_score"] == trust
 
