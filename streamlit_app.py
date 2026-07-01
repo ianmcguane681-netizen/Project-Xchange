@@ -74,6 +74,7 @@ from project_exchange.golden_study import (
     list_study_runs,
     list_study_briefs,
     mark_engineering_ready,
+    pull_real_market_evidence,
     run_audit_batch,
     run_research_batch,
     study_progress,
@@ -1683,6 +1684,32 @@ with tabs[23]:
             "Production Mode Active" if is_production_run else "Demo Mode Active" if is_demo_run else "Waiting",
         )
         if is_production_run:
+            with st.container(border=True):
+                st.caption("Production provider pull")
+                st.markdown("**Pull Real Market Evidence**")
+                st.write("Scope: US residential property management, maintenance communication complaints and unmet needs.")
+                if st.button("Pull Real Market Evidence", key="gs001_pull_real_market_evidence", type="primary"):
+                    result = pull_real_market_evidence(DB_PATH, DEFAULT_STUDY_ID)
+                    if result["status"] == "blocked":
+                        set_golden_flash("warning", str(result["message"]), result.get("technical_details"))
+                    elif result["status"] == "empty":
+                        set_golden_flash("warning", str(result["message"]), result)
+                    else:
+                        providers = ", ".join(str(provider) for provider in result.get("providers_used", [])) or "None"
+                        set_golden_flash(
+                            "success",
+                            (
+                                "Research Run Complete. "
+                                f"Sources searched: {result['sources_searched']}. "
+                                f"Candidate results found: {result['candidate_results_found']}. "
+                                f"Signals stored: {result['signals_stored']}. "
+                                f"Skipped duplicates: {result['skipped_duplicates']}. "
+                                f"Skipped missing source/text: {result['skipped_missing_source_or_text']}. "
+                                f"Providers used: {providers}."
+                            ),
+                            result,
+                        )
+                    st.rerun()
             with st.form("golden_real_evidence_form"):
                 source_cols = st.columns(3)
                 signal_source = source_cols[0].text_input("Source URL", key="golden_real_source")
@@ -1716,6 +1743,7 @@ with tabs[23]:
                         set_golden_flash("error", str(exc))
                         st.rerun()
         elif is_demo_run:
+            st.info("Real market evidence can only be pulled in Production Mode.")
             st.warning("This loader creates demo/sample records only. Do not treat them as real or verified market evidence.")
             demo_sample_confirmed = st.checkbox("I understand this loads demo/sample data only.", key="gs001_demo_sample_confirmed")
             if st.button("Load DEMO Sample GS-001 Batch", disabled=not demo_sample_confirmed, key="gs001_load_demo_sample_batch"):
@@ -1728,6 +1756,7 @@ with tabs[23]:
                 set_golden_flash("success", f"{len(result['signals'])} demo signals created", result)
                 st.rerun()
         else:
+            st.info("Real market evidence can only be pulled in Production Mode.")
             st.info("No active run is available.")
 
     with workflow_tabs[2]:

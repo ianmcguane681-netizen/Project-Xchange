@@ -1,4 +1,5 @@
 from project_exchange.database import connect, fetch_all, init_db, utc_now
+from project_exchange.provider_base import ProviderResult
 from project_exchange.golden_study import (
     DEFAULT_STUDY_ID,
     approve_audited_opportunities,
@@ -20,6 +21,7 @@ from project_exchange.golden_study import (
     list_study_runs,
     list_opportunities,
     mark_engineering_ready,
+    pull_real_market_evidence,
     switch_study_run_mode,
     run_audit_batch,
     run_research_batch,
@@ -27,6 +29,35 @@ from project_exchange.golden_study import (
     traceability_chain,
     validate_golden_study_integrity,
 )
+
+
+class StaticEvidenceProvider:
+    name = "Tavily"
+
+    def __init__(self, results):
+        self.results = results
+        self.used = False
+
+    def search(self, command):
+        if self.used:
+            return []
+        self.used = True
+        return self.results
+
+
+class OpenAIOnlyEvidenceProvider:
+    name = "OpenAI"
+
+    def search(self, command):
+        return [
+            ProviderResult(
+                "OpenAI",
+                "Generated maintenance communication claim",
+                "",
+                "OpenAI says tenants might complain about maintenance updates.",
+                "llm",
+            )
+        ]
 
 
 def start_production_run(db_path):
@@ -519,6 +550,132 @@ def test_demo_batch_feedback_and_visible_signals(tmp_path):
 
     assert len(batch["signals"]) == 2
     assert len(visible_signals) == 2
+
+
+def test_pull_real_market_evidence_blocked_outside_production(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    get_or_create_default_study(db_path)
+
+    result = pull_real_market_evidence(
+        db_path,
+        providers=[
+            StaticEvidenceProvider([
+                ProviderResult("Tavily", "Real source", "https://example.com/source", "Tenants complain about maintenance request updates.", "search_result")
+            ])
+        ],
+    )
+
+    assert result["status"] == "blocked"
+    assert result["message"] == "Real market evidence can only be pulled in Production Mode."
+    assert list_signals(db_path, include_demo=True) == []
+
+
+def test_pull_real_market_evidence_requires_configured_provider(monkeypatch, tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    monkeypatch.setattr(
+        "project_exchange.golden_study.provider_ready_for_research",
+        lambda: {
+            "ready": False,
+            "message": "No provider configured. Add API keys in Provider Settings or paste evidence manually.",
+            "providers": [],
+        },
+    )
+
+    result = pull_real_market_evidence(db_path)
+
+    assert result["status"] == "blocked"
+    assert result["message"] == "No provider configured. Add API keys in Provider Settings or paste evidence manually."
+    assert list_signals(db_path) == []
+
+
+def test_pull_real_market_evidence_skips_missing_source_and_text(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "", "", "Tenants complain about slow maintenance communication.", "search_result"),
+            ProviderResult("Tavily", "Missing text source", "https://example.com/missing-text", "", "search_result"),
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+
+    assert result["status"] == "empty"
+    assert result["signals_stored"] == 0
+    assert result["skipped_missing_source_or_text"] == 2
+    assert list_signals(db_path) == []
+
+
+def test_pull_real_market_evidence_creates_provider_signal_in_active_production_run(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    production_run = start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "Tenant maintenance complaints rise",
+                "https://example.com/tenant-maintenance",
+                "Tenants complain that apartment maintenance request updates are unclear and property managers do not communicate timelines.",
+                "article",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+    signals = list_signals(db_path)
+
+    assert result["status"] == "completed"
+    assert result["signals_stored"] == 1
+    assert len(signals) == 1
+    signal = signals[0]
+    assert signal["study_run_id"] == production_run["id"]
+    assert signal["is_demo"] == 0
+    assert signal["data_origin"] == "provider"
+    assert signal["verification_status"] == "pending_verification"
+    assert signal["source_url"] == "https://example.com/tenant-maintenance"
+    assert signal["source_type"] == "article"
+    assert signal["country"] == "United States"
+    assert "Tavily" in signal["source_name"]
+    assert "Query:" in signal["source_name"]
+
+
+def test_pull_real_market_evidence_skips_duplicate_url_and_raw_text(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    duplicate_text = "Property managers complain that maintenance communication tools do not show request status clearly."
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Duplicate URL A", "https://example.com/duplicate", "Tenants complain that maintenance request updates are slow and unclear.", "search_result"),
+            ProviderResult("Tavily", "Duplicate URL B", "https://example.com/duplicate", "Different text but same URL.", "search_result"),
+            ProviderResult("Tavily", "Duplicate Text", "", duplicate_text, "search_result"),
+            ProviderResult("Tavily", "Duplicate Text", "", duplicate_text, "search_result"),
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+
+    assert result["signals_stored"] == 2
+    assert result["skipped_duplicates"] == 2
+    assert len(list_signals(db_path)) == 2
+
+
+def test_openai_output_alone_cannot_create_production_evidence(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+
+    result = pull_real_market_evidence(db_path, providers=[OpenAIOnlyEvidenceProvider()])
+
+    assert result["status"] == "empty"
+    assert result["signals_stored"] == 0
+    assert result["skipped_openai_only"] == 0
+    assert list_signals(db_path) == []
 
 
 def test_demo_rehearsal_can_reach_demo_engineering_ready(tmp_path):

@@ -7,6 +7,10 @@ from pathlib import Path
 from project_exchange.database import connect, count_rows, row_to_dict, utc_now
 from project_exchange.eos import add_event, add_notification
 from project_exchange.ids import next_sequence_id
+from project_exchange.provider_base import ProviderResult
+from project_exchange.provider_modules.newsapi_provider import NewsAPIProvider
+from project_exchange.provider_modules.tavily_serpapi_provider import TavilySerpAPIProvider
+from project_exchange.provider_status import provider_ready_for_research
 
 
 DEFAULT_STUDY_ID = "GS-001"
@@ -26,6 +30,14 @@ STAKEHOLDER_KEYWORDS = {
     "Property owners": ["landlord", "owner"],
     "Maintenance contractors": ["contractor", "maintenance team", "repair vendor"],
 }
+
+GS001_REAL_EVIDENCE_QUERIES = [
+    "US property management maintenance communication complaints",
+    "apartment maintenance communication complaints property manager",
+    "tenant complaints maintenance request updates property management",
+    "property management software maintenance communication issues",
+    "HOA property management maintenance communication complaints",
+]
 
 CATEGORY_KEYWORDS = {
     "Maintenance issues": ["maintenance", "repair", "contractor", "work order"],
@@ -1221,7 +1233,7 @@ def study_progress(
     opportunities = list_opportunities(db_path, study_id, run_id, include_archived, include_demo)
     archives = archived_count(db_path, study_id, run_id)
     demo_count = demo_records_count(db_path, study_id, run_id, include_archived)
-    pending_verification = sum(1 for row in [*signals, *findings, *audits, *opportunities] if row.get("verification_status") in {"unverified", "pending_review"})
+    pending_verification = sum(1 for row in [*signals, *findings, *audits, *opportunities] if row.get("verification_status") in {"unverified", "pending_review", "pending_verification"})
     avg_oci_values = [int(opportunity.get("opportunity_confidence_index") or 0) for opportunity in opportunities]
     return {
         "study_id": study_id,
@@ -1372,6 +1384,232 @@ def run_research_batch(db_path: str | Path, raw_items: list[dict[str, object]], 
     ]
     findings = generate_findings(db_path, study_id)
     return {"signals": signals, "findings": findings}
+
+
+def pull_real_market_evidence(
+    db_path: str | Path,
+    study_id: str = DEFAULT_STUDY_ID,
+    providers: list[object] | None = None,
+    max_sources: int = 10,
+) -> dict[str, object]:
+    active_run = get_active_study_run(db_path, study_id)
+    if not active_run or active_run.get("study_mode") != "production":
+        return {
+            "status": "blocked",
+            "message": "Real market evidence can only be pulled in Production Mode.",
+            "signals": [],
+            "technical_details": {},
+        }
+    if providers is None:
+        readiness = provider_ready_for_research()
+        if not readiness["ready"]:
+            return {
+                "status": "blocked",
+                "message": str(readiness["message"]),
+                "signals": [],
+                "technical_details": readiness,
+            }
+        providers = [TavilySerpAPIProvider(), NewsAPIProvider()]
+
+    retrieved_at = utc_now()
+    provider_names: list[str] = []
+    candidates: list[dict[str, object]] = []
+    provider_errors: list[dict[str, str]] = []
+    for query in GS001_REAL_EVIDENCE_QUERIES:
+        command = {
+            "study": study_id,
+            "industry": "Residential Property Management",
+            "market": "United States",
+            "keyword": query,
+            "focus": "Maintenance Communication",
+            "objective": "collect real, source-backed evidence of recurring problems, complaints, inefficiencies, or unmet needs",
+        }
+        for provider in providers:
+            provider_name = str(getattr(provider, "name", provider.__class__.__name__))
+            if "openai" in provider_name.lower():
+                provider_errors.append({"provider": provider_name, "query": query, "error": "OpenAI output is not accepted as market evidence."})
+                continue
+            if provider_name not in provider_names:
+                provider_names.append(provider_name)
+            try:
+                results = provider.search(command)  # type: ignore[attr-defined]
+            except Exception:
+                provider_errors.append({"provider": provider_name, "query": query, "error": "Provider search failed."})
+                continue
+            for result in results:
+                normalized = normalize_provider_result(result, query, retrieved_at)
+                candidates.append(normalized)
+                if len(candidates) >= max_sources:
+                    break
+            if len(candidates) >= max_sources:
+                break
+        if len(candidates) >= max_sources:
+            break
+
+    stored = []
+    skipped_missing = 0
+    skipped_duplicates = 0
+    skipped_openai = 0
+    for candidate in candidates[:max_sources]:
+        if "openai" in str(candidate.get("provider_name") or "").lower():
+            skipped_openai += 1
+            continue
+        if not (str(candidate.get("source_url") or "").strip() or str(candidate.get("source_name") or "").strip()):
+            skipped_missing += 1
+            continue
+        if not str(candidate.get("raw_text") or "").strip():
+            skipped_missing += 1
+            continue
+        if signal_duplicate_exists(
+            db_path,
+            study_id,
+            str(active_run["id"]),
+            str(candidate.get("source_url") or ""),
+            str(candidate.get("raw_text") or ""),
+        ):
+            skipped_duplicates += 1
+            continue
+        signal = create_signal(
+            db_path,
+            str(candidate["raw_text"]),
+            study_id,
+            str(candidate.get("source_url") or ""),
+            str(candidate.get("source_name") or ""),
+            str(candidate.get("source_type") or "search_result"),
+            str(candidate.get("source_date") or retrieved_at),
+            "United States",
+            str(candidate.get("stakeholder_type") or "Unknown"),
+            "",
+            "provider",
+            candidate.get("source_confidence"),  # type: ignore[arg-type]
+        )
+        with connect(db_path) as connection:
+            connection.execute(
+                "UPDATE study_signals SET verification_status = ?, last_updated = ? WHERE id = ?",
+                ("pending_verification", utc_now(), signal["id"]),
+            )
+        stored.append(get_signal(db_path, str(signal["id"])))
+
+    status = "completed" if stored else "empty"
+    message = "Research Run Complete" if stored else "No source-backed evidence found for this run."
+    result = {
+        "status": status,
+        "message": message,
+        "sources_searched": len(GS001_REAL_EVIDENCE_QUERIES),
+        "candidate_results_found": len(candidates),
+        "signals_stored": len(stored),
+        "skipped_duplicates": skipped_duplicates,
+        "skipped_missing_source_or_text": skipped_missing,
+        "skipped_openai_only": skipped_openai,
+        "providers_used": provider_names,
+        "signals": stored,
+        "technical_details": {
+            "study_id": study_id,
+            "study_run_id": active_run["id"],
+            "queries": GS001_REAL_EVIDENCE_QUERIES,
+            "retrieved_at": retrieved_at,
+            "provider_errors": provider_errors,
+            "candidates": candidates,
+        },
+    }
+    add_event(db_path, "GoldenStudyEvidencePulled", "PX-R001", message, str(len(stored)), study_id)
+    return result
+
+
+def normalize_provider_result(result: ProviderResult | object, query: str, retrieved_at: str) -> dict[str, object]:
+    provider_name = str(getattr(result, "provider", "") or getattr(result, "name", "") or "Unknown Provider")
+    title = str(getattr(result, "title", "") or "").strip()
+    url = str(getattr(result, "url", "") or "").strip()
+    snippet = str(getattr(result, "snippet", "") or "").strip()
+    source_name_parts = [provider_name]
+    if title:
+        source_name_parts.append(title)
+    source_name_parts.append(f"Query: {query}")
+    source_name_parts.append(f"Retrieved: {retrieved_at}")
+    raw_text = snippet if snippet else ""
+    source_type = normalize_source_type(str(getattr(result, "source_type", "") or ""), url, title)
+    return {
+        "provider_name": provider_name,
+        "query": query,
+        "retrieved_at": retrieved_at,
+        "original_title": title,
+        "source_url": url,
+        "source_name": " | ".join(source_name_parts) if title else "",
+        "source_type": source_type,
+        "source_date": retrieved_at,
+        "country": "United States",
+        "stakeholder_type": infer_gs001_stakeholder(f"{title} {snippet}"),
+        "raw_text": raw_text,
+        "summary": summarize(snippet or title),
+        "source_confidence": rough_provider_evidence_strength(provider_name, url, snippet),
+    }
+
+
+def infer_gs001_stakeholder(text: str) -> str:
+    lower = text.lower()
+    if any(word in lower for word in ["tenant", "resident", "renter", "apartment"]):
+        return "Tenant"
+    if any(word in lower for word in ["property manager", "property management", "manager"]):
+        return "Property Manager"
+    if any(word in lower for word in ["owner", "landlord", "investor"]):
+        return "Property Owner"
+    if any(word in lower for word in ["hoa", "board", "association"]):
+        return "HOA Board"
+    if any(word in lower for word in ["contractor", "maintenance technician", "repair"]):
+        return "Maintenance Contractor"
+    if any(word in lower for word in ["software", "platform", "buyer", "vendor"]):
+        return "Software Buyer"
+    return "Unknown"
+
+
+def normalize_source_type(source_type: str, url: str, title: str) -> str:
+    lower = " ".join([source_type, url, title]).lower()
+    if "news" in lower:
+        return "news"
+    if any(word in lower for word in ["forum", "reddit", "community"]):
+        return "forum"
+    if any(word in lower for word in ["review", "trustpilot", "g2", "capterra"]):
+        return "review"
+    if any(word in lower for word in ["article", "blog"]):
+        return "article"
+    if source_type:
+        return "search_result"
+    return "unknown"
+
+
+def rough_provider_evidence_strength(provider_name: str, url: str, text: str) -> int:
+    score = 45
+    if url:
+        score += 15
+    if len(text) > 160:
+        score += 15
+    if any(word in text.lower() for word in ["complaint", "complain", "issue", "problem", "maintenance", "communication", "request"]):
+        score += 15
+    if provider_name.lower() in {"tavily", "serpapi", "newsapi"}:
+        score += 10
+    return min(score, 100)
+
+
+def signal_duplicate_exists(db_path: str | Path, study_id: str, study_run_id: str, source_url: str, raw_text: str) -> bool:
+    with connect(db_path) as connection:
+        if source_url.strip():
+            url_match = connection.execute(
+                """
+                SELECT COUNT(*) AS count FROM study_signals
+                WHERE study_id = ? AND study_run_id = ? AND source_url = ?
+                """,
+                (study_id, study_run_id, source_url),
+            ).fetchone()["count"]
+            if int(url_match):
+                return True
+        text_match = connection.execute(
+            """
+            SELECT COUNT(*) AS count FROM study_signals
+            WHERE study_id = ? AND study_run_id = ? AND raw_text = ?
+            """,
+            (study_id, study_run_id, raw_text),
+        ).fetchone()["count"]
+    return bool(int(text_match))
 
 
 def run_audit_batch(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
