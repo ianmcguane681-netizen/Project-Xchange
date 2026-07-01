@@ -1355,8 +1355,6 @@ with tabs[23]:
             st.info(message)
 
     def production_timeline_status(stage: str) -> str:
-        if not is_production_run:
-            return workflow_stage_status(stage) if stage in {"Signals", "Findings", "Audits", "Opportunities", "Engineering Specs"} else "Not Started"
         values = {
             "Evidence Collection": progress["signals_collected"],
             "Signal Detection": progress["signals_collected"],
@@ -1372,13 +1370,13 @@ with tabs[23]:
         order = list(values)
         current = values.get(stage, 0)
         if current:
-            return "Complete"
+            return "Completed"
         index = order.index(stage)
         if index == 0:
             return "Active"
         if values.get(order[index - 1], 0):
             return "Active"
-        return "Locked" if progress["signals_collected"] == 0 else "Not Started"
+        return "Locked" if progress["signals_collected"] == 0 else "Waiting"
 
     def render_workflow_timeline(stages: list[str]) -> None:
         cols = st.columns(5)
@@ -1388,6 +1386,12 @@ with tabs[23]:
                     state = production_timeline_status(stage)
                     st.caption(badge_html(state))
                     st.write(stage)
+
+    def pipeline_progress_percent(stages: list[str]) -> int:
+        if not stages:
+            return 0
+        completed = sum(1 for stage in stages if production_timeline_status(stage) == "Completed")
+        return round((completed / len(stages)) * 100)
 
     def demo_oci(record: dict[str, object]) -> int:
         if not record:
@@ -1492,7 +1496,7 @@ with tabs[23]:
 
     workflow_tabs = st.tabs([
         "Mission Control",
-        "Add Evidence",
+        "Collect Market Evidence",
         "Signals",
         "Findings",
         "Audits",
@@ -1506,33 +1510,40 @@ with tabs[23]:
     ])
 
     with workflow_tabs[0]:
-        top_problem = findings[0] if findings else {}
         top_opportunity = opportunities[0] if opportunities else {}
-        highest_score = displayed_oci(top_opportunity) if top_opportunity else demo_oci(top_problem)
-        score_label = "Demo OCI" if is_demo_run else "Highest OCI"
-        section_header("Mission Control", "Current run workflow, evidence health, warnings, and safe mode controls.", mode_label)
+        workflow_stages = [
+            "Evidence Collection",
+            "Signal Detection",
+            "Finding Generation",
+            "Audit",
+            "Opportunity",
+            "Engineering Spec",
+            "Prototype",
+            "Internal Validation",
+            "External Validation",
+            "Commercial Ready",
+        ]
+        progress_percent = pipeline_progress_percent(workflow_stages)
+        section_header("Mission Control", "GS-001 command centre for market evidence, audit, and opportunity readiness.", mode_label)
+        control_cols = st.columns(3)
+        with control_cols[0]:
+            render_status_card("Current Study", "GS-001", "Global Property Management", "Active")
+        with control_cols[1]:
+            render_status_card("Current Run", str(run_status or "Waiting").title(), "Active run only; IDs are in Technical Details.", mode_label)
+        with control_cols[2]:
+            render_status_card("Mode", mode_label.replace(" Mode", ""), "Demo outputs never count as production evidence.", mode_label)
+
+        st.subheader("Pipeline Progress")
         if production_empty:
-            st.subheader("Production Mode Active")
-            st.write("No production research has been started.")
+            st.info("Production Mode Active. No production research has been started.")
             action_cols = st.columns(2)
             if action_cols[0].button("+ Add First Verified Evidence", key="gs001_overview_add_first_verified", type="primary"):
                 st.session_state["gs001_focus_add_evidence"] = True
-                st.info("Open the Add Evidence tab to enter the first verified source.")
+                st.info("Open Collect Market Evidence to enter the first verified source.")
             if action_cols[1].button("View Demo History", key="gs001_overview_view_demo_history"):
                 st.info("Open Archive / Demo History to view preserved demo records.")
             st.caption("0% - Awaiting first verified evidence")
-            render_workflow_timeline([
-                "Evidence Collection",
-                "Signal Detection",
-                "Finding Generation",
-                "Audit",
-                "Opportunity",
-                "Engineering Spec",
-                "Prototype",
-                "Internal Validation",
-                "External Validation",
-                "Commercial Ready",
-            ])
+            render_workflow_timeline(workflow_stages)
             empty_cols = st.columns(3)
             with empty_cols[0]:
                 render_status_card("Signals", "No evidence collected", "Add verified evidence to begin.", "Active")
@@ -1548,41 +1559,41 @@ with tabs[23]:
             with empty_cols[2]:
                 render_status_card("Engineering", "No approved opportunities", "Specs unlock after approval.", "Locked")
         else:
-            render_workflow_timeline([
-                "Evidence Collection",
-                "Signal Detection",
-                "Finding Generation",
-                "Audit",
-                "Opportunity",
-                "Engineering Spec",
-                "Prototype",
-                "Internal Validation",
-                "External Validation",
-                "Commercial Ready",
-            ])
+            st.caption(f"{progress_percent}% - {recommended_action_text()}")
+            render_workflow_timeline(workflow_stages)
 
-            summary_cols = st.columns(3)
-            summary_cols[0].metric("Evidence Health", f"{progress['source_coverage']} sources")
-            summary_cols[1].metric(score_label, highest_score)
-            summary_cols[2].metric("Countries", len(progress["countries_covered"]))
+        st.subheader("Evidence Health")
+        health_cols = st.columns(3)
+        with health_cols[0]:
+            render_status_card("Sources", progress["source_coverage"] or "None", "Independent sources in the active run.", workflow_stage_status("Signals"))
+        with health_cols[1]:
+            render_status_card("Countries", len(progress["countries_covered"]) or "None", ", ".join(progress["countries_covered"]) or "No country coverage yet.", workflow_stage_status("Signals"))
+        with health_cols[2]:
+            render_status_card("Pending Verification", progress["verification_pending_count"], "Evidence still awaiting review.", "Waiting" if progress["verification_pending_count"] else "Completed")
 
-        st.subheader("Evidence Coverage")
-        st.write(f"Countries: {', '.join(progress['countries_covered']) or 'None'}")
-        st.write(f"Stakeholders: {', '.join(progress['stakeholders_covered']) or 'None'}")
-
-        problem_label = str(top_problem.get("theme") or top_opportunity.get("recommended_component") or "No problem selected yet")
-        st.subheader("Top Problem")
-        st.write(problem_label)
-        if top_problem.get("problem_statement"):
-            st.caption(str(top_problem["problem_statement"]))
+        st.subheader("Current Top Opportunity")
         if top_opportunity:
-            st.subheader("Current Top Opportunity")
-            st.write(str(top_opportunity.get("recommended_component") or top_opportunity.get("problem") or "Opportunity"))
-            st.caption(str(top_opportunity.get("problem") or ""))
+            render_business_card(
+                top_opportunity.get("recommended_component") or "Opportunity",
+                top_opportunity.get("status"),
+                top_opportunity.get("problem"),
+                [
+                    ("Demo OCI" if bool(top_opportunity.get("is_demo")) else "OCI", displayed_oci(top_opportunity)),
+                    ("Commercial", top_opportunity.get("commercial_potential") or "Not set"),
+                    ("Engineering", top_opportunity.get("engineering_status") or "Not started"),
+                    ("Mode", "Demo" if bool(top_opportunity.get("is_demo")) else "Production"),
+                ],
+            )
+        else:
+            empty_state(
+                "Current Top Opportunity",
+                "No approved production opportunity exists yet. Complete audit approval to surface one.",
+                "No demo opportunity exists yet. Run demo audit and approval to rehearse this stage.",
+            )
 
         st.subheader("Recommended Next Action")
         if is_demo_run:
-            st.info("Demo Mode Active. Demo workflow can be rehearsed safely, but no real production opportunities are created.")
+            st.info("Demo rehearsal mode active. Demo records prove the workflow but are excluded from production.")
             if progress["opportunities_approved"] == 0 and progress["audits_completed"]:
                 st.write("Approve demo opportunities to continue rehearsal.")
             elif progress["audits_completed"] == 0 and progress["findings_created"]:
@@ -1667,8 +1678,8 @@ with tabs[23]:
 
     with workflow_tabs[1]:
         section_header(
-            "Add Evidence",
-            "Capture source-backed production evidence or load clearly marked demo rehearsal records.",
+            "Collect Market Evidence",
+            "Production collects verified market evidence. Demo mode loads rehearsal evidence.",
             "Production Mode Active" if is_production_run else "Demo Mode Active" if is_demo_run else "Waiting",
         )
         if is_production_run:
@@ -1684,7 +1695,7 @@ with tabs[23]:
                 signal_source_date = meta_cols[3].date_input("Evidence date", key="golden_real_source_date")
                 signal_origin = st.selectbox("Data origin", ["manual", "provider", "verified_import"], key="golden_real_origin")
                 signal_text = st.text_area("Raw evidence text", key="golden_real_text")
-                if st.form_submit_button("Add Real Evidence"):
+                if st.form_submit_button("Collect Verified Evidence"):
                     try:
                         result = create_signal(
                             DB_PATH,
@@ -1699,7 +1710,7 @@ with tabs[23]:
                             signal_product,
                             signal_origin,
                         )
-                        set_golden_flash("success", "Evidence added to the active production run.", result)
+                        set_golden_flash("success", "Verified market evidence added to the active production run.", result)
                         st.rerun()
                     except ValueError as exc:
                         set_golden_flash("error", str(exc))
