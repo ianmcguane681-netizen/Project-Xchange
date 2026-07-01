@@ -42,6 +42,24 @@ GS001_REAL_EVIDENCE_QUERIES = [
 ]
 
 VALID_COMPLAINT_RELEVANCE = {"complaint", "operational_pain", "workflow_inefficiency"}
+PRODUCTION_ELIGIBLE_CLASSIFICATIONS = {"verified_complaint", "operational_pain", "workflow_inefficiency"}
+SOURCE_TRUST_SCORES = {
+    "government": 100,
+    "court": 100,
+    "ombudsman": 98,
+    "consumer_review": 95,
+    "verified_review_platform": 90,
+    "news": 85,
+    "industry_association": 80,
+    "research": 80,
+    "forum": 70,
+    "community": 60,
+    "social_media": 60,
+    "facebook_group": 40,
+    "vendor": 20,
+    "marketing": 10,
+    "unknown": 0,
+}
 PAIN_KEYWORDS = [
     "complaint",
     "complain",
@@ -936,11 +954,19 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
     traceability_complete = traceability_complete_for_signals(signals)
     accepted_production_signals = [signal for signal in signals if is_accepted_production_signal(signal)]
     independent_domains = {source_domain_or_identity(signal) for signal in accepted_production_signals}
+    trust_scores = [int(signal_quality_metadata(signal).get("source_trust_score") or 0) for signal in accepted_production_signals]
+    average_trust_score = round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 0
+    excluded_classes = [
+        str(signal_quality_metadata(signal).get("classification") or "unknown")
+        for signal in signals
+        if signal_quality_metadata(signal).get("classification") not in PRODUCTION_ELIGIBLE_CLASSIFICATIONS
+    ]
     production_requirements_met = (
         contains_demo
         or (
             len(accepted_production_signals) >= 3
             and len(independent_domains) >= 2
+            and average_trust_score >= 80
             and traceability_complete
             and len(accepted_production_signals) == len(signals)
         )
@@ -953,7 +979,7 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
         "Demo Audited"
         if contains_demo
         else "Approve Opportunity"
-        if oci >= ENGINEERING_READY_OCI and production_requirements_met
+        if oci >= 80 and production_requirements_met
         else "Needs More Evidence"
         if oci >= 60 or not production_requirements_met
         else "Reject"
@@ -965,6 +991,8 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
         missing.append("At least 3 accepted complaint/pain signals required")
     if len(independent_domains) < 2 and not contains_demo:
         missing.append("At least 2 independent source domains required")
+    if average_trust_score < 80 and not contains_demo:
+        missing.append("Average source trust score must be at least 80")
     if not contains_demo and len(accepted_production_signals) != len(signals):
         missing.append("Only complaint, operational pain, or workflow inefficiency evidence can support approval")
     if len(_loads_list(finding.get("countries"))) < 2:
@@ -975,7 +1003,8 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
         missing.append("Complete traceability to sources required")
     reasoning = (
         f"Finding has {finding['signal_count']} signals, {finding['independent_source_count']} independent sources, "
-        f"traceability score {scores['traceability_score']}, OCI {oci}, decision {decision}."
+        f"average trust score {average_trust_score}, traceability score {scores['traceability_score']}, "
+        f"excluded classes {excluded_classes or 'none'}, OCI {oci}, decision {decision}."
     )
     with connect(db_path) as connection:
         audit_id = next_sequence_id("FAD", count_rows(connection, "finding_audits"))
@@ -1420,6 +1449,27 @@ def production_pipeline_statuses(progress: dict[str, object]) -> dict[str, str]:
     }
 
 
+def evidence_quality_dashboard(signals: list[dict[str, object]], skipped: list[dict[str, object]] | None = None) -> dict[str, object]:
+    qualities = [signal_quality_metadata(signal) for signal in signals]
+    eligible = [quality for quality in qualities if quality.get("production_eligible")]
+    trust_scores = [int(quality.get("source_trust_score") or 0) for quality in eligible]
+    domains = {source_domain_or_identity(signal) for signal, quality in zip(signals, qualities) if quality.get("production_eligible")}
+    classifications = [str(quality.get("classification") or "unknown") for quality in qualities]
+    skipped = skipped or []
+    return {
+        "total_pulled": len(signals) + len(skipped),
+        "accepted_production_signals": len(eligible),
+        "market_context": classifications.count("market_context"),
+        "vendor_content": classifications.count("vendor_content"),
+        "community_signals": classifications.count("community_signal"),
+        "rejected": len([quality for quality in qualities if not quality.get("production_eligible")]) + len(skipped),
+        "duplicates": len([item for item in skipped if item.get("reason") == "duplicate"]),
+        "average_trust_score": round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 0,
+        "independent_domains": len(domains),
+        "production_readiness": "Ready for finding generation" if len(eligible) >= 3 and len(domains) >= 2 and (round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 0) >= 80 else "Needs stronger evidence",
+    }
+
+
 def archived_count(db_path: str | Path, study_id: str, study_run_id: str | None = None) -> int:
     run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
     total = 0
@@ -1733,7 +1783,7 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
     url = str(getattr(result, "url", "") or "").strip()
     snippet = str(getattr(result, "snippet", "") or "").strip()
     raw_text = snippet if snippet else ""
-    quality = evidence_quality_profile(f"{title}\n{snippet}", query)
+    quality = evidence_quality_profile(f"{title}\n{snippet}", query, url, title)
     source_type = normalize_source_type(str(getattr(result, "source_type", "") or ""), url, title)
     return {
         "provider_name": provider_name,
@@ -1771,6 +1821,10 @@ def encode_provider_signal_metadata(
         metadata.update(
             {
                 "evidence_relevance": quality.get("evidence_relevance"),
+                "classification": quality.get("classification"),
+                "production_eligible": quality.get("production_eligible"),
+                "source_type": quality.get("source_type_detected"),
+                "source_trust_score": quality.get("source_trust_score"),
                 "why_accepted": quality.get("why_accepted"),
                 "pain_keywords_matched": quality.get("pain_keywords_matched", []),
                 "context_keywords_matched": quality.get("context_keywords_matched", []),
@@ -1784,9 +1838,49 @@ def keyword_matches(text: str, keywords: list[str]) -> list[str]:
     return [keyword for keyword in keywords if keyword in lower]
 
 
-def evidence_quality_profile(text: str, query: str = "") -> dict[str, object]:
+def detect_source_type(url: str = "", title: str = "", text: str = "") -> str:
+    lower = " ".join([url, title, text]).lower()
+    if any(word in lower for word in ["court", "filing", "lawsuit", "docket"]):
+        return "court"
+    if any(word in lower for word in ["gov", "regulator", "government", "attorney general"]):
+        return "government"
+    if "ombudsman" in lower:
+        return "ombudsman"
+    if any(word in lower for word in ["consumeraffairs", "consumer affairs", "bbb.org", "better business bureau"]):
+        return "consumer_review"
+    if any(word in lower for word in ["trustpilot", "g2.com", "capterra", "software advice"]):
+        return "verified_review_platform"
+    if any(word in lower for word in ["facebook", "discord", "instagram", "tiktok", "threads.net"]):
+        return "facebook_group" if "facebook" in lower else "social_media"
+    if any(word in lower for word in ["reddit", "linkedin", "x.com", "twitter"]):
+        return "social_media"
+    if any(word in lower for word in ["forum", "community"]):
+        return "forum"
+    if any(word in lower for word in ["research", "university", "institute", "white paper"]):
+        return "research"
+    if any(word in lower for word in ["news", "reuters", "apnews", "bbc", "guardian", "nyt", "wsj", "forbes"]):
+        return "news"
+    if any(word in lower for word in ["blog", "help.", "support.", "docs.", "features", "pricing", "demo", "vendor"]):
+        return "vendor"
+    if any(word in lower for word in ["marketing", "landing page", "sales page"]):
+        return "marketing"
+    return "unknown"
+
+
+def source_trust_score(source_type: str, url: str = "", title: str = "", text: str = "") -> int:
+    lower = " ".join([url, title, text]).lower()
+    if "housing ombudsman" in lower:
+        return 98
+    if "consumer affairs" in lower or "consumeraffairs" in lower or "bbb.org" in lower or "better business bureau" in lower:
+        return 95
+    return SOURCE_TRUST_SCORES.get(source_type, 0)
+
+
+def evidence_quality_profile(text: str, query: str = "", url: str = "", title: str = "") -> dict[str, object]:
     combined = text.strip()
     lower = combined.lower()
+    source_type = detect_source_type(url, title, combined)
+    trust_score = source_trust_score(source_type, url, title, combined)
     pain_matches = keyword_matches(combined, PAIN_KEYWORDS)
     context_matches = keyword_matches(combined, PROPERTY_MAINTENANCE_CONTEXT_KEYWORDS)
     strong_complaint = bool(pain_matches and context_matches)
@@ -1814,56 +1908,104 @@ def evidence_quality_profile(text: str, query: str = "") -> dict[str, object]:
         ]
     )
 
-    if any(word in lower for word in ["market size", "market report", "forecast", "cagr", "industry revenue", "statistics"]):
-        relevance = "complaint" if strong_complaint else "market_size_only"
-    elif any(word in lower for word in ["book a demo", "request demo", "our platform", "software solution", "features include", "pricing page"]):
-        relevance = "operational_pain" if strong_complaint else "vendor_marketing"
-    elif any(word in lower for word in ["article", "guide", "overview", "best practices", "tips"]) and not strong_pain_language:
-        relevance = "generic_article"
-    elif any(word in lower for word in ["complaint", "complain", "complains", "bad service", "no response", "not updated"]):
-        relevance = "complaint"
-    elif any(word in lower for word in ["issue", "problem", "poor", "slow", "delayed", "unresolved", "waiting", "broken", "repair", "frustration", "dispute", "ignored"]):
-        relevance = "operational_pain"
-    elif any(word in lower for word in ["manual", "workflow", "work order", "lack of communication", "maintenance request"]):
-        relevance = "workflow_inefficiency"
-    else:
+    if source_type in {"vendor", "marketing"} or any(word in lower for word in ["book a demo", "request demo", "our platform", "software solution", "features include", "pricing page"]):
+        classification = "vendor_content"
+        relevance = "vendor_marketing"
+        reason = "Vendor-authored guidance. Useful background information only."
+    elif source_type in {"social_media", "facebook_group"}:
+        classification = "community_signal"
         relevance = "unknown"
+        reason = "Community discussion. Requires independent verification."
+    elif any(word in lower for word in ["market size", "market report", "forecast", "cagr", "industry revenue", "statistics", "funding", "investment", "industry trends", "software trends"]):
+        classification = "market_context"
+        relevance = "market_size_only"
+        reason = "Market context only; not direct complaint evidence."
+    elif source_type == "research":
+        classification = "research_report"
+        relevance = "generic_article"
+        reason = "Research report; background context only unless corroborated by complaint evidence."
+    elif source_type == "news" and not strong_complaint:
+        classification = "news_report"
+        relevance = "generic_article"
+        reason = "News report without direct complaint evidence."
+    elif any(word in lower for word in ["article", "guide", "overview", "best practices", "tips"]) and not strong_pain_language:
+        classification = "market_context"
+        relevance = "generic_article"
+        reason = "Generic article; useful context but not independent complaint evidence."
+    elif any(word in lower for word in ["complaint", "complain", "complains", "bad service", "no response", "not updated"]):
+        classification = "verified_complaint" if source_type in {"consumer_review", "verified_review_platform", "government", "court", "ombudsman", "news"} else "operational_pain"
+        relevance = "complaint"
+        reason = "Independent complaint matching GS-001." if classification == "verified_complaint" else "Complaint or pain evidence from a lower-trust source."
+    elif any(word in lower for word in ["issue", "problem", "poor", "slow", "delayed", "unresolved", "waiting", "broken", "repair", "frustration", "dispute", "ignored"]):
+        classification = "operational_pain"
+        relevance = "operational_pain"
+        reason = "Operational pain evidence matching GS-001."
+    elif any(word in lower for word in ["manual", "workflow", "work order", "lack of communication", "maintenance request"]):
+        classification = "workflow_inefficiency"
+        relevance = "workflow_inefficiency"
+        reason = "Workflow inefficiency evidence matching GS-001."
+    else:
+        classification = "unknown"
+        relevance = "unknown"
+        reason = "Unknown evidence class; not production eligible."
 
-    accepted = relevance in VALID_COMPLAINT_RELEVANCE and bool(pain_matches) and bool(context_matches)
-    if accepted:
-        why = f"Accepted as {relevance}: matched pain keywords and property-maintenance context."
+    production_eligible = classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS and bool(pain_matches) and bool(context_matches)
+    if production_eligible:
+        why = f"{reason} Matched pain keywords and property-maintenance context."
         skip_reason = ""
-    elif relevance in {"market_size_only", "vendor_marketing", "generic_article"}:
-        why = f"Rejected as {relevance}: not usable as complaint or operational pain evidence."
+    elif classification in {"market_context", "vendor_content", "news_report", "research_report"}:
+        why = reason
         skip_reason = "market_size_generic_or_marketing"
+    elif classification == "community_signal":
+        why = reason
+        skip_reason = "not_complaint_or_pain_evidence"
     else:
         why = "Rejected: missing complaint/pain language or property-maintenance context."
         skip_reason = "not_complaint_or_pain_evidence"
     return {
+        "classification": classification,
+        "production_eligible": production_eligible,
+        "source_type_detected": source_type,
+        "source_trust_score": trust_score,
         "evidence_relevance": relevance,
         "pain_keywords_matched": pain_matches,
         "context_keywords_matched": context_matches,
         "why_accepted": why,
-        "accepted_complaint_evidence": accepted,
+        "accepted_complaint_evidence": production_eligible,
         "skip_reason": skip_reason,
     }
 
 
 def signal_quality_metadata(signal: dict[str, object]) -> dict[str, object]:
     metadata = provider_signal_metadata(signal)
-    if metadata.get("evidence_relevance"):
+    if metadata.get("classification") or metadata.get("evidence_relevance"):
+        classification = metadata.get("classification") or {
+            "complaint": "verified_complaint",
+            "operational_pain": "operational_pain",
+            "workflow_inefficiency": "workflow_inefficiency",
+            "market_size_only": "market_context",
+            "vendor_marketing": "vendor_content",
+            "generic_article": "market_context",
+        }.get(str(metadata.get("evidence_relevance") or ""), "unknown")
+        production_eligible = bool(metadata.get("production_eligible"))
+        if "production_eligible" not in metadata:
+            production_eligible = classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS and bool(metadata.get("pain_keywords_matched")) and bool(metadata.get("context_keywords_matched"))
         return {
+            "classification": classification,
+            "production_eligible": production_eligible,
+            "source_type_detected": metadata.get("source_type") or "unknown",
+            "source_trust_score": int(metadata.get("source_trust_score") or 0),
             "evidence_relevance": metadata.get("evidence_relevance"),
             "pain_keywords_matched": metadata.get("pain_keywords_matched") or [],
             "context_keywords_matched": metadata.get("context_keywords_matched") or [],
             "why_accepted": metadata.get("why_accepted") or "",
-            "accepted_complaint_evidence": metadata.get("evidence_relevance") in VALID_COMPLAINT_RELEVANCE
-            and bool(metadata.get("pain_keywords_matched"))
-            and bool(metadata.get("context_keywords_matched")),
+            "accepted_complaint_evidence": production_eligible,
         }
     return evidence_quality_profile(
         f"{signal.get('source_name') or ''}\n{signal.get('summary') or ''}\n{signal.get('raw_text') or ''}",
         str(signal.get("query") or ""),
+        str(signal.get("source_url") or ""),
+        str(signal.get("source_name") or ""),
     )
 
 
@@ -1881,7 +2023,7 @@ def is_accepted_production_signal(signal: dict[str, object]) -> bool:
     if str(signal.get("data_origin") or "") == "demo":
         return False
     quality = signal_quality_metadata(signal)
-    return bool(quality.get("accepted_complaint_evidence")) and quality.get("evidence_relevance") in VALID_COMPLAINT_RELEVANCE
+    return bool(quality.get("production_eligible")) and quality.get("classification") in PRODUCTION_ELIGIBLE_CLASSIFICATIONS
 
 
 def provider_signal_metadata(signal: dict[str, object]) -> dict[str, object]:
@@ -1923,6 +2065,10 @@ def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
         "stakeholder": str(signal.get("stakeholder_type") or "Unknown"),
         "verification_status": str(signal.get("verification_status") or "Not recorded"),
         "evidence_strength": str(signal.get("evidence_strength") or 0),
+        "classification": str(quality.get("classification") or "unknown"),
+        "source_type": str(quality.get("source_type_detected") or "unknown"),
+        "source_trust_score": str(quality.get("source_trust_score") or 0),
+        "production_eligible": "YES" if quality.get("production_eligible") else "NO",
         "evidence_relevance": str(quality.get("evidence_relevance") or "unknown"),
         "why_accepted": str(quality.get("why_accepted") or "Not recorded"),
         "pain_keywords_matched": ", ".join(str(item) for item in quality.get("pain_keywords_matched", []) or []) or "None",

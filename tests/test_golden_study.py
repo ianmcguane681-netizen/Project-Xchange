@@ -14,6 +14,7 @@ from project_exchange.golden_study import (
     calculate_oci,
     create_signal,
     create_study,
+    evidence_quality_profile,
     generate_executive_brief,
     generate_findings,
     findings_feedback,
@@ -154,21 +155,24 @@ def test_audit_approval_and_traceability_chain(tmp_path):
             {
                 "country": "Ireland",
                 "stakeholder_type": "Property managers",
-                "source_name": "Irish source",
+                "source_url": "https://www.consumeraffairs.com/property-management/irish",
+                "source_name": "Consumer Affairs Irish complaint",
                 "data_origin": "verified_import",
                 "raw_text": "Property managers in Ireland repeatedly complain that maintenance updates are slow and tenants chase responses multiple times.",
             },
             {
                 "country": "United Kingdom",
                 "stakeholder_type": "Tenants",
-                "source_name": "UK source",
+                "source_url": "https://www.bbb.org/property-management/uk",
+                "source_name": "BBB UK complaint",
                 "data_origin": "verified_import",
                 "raw_text": "Tenants in the United Kingdom repeatedly complain that repair communication is poor and maintenance updates are delayed.",
             },
             {
                 "country": "United States",
                 "stakeholder_type": "Property owners",
-                "source_name": "US source",
+                "source_url": "https://www.gov.example/property-management/us",
+                "source_name": "Government US complaint",
                 "data_origin": "verified_import",
                 "raw_text": "Property owners in the United States complain that maintenance coordination is manual, slow, and expensive.",
             },
@@ -466,21 +470,24 @@ def test_production_evidence_increases_only_production_kpis(tmp_path):
             {
                 "country": "Ireland",
                 "stakeholder_type": "Property managers",
-                "source_name": "Irish source",
+                "source_url": "https://www.consumeraffairs.com/property-management/irish",
+                "source_name": "Consumer Affairs Irish complaint",
                 "data_origin": "verified_import",
                 "raw_text": "Property managers in Ireland repeatedly complain that maintenance updates are slow and tenants chase responses multiple times.",
             },
             {
                 "country": "United Kingdom",
                 "stakeholder_type": "Tenants",
-                "source_name": "UK source",
+                "source_url": "https://www.bbb.org/property-management/uk",
+                "source_name": "BBB UK complaint",
                 "data_origin": "verified_import",
                 "raw_text": "Tenants in the United Kingdom repeatedly complain that repair communication is poor and maintenance updates are delayed.",
             },
             {
                 "country": "United States",
                 "stakeholder_type": "Property owners",
-                "source_name": "US source",
+                "source_url": "https://www.gov.example/property-management/us",
+                "source_name": "Government US complaint",
                 "data_origin": "verified_import",
                 "raw_text": "Property owners in the United States complain that maintenance request communication is slow and work order updates are unresolved.",
             },
@@ -773,6 +780,59 @@ def test_market_size_article_is_skipped_as_production_signal(tmp_path):
     assert list_signals(db_path) == []
 
 
+def test_v2_vendor_blog_classifies_as_vendor_content():
+    quality = evidence_quality_profile(
+        "Our platform helps property managers streamline maintenance. Book a demo to learn about features.",
+        url="https://vendor.example.com/blog/maintenance",
+        title="Vendor maintenance blog",
+    )
+
+    assert quality["classification"] == "vendor_content"
+    assert quality["production_eligible"] is False
+    assert quality["source_trust_score"] == 20
+
+
+def test_v2_facebook_classifies_as_community_signal():
+    quality = evidence_quality_profile(
+        "Facebook group residents complain maintenance requests are ignored by the landlord.",
+        url="https://facebook.com/groups/renters",
+        title="Facebook tenant discussion",
+    )
+
+    assert quality["classification"] == "community_signal"
+    assert quality["production_eligible"] is False
+    assert quality["source_type_detected"] == "facebook_group"
+
+
+def test_v2_market_statistics_classifies_as_market_context():
+    quality = evidence_quality_profile(
+        "The property management software market size forecast shows strong CAGR and industry investment.",
+        url="https://example.com/market-report",
+        title="Market size forecast",
+    )
+
+    assert quality["classification"] == "market_context"
+    assert quality["production_eligible"] is False
+
+
+def test_v2_consumer_affairs_bbb_and_government_are_verified_complaints():
+    examples = [
+        ("https://www.consumeraffairs.com/property-management", "Consumer Affairs complaint", 95),
+        ("https://www.bbb.org/us/example/property-management", "BBB complaint", 95),
+        ("https://www.gov.example/tenant-complaints", "Government complaint portal", 100),
+    ]
+
+    for url, title, trust in examples:
+        quality = evidence_quality_profile(
+            "Tenant complaint says maintenance request had no response and apartment repair was delayed.",
+            url=url,
+            title=title,
+        )
+        assert quality["classification"] == "verified_complaint"
+        assert quality["production_eligible"] is True
+        assert quality["source_trust_score"] == trust
+
+
 def test_vendor_marketing_page_is_skipped_as_production_signal(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
@@ -893,9 +953,9 @@ def test_audit_approves_after_accepted_complaint_threshold(tmp_path):
     start_production_run(db_path)
     provider = StaticEvidenceProvider(
         [
-            ProviderResult("Tavily", "Tenant complaint A", "https://a.example.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
-            ProviderResult("Tavily", "Tenant complaint B", "https://b.example.com/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
-            ProviderResult("Tavily", "Resident complaint C", "https://c.example.com/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
+            ProviderResult("Tavily", "Tenant complaint A", "https://www.consumeraffairs.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
+            ProviderResult("Tavily", "Tenant complaint B", "https://www.bbb.org/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
+            ProviderResult("Tavily", "Resident complaint C", "https://www.gov.example/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
         ]
     )
     pull_real_market_evidence(db_path, providers=[provider])
@@ -906,15 +966,73 @@ def test_audit_approves_after_accepted_complaint_threshold(tmp_path):
     assert audit["decision"] == "Approve Opportunity"
 
 
+def test_opportunity_cannot_exist_without_minimum_trust_score(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Tenant complaint A", "https://forum-a.example.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
+            ProviderResult("Tavily", "Tenant complaint B", "https://forum-b.example.com/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
+            ProviderResult("Tavily", "Resident complaint C", "https://forum-c.example.com/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    finding = generate_findings(db_path)[0]
+
+    audit = audit_finding(db_path, finding["id"])
+
+    assert audit["decision"] == "Needs More Evidence"
+    assert "Average source trust score must be at least 80" in audit["missing_evidence_warnings"]
+
+
+def test_opportunity_cannot_exist_without_minimum_independent_domains(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Consumer complaint A", "https://www.consumeraffairs.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
+            ProviderResult("Tavily", "Consumer complaint B", "https://www.consumeraffairs.com/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
+            ProviderResult("Tavily", "Consumer complaint C", "https://www.consumeraffairs.com/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    finding = generate_findings(db_path)[0]
+
+    assert finding["status"] == "Insufficient Evidence"
+    try:
+        audit_finding(db_path, finding["id"])
+    except ValueError as exc:
+        assert "independent sources" in str(exc)
+    else:
+        raise AssertionError("One-domain evidence should not be auditable")
+
+
+def test_opportunity_cannot_exist_without_minimum_verified_complaint_threshold(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Consumer complaint A", "https://www.consumeraffairs.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
+            ProviderResult("Tavily", "BBB complaint B", "https://www.bbb.org/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+
+    assert generate_findings(db_path) == []
+
+
 def test_archive_current_production_run_preserves_records_and_starts_empty_run(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
     old_run = start_production_run(db_path)
     provider = StaticEvidenceProvider(
         [
-            ProviderResult("Tavily", "Tenant complaint A", "https://a.example.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
-            ProviderResult("Tavily", "Tenant complaint B", "https://b.example.com/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
-            ProviderResult("Tavily", "Resident complaint C", "https://c.example.com/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
+            ProviderResult("Tavily", "Tenant complaint A", "https://www.consumeraffairs.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
+            ProviderResult("Tavily", "Tenant complaint B", "https://www.bbb.org/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
+            ProviderResult("Tavily", "Resident complaint C", "https://www.gov.example/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
         ]
     )
     pull_real_market_evidence(db_path, providers=[provider])
@@ -1216,21 +1334,24 @@ def test_production_action_feedback_can_proceed_normally(tmp_path):
             {
                 "country": "Ireland",
                 "stakeholder_type": "Property managers",
-                "source_name": "Irish source",
+                "source_url": "https://www.consumeraffairs.com/property-management/irish",
+                "source_name": "Consumer Affairs Irish complaint",
                 "data_origin": "verified_import",
                 "raw_text": "Property managers in Ireland repeatedly complain that maintenance updates are slow and tenants chase responses multiple times.",
             },
             {
                 "country": "United Kingdom",
                 "stakeholder_type": "Tenants",
-                "source_name": "UK source",
+                "source_url": "https://www.bbb.org/property-management/uk",
+                "source_name": "BBB UK complaint",
                 "data_origin": "verified_import",
                 "raw_text": "Tenants in the United Kingdom repeatedly complain that repair communication is poor and maintenance updates are delayed.",
             },
             {
                 "country": "United States",
                 "stakeholder_type": "Property owners",
-                "source_name": "US source",
+                "source_url": "https://www.gov.example/property-management/us",
+                "source_name": "Government US complaint",
                 "data_origin": "verified_import",
                 "raw_text": "Property owners in the United States repeatedly complain that maintenance coordination is manual, slow, and expensive.",
             },

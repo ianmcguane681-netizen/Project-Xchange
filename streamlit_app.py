@@ -68,6 +68,7 @@ from project_exchange.golden_study import (
     generate_findings,
     get_active_study_run,
     get_or_create_default_study,
+    evidence_quality_dashboard,
     list_finding_audits,
     list_findings,
     list_opportunities,
@@ -1249,12 +1250,14 @@ with tabs[23]:
                         ("Country", view["country"]),
                         ("Stakeholder", view["stakeholder"]),
                         ("Retrieved", view["retrieved"]),
-                        ("Evidence relevance", view["evidence_relevance"]),
-                        ("Evidence strength", view["evidence_strength"]),
+                        ("Evidence Classification", view["classification"]),
+                        ("Source Type", view["source_type"]),
+                        ("Trust", view["source_trust_score"]),
+                        ("Production Eligible", view["production_eligible"]),
                     ],
                 )
                 st.caption(f"Original query: {view['query']}")
-                st.caption(f"Why accepted: {view['why_accepted']}")
+                st.caption(f"Reason: {view['why_accepted']}")
                 st.caption(f"Pain keywords: {view['pain_keywords_matched']}")
                 st.caption(f"Context keywords: {view['context_keywords_matched']}")
                 if signal.get("source_url"):
@@ -1630,6 +1633,7 @@ with tabs[23]:
             render_workflow_timeline(workflow_stages)
 
         st.subheader("Evidence Health")
+        quality_dashboard = evidence_quality_dashboard(signals)
         health_cols = st.columns(3)
         with health_cols[0]:
             render_status_card("Sources", progress["source_coverage"] or "None", "Independent sources in the active run.", workflow_stage_status("Signals"))
@@ -1637,6 +1641,24 @@ with tabs[23]:
             render_status_card("Countries", len(progress["countries_covered"]) or "None", ", ".join(progress["countries_covered"]) or "No country coverage yet.", workflow_stage_status("Signals"))
         with health_cols[2]:
             render_status_card("Pending Verification", progress["verification_pending_count"], "Evidence still awaiting review.", "Waiting" if progress["verification_pending_count"] else "Completed")
+        quality_cols = st.columns(4)
+        with quality_cols[0]:
+            render_status_card("Accepted Production Signals", quality_dashboard["accepted_production_signals"], "Eligible complaint/pain evidence.", quality_dashboard["production_readiness"])
+        with quality_cols[1]:
+            render_status_card("Average Trust Score", quality_dashboard["average_trust_score"], "Eligible evidence only.", "Complete" if float(quality_dashboard["average_trust_score"] or 0) >= 80 else "Waiting")
+        with quality_cols[2]:
+            render_status_card("Independent Domains", quality_dashboard["independent_domains"], "Eligible source domains.", "Complete" if int(quality_dashboard["independent_domains"] or 0) >= 2 else "Waiting")
+        with quality_cols[3]:
+            render_status_card("Production Readiness", quality_dashboard["production_readiness"], "Analyst gate before findings/opportunities.", quality_dashboard["production_readiness"])
+        mix_cols = st.columns(4)
+        with mix_cols[0]:
+            render_status_card("Market Context", quality_dashboard["market_context"], "Background only.", "Waiting" if quality_dashboard["market_context"] else "Complete")
+        with mix_cols[1]:
+            render_status_card("Vendor Content", quality_dashboard["vendor_content"], "Never counted.", "Waiting" if quality_dashboard["vendor_content"] else "Complete")
+        with mix_cols[2]:
+            render_status_card("Community Signals", quality_dashboard["community_signals"], "Require verification.", "Waiting" if quality_dashboard["community_signals"] else "Complete")
+        with mix_cols[3]:
+            render_status_card("Rejected", quality_dashboard["rejected"], "Not eligible for production findings.", "Waiting" if quality_dashboard["rejected"] else "Complete")
 
         st.subheader("Current Top Opportunity")
         if top_opportunity:
