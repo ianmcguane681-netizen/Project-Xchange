@@ -1378,6 +1378,14 @@ with tabs[23]:
         metric_cols[2].metric("Average Trust", dashboard["average_trust_score"])
         best_provider = dashboard.get("best_provider") or {}
         metric_cols[3].metric("Best Provider", best_provider.get("memory_key") or "None yet")
+        best_domains = dashboard.get("best_domains") or []
+        worst_domains = dashboard.get("worst_domains") or []
+        best_queries = dashboard.get("best_queries") or []
+        if best_domains or worst_domains or best_queries:
+            next_domains = ", ".join(str(row.get("memory_key")) for row in best_domains[:2]) or "trusted complaint sources"
+            avoid_domains = ", ".join(str(row.get("memory_key")) for row in worst_domains[:2]) or "known weak/vendor domains"
+            next_query = str((best_queries[0] or {}).get("memory_key") or "high-yield complaint queries") if best_queries else "high-yield complaint queries"
+            st.info(f"Recommended next run: prioritise {next_domains}, lead with '{next_query}', and deprioritise {avoid_domains}.")
 
         card_cols = st.columns(2)
         with card_cols[0]:
@@ -1608,7 +1616,10 @@ with tabs[23]:
         if not progress["audits_completed"]:
             return "Run audit batch"
         if not progress["opportunities_approved"]:
-            return "Review opportunities"
+            blocked_audits = [audit for audit in audits if audit.get("decision") == "Needs More Evidence"]
+            if blocked_audits:
+                return "Collect more qualifying evidence"
+            return "Review audit decisions"
         if not progress["engineering_ready"]:
             return "Create engineering specification"
         return "Prepare executive brief"
@@ -1770,7 +1781,9 @@ with tabs[23]:
         with quality_cols[2]:
             render_status_card("Independent Domains", quality_dashboard["independent_domains"], "Eligible source domains.", "Complete" if int(quality_dashboard["independent_domains"] or 0) >= 2 else "Waiting")
         with quality_cols[3]:
-            render_status_card("Production Readiness", quality_dashboard["production_readiness"], "Analyst gate before findings/opportunities.", quality_dashboard["production_readiness"])
+            readiness_label = "Draft finding ready" if quality_dashboard["production_readiness"] == "Ready for finding generation" and progress["verification_pending_count"] else quality_dashboard["production_readiness"]
+            readiness_note = "Pending verification; not opportunity-ready." if progress["verification_pending_count"] else "Analyst gate before findings/opportunities."
+            render_status_card("Production Readiness", readiness_label, readiness_note, readiness_label)
         mix_cols = st.columns(4)
         with mix_cols[0]:
             render_status_card("Market Context", quality_dashboard["market_context"], "Background only.", "Waiting" if quality_dashboard["market_context"] else "Complete")
@@ -2110,7 +2123,11 @@ with tabs[23]:
                     ],
                 )
                 cols = st.columns(2)
-                if cols[0].button("Approve Opportunity", key=f"approve_audit_{audit['id']}"):
+                can_approve_audit = str(audit.get("decision") or "") in {"Approve Opportunity", "Demo Audited"}
+                if audit.get("missing_evidence_warnings") and not can_approve_audit:
+                    st.warning(f"Approval blocked: {audit.get('missing_evidence') or 'more qualifying evidence required.'}")
+                approve_label = "Approve Opportunity" if can_approve_audit else "Approval Locked"
+                if cols[0].button(approve_label, key=f"approve_audit_{audit['id']}", disabled=not can_approve_audit):
                     try:
                         approved = approve_audited_opportunities(DB_PATH, DEFAULT_STUDY_ID)
                         level, message = approval_feedback(approved, demo_present=bool(audit.get("is_demo")) or is_demo_run)

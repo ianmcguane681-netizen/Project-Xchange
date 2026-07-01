@@ -1089,6 +1089,38 @@ def test_px017_multiple_articles_about_same_event_do_not_approve_opportunity(tmp
     assert approve_audited_opportunities(db_path) == []
 
 
+def test_gs001_rejects_property_context_without_maintenance_pain():
+    quality = evidence_quality_profile(
+        "Government complaint alleges landlords shared rental pricing data and apartment market information.",
+        url="https://www.federalregister.gov/documents/example-realpage",
+        title="United States v RealPage proposed judgment",
+    )
+
+    assert quality["production_eligible"] is False
+    assert quality["accepted_complaint_evidence"] is False
+    assert quality["skip_reason"] == "not_complaint_or_pain_evidence"
+    assert "maintenance" in quality["rejection_reason"].lower()
+
+
+def test_needs_more_evidence_audit_does_not_create_opportunity(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Maintenance complaint A", "https://www.consumeraffairs.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
+            ProviderResult("Tavily", "Maintenance complaint B", "https://www.bbb.org/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
+            ProviderResult("Tavily", "Maintenance complaint C", "https://www.gov.example/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    finding = generate_findings(db_path)[0]
+    audit = audit_finding(db_path, finding["id"])
+
+    assert audit["decision"] == "Needs More Evidence"
+    assert approve_audited_opportunities(db_path) == []
+
+
 def test_vendor_marketing_page_is_skipped_as_production_signal(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)

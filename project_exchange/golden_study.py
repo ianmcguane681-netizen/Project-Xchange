@@ -209,6 +209,14 @@ PROPERTY_MAINTENANCE_CONTEXT_KEYWORDS = [
     "rental",
     "multifamily",
 ]
+GS001_REQUIRED_MAINTENANCE_CONTEXT_KEYWORDS = [
+    "maintenance",
+    "maintenance request",
+    "repair",
+    "repairs",
+    "work order",
+    "habitability",
+]
 
 CATEGORY_KEYWORDS = {
     "Maintenance issues": ["maintenance", "repair", "contractor", "work order"],
@@ -2118,6 +2126,11 @@ def keyword_matches(text: str, keywords: list[str]) -> list[str]:
     return [keyword for keyword in keywords if keyword in lower]
 
 
+def has_required_gs001_maintenance_context(text: str) -> bool:
+    lower = text.lower()
+    return any(keyword in lower for keyword in GS001_REQUIRED_MAINTENANCE_CONTEXT_KEYWORDS)
+
+
 TRUSTED_NON_VENDOR_MARKERS = [
     "consumeraffairs",
     "consumer affairs",
@@ -2301,6 +2314,7 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
     trust_score = source_trust_score(source_type, url, title, combined)
     pain_matches = keyword_matches(combined, PAIN_KEYWORDS)
     context_matches = keyword_matches(combined, PROPERTY_MAINTENANCE_CONTEXT_KEYWORDS)
+    required_maintenance_context = has_required_gs001_maintenance_context(all_text)
     pain_profile = extract_operational_pain(combined, title)
     event_key = market_event_key(url, title, combined)
     strong_complaint = bool(pain_matches and context_matches)
@@ -2378,7 +2392,7 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
         reason = "Unknown evidence class; not production eligible."
 
     authority_passed = trust_score >= MIN_PRODUCTION_AUTHORITY_SCORE
-    production_eligible = classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS and bool(pain_matches) and bool(context_matches) and authority_passed
+    production_eligible = classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS and bool(pain_matches) and bool(context_matches) and required_maintenance_context and authority_passed
     if production_eligible:
         why = f"{reason} Matched pain keywords and property-maintenance context."
         skip_reason = ""
@@ -2394,6 +2408,9 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
     elif classification == "community_signal":
         why = reason
         skip_reason = "not_complaint_or_pain_evidence"
+    elif not required_maintenance_context and classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS:
+        why = "Rejected: No Operational Pain. Evidence does not mention maintenance, repairs, work orders, or habitability."
+        skip_reason = "not_complaint_or_pain_evidence"
     else:
         why = "Rejected: missing complaint/pain language or property-maintenance context."
         skip_reason = "not_complaint_or_pain_evidence"
@@ -2406,6 +2423,7 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
         "authority_score": trust_score,
         "authority_threshold": MIN_PRODUCTION_AUTHORITY_SCORE,
         "authority_passed": authority_passed,
+        "required_maintenance_context": required_maintenance_context,
         "evidence_relevance": relevance,
         "classification_code": str(classification).upper(),
         "rejection_reason": "" if production_eligible else why.replace("Rejected: ", "").strip(),
