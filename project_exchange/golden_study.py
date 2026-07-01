@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 from project_exchange.database import connect, count_rows, row_to_dict, utc_now
 from project_exchange.eos import add_event, add_notification
@@ -32,11 +33,50 @@ STAKEHOLDER_KEYWORDS = {
 }
 
 GS001_REAL_EVIDENCE_QUERIES = [
-    "US property management maintenance communication complaints",
-    "apartment maintenance communication complaints property manager",
-    "tenant complaints maintenance request updates property management",
-    "property management software maintenance communication issues",
-    "HOA property management maintenance communication complaints",
+    "tenant complaint maintenance request no response property management",
+    "apartment resident complaints maintenance not fixed property manager",
+    "property management company complaints maintenance communication",
+    "HOA management complaints maintenance communication",
+    "property manager maintenance request delayed tenant complaint",
+    "rental property maintenance complaints poor communication",
+]
+
+VALID_COMPLAINT_RELEVANCE = {"complaint", "operational_pain", "workflow_inefficiency"}
+PAIN_KEYWORDS = [
+    "complaint",
+    "complain",
+    "complains",
+    "issue",
+    "problem",
+    "poor",
+    "slow",
+    "delayed",
+    "no response",
+    "unresolved",
+    "waiting",
+    "broken",
+    "repair",
+    "maintenance request",
+    "frustration",
+    "dispute",
+    "bad service",
+    "ignored",
+    "lack of communication",
+    "not updated",
+]
+PROPERTY_MAINTENANCE_CONTEXT_KEYWORDS = [
+    "tenant",
+    "resident",
+    "apartment",
+    "landlord",
+    "property manager",
+    "property management",
+    "hoa",
+    "maintenance",
+    "repair",
+    "work order",
+    "rental",
+    "multifamily",
 ]
 
 CATEGORY_KEYWORDS = {
@@ -391,6 +431,72 @@ def archive_all_demo_data(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID)
     }
 
 
+def archive_current_production_run_and_start_fresh(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    active = get_active_study_run(db_path, study_id)
+    if not active or active.get("study_mode") != "production":
+        raise ValueError("Archive-and-reset is only available for an active production run.")
+    run_id = str(active["id"])
+    archived_records = archive_run_records(db_path, study_id, run_id, demo_only=False)
+    note = "Archived before evidence-quality rerun. Records preserved for traceability under original study_run_id."
+    with connect(db_path) as connection:
+        connection.execute(
+            "UPDATE study_runs SET status = 'archived', closed_at = ?, notes = ? WHERE id = ?",
+            (utc_now(), note, run_id),
+        )
+    new_run = create_study_run(
+        db_path,
+        study_id,
+        "production",
+        "manual",
+        "Clean production run started after evidence-quality reset.",
+    )
+    with connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE studies
+            SET study_mode = 'production', data_origin = 'manual', verification_status = 'pending_review',
+                is_demo = 0, last_updated = ?
+            WHERE id = ?
+            """,
+            (utc_now(), study_id),
+        )
+    add_event(db_path, "ProductionRunArchived", "PX-H001", "Current production run archived. New clean production run started.", run_id, study_id)
+    return {
+        "status": "completed",
+        "message": "Current production run archived. New clean production run started.",
+        "archived_run_id": run_id,
+        "new_run_id": new_run["id"],
+        "records_archived": len(archived_records),
+        "archived_records": archived_records,
+    }
+
+
+def delete_archived_demo_data(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    deleted: dict[str, int] = {}
+    with connect(db_path) as connection:
+        for table_name in RUN_SCOPED_TABLES:
+            rows = connection.execute(
+                f"SELECT id FROM {table_name} WHERE study_id = ? AND is_demo = 1 AND status = 'archived'",
+                (study_id,),
+            ).fetchall()
+            deleted[table_name] = len(rows)
+            connection.execute(
+                f"DELETE FROM {table_name} WHERE study_id = ? AND is_demo = 1 AND status = 'archived'",
+                (study_id,),
+            )
+        runs = connection.execute(
+            "SELECT id FROM study_runs WHERE study_id = ? AND is_demo = 1 AND status = 'archived'",
+            (study_id,),
+        ).fetchall()
+        deleted["study_runs"] = len(runs)
+        connection.execute(
+            "DELETE FROM study_runs WHERE study_id = ? AND is_demo = 1 AND status = 'archived'",
+            (study_id,),
+        )
+    add_event(db_path, "ArchivedDemoDataDeleted", "PX-H001", "Archived demo data deleted by admin action.", str(sum(deleted.values())), study_id)
+    return {"status": "completed", "deleted": deleted, "records_deleted": sum(deleted.values())}
+
+
 def assign_legacy_records_to_runs(db_path: str | Path, study_id: str, active_run_id: str) -> None:
     demo_run_id = ensure_demo_history_run(db_path, study_id)
     with connect(db_path) as connection:
@@ -459,6 +565,9 @@ def create_signal(
             raise ValueError("Production evidence cannot use demo data_origin.")
         if not (source_url.strip() or source_name.strip()):
             raise ValueError("Non-demo evidence requires a Source URL or Source name.")
+        quality = evidence_quality_profile(f"{source_name}\n{raw_text}")
+        if not quality["accepted_complaint_evidence"]:
+            raise ValueError("Production evidence must describe a real complaint, operational pain, or workflow inefficiency in property maintenance context.")
         if str(active_run["study_mode"]) != "production":
             raise ValueError("Start a production run before adding production evidence.")
         if demo_records_count(db_path, study_id, str(active_run["id"])) > 0:
@@ -626,6 +735,9 @@ def generate_findings(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID, min
     active_run = get_active_study_run(db_path, study_id)
     include_demo = bool(active_run and active_run.get("study_mode") == "demo")
     signals = [signal for signal in list_signals(db_path, study_id, include_demo=include_demo) if signal["status"] == "active"]
+    if active_run and active_run.get("study_mode") == "production":
+        min_signals = max(min_signals, 3)
+        signals = [signal for signal in signals if is_accepted_production_signal(signal)]
     groups: dict[str, list[dict[str, object]]] = {}
     for signal in signals:
         key = str(signal["complaint_category"] or "Market problem")
@@ -646,7 +758,7 @@ def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, o
     category = str(signals[0]["complaint_category"] or "Market problem")
     theme = category
     signal_ids = [str(signal["id"]) for signal in signals]
-    sources = sorted({str(signal.get("source_url") or signal.get("source_name") or signal["id"]) for signal in signals})
+    sources = sorted({source_domain_or_identity(signal) for signal in signals})
     countries = sorted({str(signal.get("country") or "Unknown") for signal in signals})
     stakeholders = sorted({str(signal.get("stakeholder_type") or "Unknown") for signal in signals})
     products = sorted({str(signal.get("company_product") or "") for signal in signals if signal.get("company_product")})
@@ -655,14 +767,16 @@ def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, o
     evidence_summary = " | ".join(str(signal["summary"]) for signal in signals[:3])
     contains_demo = any(bool(signal.get("is_demo")) for signal in signals)
     non_demo_only = not contains_demo
-    sufficient = len(signals) >= 2 and len(sources) >= 2 and non_demo_only
+    accepted_only = all(is_accepted_production_signal(signal) for signal in signals) if non_demo_only else False
+    required_signal_count = 2 if contains_demo else 3
+    sufficient = len(signals) >= required_signal_count and len(sources) >= 2 and non_demo_only and accepted_only
     status = "Demo Finding" if contains_demo and len(signals) >= 2 else "pending_audit" if sufficient else "Insufficient Evidence"
     data_origin = "demo" if contains_demo else "verified_import"
     verification_status = "unverified" if contains_demo else "pending_review"
     confidence_reasoning = (
         f"{len(signals)} supporting signals, {len(sources)} independent sources, "
         f"{len(countries)} countries, {len(stakeholders)} stakeholder groups. "
-        f"{'Contains demo evidence; rehearsal only.' if contains_demo else 'Non-demo evidence only.'}"
+        f"{'Contains demo evidence; rehearsal only.' if contains_demo else 'Accepted complaint evidence only.' if accepted_only else 'Production signals did not pass complaint evidence gate.'}"
     )
 
     with connect(db_path) as connection:
@@ -820,14 +934,39 @@ def audit_finding(db_path: str | Path, finding_id: str) -> dict[str, object]:
     signals = [get_signal(db_path, str(signal_id)) for signal_id in _loads_list(finding.get("representative_signals"))]
     contains_demo = any(bool(signal.get("is_demo")) for signal in signals) or bool(finding.get("is_demo"))
     traceability_complete = traceability_complete_for_signals(signals)
+    accepted_production_signals = [signal for signal in signals if is_accepted_production_signal(signal)]
+    independent_domains = {source_domain_or_identity(signal) for signal in accepted_production_signals}
+    production_requirements_met = (
+        contains_demo
+        or (
+            len(accepted_production_signals) >= 3
+            and len(independent_domains) >= 2
+            and traceability_complete
+            and len(accepted_production_signals) == len(signals)
+        )
+    )
     scores["traceability_score"] = 100 if traceability_complete else 40
     oci = calculate_oci(scores)
     if contains_demo:
         oci = 0
-    decision = "Demo Audited" if contains_demo else "Approve Opportunity" if oci >= ENGINEERING_READY_OCI else "Needs More Evidence" if oci >= 60 else "Reject"
+    decision = (
+        "Demo Audited"
+        if contains_demo
+        else "Approve Opportunity"
+        if oci >= ENGINEERING_READY_OCI and production_requirements_met
+        else "Needs More Evidence"
+        if oci >= 60 or not production_requirements_met
+        else "Reject"
+    )
     missing = []
     if int(finding["independent_source_count"] or 0) < 2:
         missing.append("More independent sources")
+    if len(accepted_production_signals) < 3 and not contains_demo:
+        missing.append("At least 3 accepted complaint/pain signals required")
+    if len(independent_domains) < 2 and not contains_demo:
+        missing.append("At least 2 independent source domains required")
+    if not contains_demo and len(accepted_production_signals) != len(signals):
+        missing.append("Only complaint, operational pain, or workflow inefficiency evidence can support approval")
     if len(_loads_list(finding.get("countries"))) < 2:
         missing.append("More country coverage")
     if contains_demo:
@@ -1424,6 +1563,8 @@ def pull_real_market_evidence(
             "signals_stored": 0,
             "skipped_duplicates": 0,
             "skipped_missing_source_or_text": 0,
+            "skipped_not_complaint_or_pain_evidence": 0,
+            "skipped_market_size_generic_or_marketing": 0,
             "providers_used": [],
             "active_run_id": "",
             "queries": GS001_REAL_EVIDENCE_QUERIES,
@@ -1443,6 +1584,8 @@ def pull_real_market_evidence(
                 "signals_stored": 0,
                 "skipped_duplicates": 0,
                 "skipped_missing_source_or_text": 0,
+                "skipped_not_complaint_or_pain_evidence": 0,
+                "skipped_market_size_generic_or_marketing": 0,
                 "providers_used": [],
                 "active_run_id": str(active_run["id"]),
                 "queries": GS001_REAL_EVIDENCE_QUERIES,
@@ -1495,6 +1638,8 @@ def pull_real_market_evidence(
     stored = []
     skipped_missing = 0
     skipped_duplicates = 0
+    skipped_not_pain = 0
+    skipped_market_generic = 0
     for candidate in candidates[:max_sources]:
         if "openai" in str(candidate.get("provider_name") or "").lower():
             skipped_openai += 1
@@ -1509,6 +1654,15 @@ def pull_real_market_evidence(
         if not str(candidate.get("raw_text") or "").strip():
             skipped_missing += 1
             skipped.append({"reason": "missing_raw_text", "candidate": candidate})
+            continue
+        if not bool(candidate.get("accepted_complaint_evidence")):
+            reason = str(candidate.get("skip_reason") or "not_complaint_or_pain_evidence")
+            if reason == "market_size_generic_or_marketing":
+                skipped_market_generic += 1
+            else:
+                skipped_not_pain += 1
+                reason = "not_complaint_or_pain_evidence"
+            skipped.append({"reason": reason, "candidate": candidate})
             continue
         if signal_duplicate_exists(
             db_path,
@@ -1551,6 +1705,8 @@ def pull_real_market_evidence(
         "signals_stored": len(stored),
         "skipped_duplicates": skipped_duplicates,
         "skipped_missing_source_or_text": skipped_missing,
+        "skipped_not_complaint_or_pain_evidence": skipped_not_pain,
+        "skipped_market_size_generic_or_marketing": skipped_market_generic,
         "skipped_openai_only": skipped_openai,
         "providers_used": provider_names,
         "active_run_id": str(active_run["id"]),
@@ -1577,6 +1733,7 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
     url = str(getattr(result, "url", "") or "").strip()
     snippet = str(getattr(result, "snippet", "") or "").strip()
     raw_text = snippet if snippet else ""
+    quality = evidence_quality_profile(f"{title}\n{snippet}", query)
     source_type = normalize_source_type(str(getattr(result, "source_type", "") or ""), url, title)
     return {
         "provider_name": provider_name,
@@ -1584,7 +1741,7 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
         "retrieved_at": retrieved_at,
         "original_title": title,
         "source_url": url,
-        "source_name": encode_provider_signal_metadata(provider_name, query, retrieved_at, title),
+        "source_name": encode_provider_signal_metadata(provider_name, query, retrieved_at, title, quality),
         "source_type": source_type,
         "source_date": retrieved_at,
         "country": "United States",
@@ -1592,10 +1749,17 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
         "raw_text": raw_text,
         "summary": summarize(snippet or title),
         "source_confidence": rough_provider_evidence_strength(provider_name, url, snippet),
+        **quality,
     }
 
 
-def encode_provider_signal_metadata(provider_name: str, original_query: str, retrieved_at: str, original_title: str) -> str:
+def encode_provider_signal_metadata(
+    provider_name: str,
+    original_query: str,
+    retrieved_at: str,
+    original_title: str,
+    quality: dict[str, object] | None = None,
+) -> str:
     metadata = {
         "metadata_type": "provider_evidence",
         "provider_name": provider_name,
@@ -1603,7 +1767,121 @@ def encode_provider_signal_metadata(provider_name: str, original_query: str, ret
         "retrieved_at": retrieved_at,
         "original_title": original_title,
     }
+    if quality:
+        metadata.update(
+            {
+                "evidence_relevance": quality.get("evidence_relevance"),
+                "why_accepted": quality.get("why_accepted"),
+                "pain_keywords_matched": quality.get("pain_keywords_matched", []),
+                "context_keywords_matched": quality.get("context_keywords_matched", []),
+            }
+        )
     return json.dumps(metadata, sort_keys=True)
+
+
+def keyword_matches(text: str, keywords: list[str]) -> list[str]:
+    lower = text.lower()
+    return [keyword for keyword in keywords if keyword in lower]
+
+
+def evidence_quality_profile(text: str, query: str = "") -> dict[str, object]:
+    combined = text.strip()
+    lower = combined.lower()
+    pain_matches = keyword_matches(combined, PAIN_KEYWORDS)
+    context_matches = keyword_matches(combined, PROPERTY_MAINTENANCE_CONTEXT_KEYWORDS)
+    strong_complaint = bool(pain_matches and context_matches)
+    strong_pain_language = any(
+        keyword in lower
+        for keyword in [
+            "complaint",
+            "complain",
+            "complains",
+            "issue",
+            "problem",
+            "poor",
+            "slow",
+            "delayed",
+            "no response",
+            "unresolved",
+            "waiting",
+            "broken",
+            "frustration",
+            "dispute",
+            "bad service",
+            "ignored",
+            "lack of communication",
+            "not updated",
+        ]
+    )
+
+    if any(word in lower for word in ["market size", "market report", "forecast", "cagr", "industry revenue", "statistics"]):
+        relevance = "complaint" if strong_complaint else "market_size_only"
+    elif any(word in lower for word in ["book a demo", "request demo", "our platform", "software solution", "features include", "pricing page"]):
+        relevance = "operational_pain" if strong_complaint else "vendor_marketing"
+    elif any(word in lower for word in ["article", "guide", "overview", "best practices", "tips"]) and not strong_pain_language:
+        relevance = "generic_article"
+    elif any(word in lower for word in ["complaint", "complain", "complains", "bad service", "no response", "not updated"]):
+        relevance = "complaint"
+    elif any(word in lower for word in ["issue", "problem", "poor", "slow", "delayed", "unresolved", "waiting", "broken", "repair", "frustration", "dispute", "ignored"]):
+        relevance = "operational_pain"
+    elif any(word in lower for word in ["manual", "workflow", "work order", "lack of communication", "maintenance request"]):
+        relevance = "workflow_inefficiency"
+    else:
+        relevance = "unknown"
+
+    accepted = relevance in VALID_COMPLAINT_RELEVANCE and bool(pain_matches) and bool(context_matches)
+    if accepted:
+        why = f"Accepted as {relevance}: matched pain keywords and property-maintenance context."
+        skip_reason = ""
+    elif relevance in {"market_size_only", "vendor_marketing", "generic_article"}:
+        why = f"Rejected as {relevance}: not usable as complaint or operational pain evidence."
+        skip_reason = "market_size_generic_or_marketing"
+    else:
+        why = "Rejected: missing complaint/pain language or property-maintenance context."
+        skip_reason = "not_complaint_or_pain_evidence"
+    return {
+        "evidence_relevance": relevance,
+        "pain_keywords_matched": pain_matches,
+        "context_keywords_matched": context_matches,
+        "why_accepted": why,
+        "accepted_complaint_evidence": accepted,
+        "skip_reason": skip_reason,
+    }
+
+
+def signal_quality_metadata(signal: dict[str, object]) -> dict[str, object]:
+    metadata = provider_signal_metadata(signal)
+    if metadata.get("evidence_relevance"):
+        return {
+            "evidence_relevance": metadata.get("evidence_relevance"),
+            "pain_keywords_matched": metadata.get("pain_keywords_matched") or [],
+            "context_keywords_matched": metadata.get("context_keywords_matched") or [],
+            "why_accepted": metadata.get("why_accepted") or "",
+            "accepted_complaint_evidence": metadata.get("evidence_relevance") in VALID_COMPLAINT_RELEVANCE
+            and bool(metadata.get("pain_keywords_matched"))
+            and bool(metadata.get("context_keywords_matched")),
+        }
+    return evidence_quality_profile(
+        f"{signal.get('source_name') or ''}\n{signal.get('summary') or ''}\n{signal.get('raw_text') or ''}",
+        str(signal.get("query") or ""),
+    )
+
+
+def source_domain_or_identity(signal: dict[str, object]) -> str:
+    url = str(signal.get("source_url") or "").strip()
+    if url:
+        parsed = urlparse(url)
+        return parsed.netloc.lower().removeprefix("www.") or url
+    return str(signal.get("source_name") or signal.get("id") or "unknown")
+
+
+def is_accepted_production_signal(signal: dict[str, object]) -> bool:
+    if bool(signal.get("is_demo")):
+        return False
+    if str(signal.get("data_origin") or "") == "demo":
+        return False
+    quality = signal_quality_metadata(signal)
+    return bool(quality.get("accepted_complaint_evidence")) and quality.get("evidence_relevance") in VALID_COMPLAINT_RELEVANCE
 
 
 def provider_signal_metadata(signal: dict[str, object]) -> dict[str, object]:
@@ -1633,6 +1911,7 @@ def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
     query = metadata.get("original_query") or signal.get("query") or "Not recorded"
     retrieved = metadata.get("retrieved_at") or signal.get("retrieved_at") or signal.get("source_date") or "Not recorded"
     raw_text = signal.get("raw_text") or signal.get("summary") or "No evidence quote recorded."
+    quality = signal_quality_metadata(signal)
     return {
         "source_name": str(source_name),
         "provider": str(provider),
@@ -1644,6 +1923,10 @@ def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
         "stakeholder": str(signal.get("stakeholder_type") or "Unknown"),
         "verification_status": str(signal.get("verification_status") or "Not recorded"),
         "evidence_strength": str(signal.get("evidence_strength") or 0),
+        "evidence_relevance": str(quality.get("evidence_relevance") or "unknown"),
+        "why_accepted": str(quality.get("why_accepted") or "Not recorded"),
+        "pain_keywords_matched": ", ".join(str(item) for item in quality.get("pain_keywords_matched", []) or []) or "None",
+        "context_keywords_matched": ", ".join(str(item) for item in quality.get("context_keywords_matched", []) or []) or "None",
     }
 
 

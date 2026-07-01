@@ -7,6 +7,7 @@ from project_exchange.golden_study import (
     approve_audited_opportunities,
     approval_feedback,
     archive_all_demo_data,
+    archive_current_production_run_and_start_fresh,
     archive_record,
     audit_batch_feedback,
     audit_finding,
@@ -110,10 +111,18 @@ def test_signal_creation_and_finding_clustering(tmp_path):
         source_name="UK review",
         data_origin="verified_import",
     )
+    create_signal(
+        db_path,
+        "Apartment residents in the United States complain that maintenance request updates are delayed and repairs are unresolved.",
+        country="United States",
+        stakeholder_type="Tenants",
+        source_name="US review",
+        data_origin="verified_import",
+    )
 
     findings = generate_findings(db_path)
     assert findings
-    assert findings[0]["signal_count"] == 2
+    assert findings[0]["signal_count"] == 3
     assert findings[0]["status"] == "pending_audit"
     assert findings[0]["is_demo"] == 0
 
@@ -214,8 +223,9 @@ def test_direct_audit_finding_path(tmp_path):
     init_db(db_path)
     start_production_run(db_path)
 
-    create_signal(db_path, "Property managers repeatedly complain about expensive software pricing and missing integrations.", source_name="A", data_origin="verified_import")
-    create_signal(db_path, "Letting agents complain about expensive software pricing and missing integrations in property tools.", source_name="B", data_origin="verified_import")
+    create_signal(db_path, "Property managers repeatedly complain that maintenance request software is slow and repair updates are not updated.", source_name="A", data_origin="verified_import")
+    create_signal(db_path, "Tenants complain that apartment maintenance request updates are delayed and repairs are unresolved.", source_name="B", data_origin="verified_import")
+    create_signal(db_path, "Landlords complain that rental maintenance communication is poor and work order updates are ignored.", source_name="C", data_origin="verified_import")
     finding = generate_findings(db_path)[0]
     audit = audit_finding(db_path, finding["id"])
 
@@ -287,7 +297,12 @@ def test_demo_signal_cannot_be_added_after_production_evidence(tmp_path):
     init_db(db_path)
     start_production_run(db_path)
 
-    create_signal(db_path, "Real evidence starts the production run.", source_name="Real source", data_origin="manual")
+    create_signal(
+        db_path,
+        "Tenant complaint says a maintenance request had no response and apartment repair communication was poor.",
+        source_name="Real source",
+        data_origin="manual",
+    )
     try:
         create_signal(db_path, "Demo evidence should not mix into the same run.")
     except ValueError as exc:
@@ -462,6 +477,13 @@ def test_production_evidence_increases_only_production_kpis(tmp_path):
                 "data_origin": "verified_import",
                 "raw_text": "Tenants in the United Kingdom repeatedly complain that repair communication is poor and maintenance updates are delayed.",
             },
+            {
+                "country": "United States",
+                "stakeholder_type": "Property owners",
+                "source_name": "US source",
+                "data_origin": "verified_import",
+                "raw_text": "Property owners in the United States complain that maintenance request communication is slow and work order updates are unresolved.",
+            },
         ],
     )
 
@@ -469,7 +491,7 @@ def test_production_evidence_increases_only_production_kpis(tmp_path):
     demo_history_progress = study_progress(db_path, study_run_id=demo_run["id"], include_archived=True, include_demo=True)
 
     assert production_progress["active_run_id"] == production_run["id"]
-    assert production_progress["signals_collected"] == 2
+    assert production_progress["signals_collected"] == 3
     assert production_progress["findings_created"] == 1
     assert production_progress["demo_records_count"] == 0
     assert demo_history_progress["signals_collected"] == 1
@@ -700,7 +722,7 @@ def test_pull_real_market_evidence_skips_duplicate_url_and_raw_text(tmp_path):
     provider = StaticEvidenceProvider(
         [
             ProviderResult("Tavily", "Duplicate URL A", "https://example.com/duplicate", "Tenants complain that maintenance request updates are slow and unclear.", "search_result"),
-            ProviderResult("Tavily", "Duplicate URL B", "https://example.com/duplicate", "Different text but same URL.", "search_result"),
+            ProviderResult("Tavily", "Duplicate URL B", "https://example.com/duplicate", "Property managers complain that maintenance request updates are slow and tenants are not updated.", "search_result"),
             ProviderResult("Tavily", "Duplicate Text", "", duplicate_text, "search_result"),
             ProviderResult("Tavily", "Duplicate Text", "", duplicate_text, "search_result"),
         ]
@@ -728,6 +750,196 @@ def test_openai_output_alone_cannot_create_production_evidence(tmp_path):
     assert list_signals(db_path) == []
 
 
+def test_market_size_article_is_skipped_as_production_signal(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "Property management market size forecast",
+                "https://example.com/market-size",
+                "The property management software market size is forecast to grow with a strong CAGR across multifamily portfolios.",
+                "article",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+
+    assert result["signals_stored"] == 0
+    assert result["skipped_market_size_generic_or_marketing"] == 1
+    assert list_signals(db_path) == []
+
+
+def test_vendor_marketing_page_is_skipped_as_production_signal(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "SerpAPI",
+                "Our property management software features",
+                "https://vendor.example.com/features",
+                "Our platform helps property managers streamline maintenance workflows. Book a demo to learn about features.",
+                "article",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+
+    assert result["signals_stored"] == 0
+    assert result["skipped_market_size_generic_or_marketing"] == 1
+
+
+def test_generic_property_management_article_is_skipped_as_production_signal(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "NewsAPI",
+                "Guide to property management maintenance",
+                "https://example.com/property-guide",
+                "This article is an overview of property management maintenance best practices for apartment teams.",
+                "article",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+
+    assert result["signals_stored"] == 0
+    assert result["skipped_market_size_generic_or_marketing"] == 1
+
+
+def test_tenant_maintenance_no_response_complaint_is_accepted(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "Tenant complaint about maintenance no response",
+                "https://example.com/tenant-no-response",
+                "Tenant complaint says a maintenance request had no response, the repair was delayed, and the apartment resident was not updated.",
+                "article",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+    signal = list_signals(db_path)[0]
+    view = signal_trace_card_view_model(signal)
+
+    assert result["signals_stored"] == 1
+    assert view["evidence_relevance"] == "complaint"
+    assert "complaint" in view["pain_keywords_matched"]
+    assert "tenant" in view["context_keywords_matched"]
+
+
+def test_production_finding_requires_three_accepted_signals(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    two_signal_provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Tenant complaint A", "https://a.example.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
+            ProviderResult("Tavily", "Tenant complaint B", "https://b.example.com/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[two_signal_provider])
+
+    assert generate_findings(db_path) == []
+
+    third_signal_provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Tenant complaint C", "https://c.example.com/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[third_signal_provider])
+
+    findings = generate_findings(db_path)
+    assert len(findings) == 1
+    assert findings[0]["status"] == "pending_audit"
+    assert findings[0]["signal_count"] == 3
+
+
+def test_audit_cannot_approve_from_weak_generic_evidence(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Generic A", "https://a.example.com/a", "This article is an overview of property management maintenance for apartment teams.", "article"),
+            ProviderResult("Tavily", "Generic B", "https://b.example.com/b", "This guide explains property management repair coordination best practices.", "article"),
+            ProviderResult("Tavily", "Generic C", "https://c.example.com/c", "This property management article covers general maintenance planning.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+
+    assert list_signals(db_path) == []
+    assert generate_findings(db_path) == []
+
+
+def test_audit_approves_after_accepted_complaint_threshold(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Tenant complaint A", "https://a.example.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
+            ProviderResult("Tavily", "Tenant complaint B", "https://b.example.com/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
+            ProviderResult("Tavily", "Resident complaint C", "https://c.example.com/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    finding = generate_findings(db_path)[0]
+
+    audit = audit_finding(db_path, finding["id"])
+
+    assert audit["decision"] == "Approve Opportunity"
+
+
+def test_archive_current_production_run_preserves_records_and_starts_empty_run(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    old_run = start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Tenant complaint A", "https://a.example.com/a", "Tenant complaint says maintenance request had no response and apartment repair was delayed.", "article"),
+            ProviderResult("Tavily", "Tenant complaint B", "https://b.example.com/b", "Property manager complaint says maintenance request updates are slow and tenants are not updated.", "article"),
+            ProviderResult("Tavily", "Resident complaint C", "https://c.example.com/c", "Resident complaint says rental maintenance request is unresolved and repair communication is poor.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    finding = generate_findings(db_path)[0]
+    audit = audit_finding(db_path, finding["id"])
+    opportunity = approve_audited_opportunities(db_path)[0]
+    run_before = study_progress(db_path)
+
+    result = archive_current_production_run_and_start_fresh(db_path)
+    run_after = study_progress(db_path)
+    archived_signals = list_signals(db_path, study_run_id=old_run["id"], include_archived=True)
+
+    assert result["message"] == "Current production run archived. New clean production run started."
+    assert result["new_run_id"] != old_run["id"]
+    assert run_before["signals_collected"] == 3
+    assert run_after["signals_collected"] == 0
+    assert run_after["findings_created"] == 0
+    assert run_after["audits_completed"] == 0
+    assert len(archived_signals) == 3
+    assert all(signal["status"] == "archived" for signal in archived_signals)
+    archived_chain = traceability_chain(db_path, opportunity["id"], include_archived=True)
+    assert archived_chain["audit"]["id"] == audit["id"]
+    assert archived_chain["signals"]
+
+
 def test_production_pull_needs_no_manual_form_and_updates_mission_control_counts(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
@@ -745,7 +957,7 @@ def test_production_pull_needs_no_manual_form_and_updates_mission_control_counts
                 "Tavily",
                 "Property managers cite maintenance communication load",
                 "https://example.com/property-manager-maintenance-load",
-                "Property managers say maintenance communication is fragmented across email, phone calls, and tenant portals.",
+                "Property managers complain that maintenance communication is slow, fragmented across email, and tenant repair updates are delayed.",
                 "article",
             ),
         ]
@@ -800,6 +1012,17 @@ def test_production_pipeline_unlocks_only_after_required_records(tmp_path):
     assert signal_pipeline["Finding Generation"] == "Active"
     assert signal_pipeline["Audit"] == "Locked"
 
+    generate_findings(db_path)
+    finding_pipeline = production_pipeline_statuses(study_progress(db_path))
+    assert finding_pipeline["Finding Generation"] == "Active"
+    assert finding_pipeline["Audit"] == "Locked"
+
+    third_provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Signal C", "https://example.com/c", "Residents complain rental maintenance request updates are delayed and repair communication is poor.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[third_provider])
     generate_findings(db_path)
     finding_pipeline = production_pipeline_statuses(study_progress(db_path))
     assert finding_pipeline["Finding Generation"] == "Completed"

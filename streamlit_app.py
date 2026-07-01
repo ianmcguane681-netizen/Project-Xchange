@@ -54,11 +54,13 @@ from project_exchange.golden_study import (
     approve_audited_opportunities,
     approval_feedback,
     archive_all_demo_data,
+    archive_current_production_run_and_start_fresh,
     archive_record,
     audit_batch_feedback,
     audit_finding,
     create_signal,
     demo_warning_active,
+    delete_archived_demo_data,
     findings_feedback,
     create_study,
     finding_evidence,
@@ -1247,10 +1249,14 @@ with tabs[23]:
                         ("Country", view["country"]),
                         ("Stakeholder", view["stakeholder"]),
                         ("Retrieved", view["retrieved"]),
+                        ("Evidence relevance", view["evidence_relevance"]),
                         ("Evidence strength", view["evidence_strength"]),
                     ],
                 )
                 st.caption(f"Original query: {view['query']}")
+                st.caption(f"Why accepted: {view['why_accepted']}")
+                st.caption(f"Pain keywords: {view['pain_keywords_matched']}")
+                st.caption(f"Context keywords: {view['context_keywords_matched']}")
                 if signal.get("source_url"):
                     st.markdown(f"[Open source]({signal['source_url']})")
                 with st.expander("Technical Details"):
@@ -1274,9 +1280,12 @@ with tabs[23]:
         summary_cols[3].metric("Duplicates skipped", result.get("skipped_duplicates", 0))
         detail_cols = st.columns(4)
         detail_cols[0].metric("Invalid sources skipped", result.get("skipped_missing_source_or_text", 0))
-        detail_cols[1].metric("Providers used", ", ".join(str(provider) for provider in result.get("providers_used", [])) or "None")
-        detail_cols[2].metric("Run ID", result.get("active_run_id") or "No run")
-        detail_cols[3].metric("Status", result.get("status") or "Unknown")
+        detail_cols[1].metric("Skipped not pain evidence", result.get("skipped_not_complaint_or_pain_evidence", 0))
+        detail_cols[2].metric("Skipped market/generic/marketing", result.get("skipped_market_size_generic_or_marketing", 0))
+        detail_cols[3].metric("Providers used", ", ".join(str(provider) for provider in result.get("providers_used", [])) or "None")
+        run_cols = st.columns(2)
+        run_cols[0].metric("Run ID", result.get("active_run_id") or "No run")
+        run_cols[1].metric("Status", result.get("status") or "Unknown")
         stored_signals = result.get("signals") or []
         if stored_signals:
             st.subheader("New Production Signals")
@@ -2184,18 +2193,42 @@ with tabs[23]:
     with workflow_tabs[10]:
         section_header("Archive / Demo History", "Archived demo records remain visible for traceability but excluded from production metrics.", "History")
         st.warning("These records are preserved for traceability but excluded from production metrics.")
-        demo_runs = [row for row in list_study_runs(DB_PATH, DEFAULT_STUDY_ID) if row.get("study_mode") == "demo" and row.get("status") in {"closed", "archived"}]
-        if not demo_runs:
+        if is_production_run:
+            with st.container(border=True):
+                st.subheader("Production Run Reset")
+                st.write("Archive the current production run and start a clean empty production run after evidence-quality fixes.")
+                reset_confirmed = st.checkbox(
+                    "I understand this will archive the current production run and start a new empty production run.",
+                    key="gs001_archive_current_production_confirmed",
+                )
+                if st.button(
+                    "Archive Current Production Run & Start Fresh",
+                    key="gs001_archive_current_production_run",
+                    type="primary",
+                    disabled=not reset_confirmed,
+                ):
+                    try:
+                        result = archive_current_production_run_and_start_fresh(DB_PATH, DEFAULT_STUDY_ID)
+                        set_golden_flash("success", "Current production run archived. New clean production run started.", result)
+                        st.session_state.pop("gs001_last_research_run", None)
+                        st.rerun()
+                    except ValueError as exc:
+                        set_golden_flash("error", str(exc))
+                        st.rerun()
+        else:
+            st.info("Production archive-and-reset is only available while a production run is active.")
+        archived_runs = [row for row in list_study_runs(DB_PATH, DEFAULT_STUDY_ID) if row.get("status") in {"closed", "archived"}]
+        if not archived_runs:
             empty_state(
                 "Archive / Demo History",
-                "No archived demo history yet.",
+                "No archived history yet.",
                 "No archived demo history yet. Archive demo data when you are ready to preserve rehearsal records.",
             )
-        for run in demo_runs:
+        for run in archived_runs:
             render_business_card(
-                "Archived demo run",
+                f"Archived {run.get('study_mode')} run",
                 run.get("status"),
-                run.get("notes") or "Demo run preserved for history.",
+                run.get("notes") or "Run preserved for history.",
                 [("Mode", run.get("study_mode")), ("Origin", run.get("data_origin")), ("Verification", run.get("verification_status"))],
             )
             with st.expander("Technical Details"):
@@ -2211,6 +2244,20 @@ with tabs[23]:
             )
             with st.expander("Technical Details"):
                 st.json(rows)
+        with st.expander("Technical/Admin"):
+            st.warning("Danger zone: this deletes archived demo data only. Production records cannot be deleted here.")
+            delete_confirmed = st.checkbox(
+                "I understand this permanently deletes archived demo data only.",
+                key="gs001_delete_archived_demo_confirmed",
+            )
+            if st.button(
+                "Delete Archived Demo Data",
+                key="gs001_delete_archived_demo_data",
+                disabled=not delete_confirmed,
+            ):
+                result = delete_archived_demo_data(DB_PATH, DEFAULT_STUDY_ID)
+                set_golden_flash("success", f"Archived demo data deleted: {result['records_deleted']} records.", result)
+                st.rerun()
 
     with workflow_tabs[11]:
         section_header("Raw Database View - technical audit only", "Full ID-heavy tables are intentionally kept here for inspection.", "Technical")
