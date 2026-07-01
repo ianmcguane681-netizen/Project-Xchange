@@ -433,6 +433,53 @@ def test_production_evidence_increases_only_production_kpis(tmp_path):
     assert demo_history_progress["signals_collected"] == 1
 
 
+def test_archived_demo_records_do_not_count_in_production_metrics(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    run_research_batch(
+        db_path,
+        [
+            {"source_name": "Demo A", "data_origin": "demo", "raw_text": "Property managers repeatedly complain maintenance updates are slow."},
+            {"source_name": "Demo B", "data_origin": "demo", "raw_text": "Tenants repeatedly complain maintenance updates are slow."},
+        ],
+    )
+    run_audit_batch(db_path)
+    opportunities = approve_audited_opportunities(db_path)
+    mark_engineering_ready(
+        db_path,
+        opportunities[0]["id"],
+        {
+            "recommended_component": "Demo Component",
+            "engineering_recommendation": "Demo recommendation",
+            "problem_scope": "Demo scope",
+            "target_users": "Demo users",
+            "required_inputs": "Demo inputs",
+            "expected_outputs": "Demo outputs",
+            "system_boundaries": "Demo boundaries",
+        },
+    )
+    demo_run = get_active_study_run(db_path)
+    start_production_run(db_path)
+
+    production_progress = study_progress(db_path)
+    demo_history = study_progress(db_path, study_run_id=demo_run["id"], include_archived=True, include_demo=True)
+
+    assert production_progress["signals_collected"] == 0
+    assert production_progress["findings_created"] == 0
+    assert production_progress["audits_completed"] == 0
+    assert production_progress["opportunities_approved"] == 0
+    assert production_progress["engineering_ready"] == []
+    assert production_progress["average_oci"] == 0
+    assert demo_history["signals_collected"] == 2
+    assert demo_history["findings_created"] == 1
+    assert demo_history["audits_completed"] == 1
+    archived_demo_opportunities = list_opportunities(db_path, study_run_id=demo_run["id"], include_archived=True, include_demo=True)
+    assert len(archived_demo_opportunities) == 1
+    assert archived_demo_opportunities[0]["status"] == "archived"
+    assert archived_demo_opportunities[0]["previous_status"] == "Demo Engineering Ready"
+
+
 def test_list_functions_default_to_active_run_but_raw_access_keeps_history(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)

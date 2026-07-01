@@ -443,6 +443,8 @@ def create_signal(
     if source_url.strip() and origin == "demo":
         origin = "manual"
     if origin != "demo":
+        if origin == "demo":
+            raise ValueError("Production evidence cannot use demo data_origin.")
         if not (source_url.strip() or source_name.strip()):
             raise ValueError("Non-demo evidence requires a Source URL or Source name.")
         if str(active_run["study_mode"]) != "production":
@@ -455,6 +457,9 @@ def create_signal(
         raise ValueError("Demo evidence cannot be added after production evidence has started.")
     enriched = enrich_signal(raw_text, country, stakeholder_type, company_product)
     provenance = provenance_values(origin, "PX-R001", source_confidence)
+    if origin != "demo":
+        provenance["verification_status"] = "pending_review"
+        provenance["is_demo"] = False
     with connect(db_path) as connection:
         signal_id = next_sequence_id("SIG", count_rows(connection, "study_signals"))
         now = utc_now()
@@ -1597,7 +1602,7 @@ def normalize_data_origin(data_origin: str) -> str:
 def provenance_values(data_origin: str, worker_id: str, source_confidence: float | None = None) -> dict[str, object]:
     origin = normalize_data_origin(data_origin)
     is_demo = origin == "demo"
-    verification_status = "unverified" if is_demo else "verified" if origin == "verified_import" else "pending_review"
+    verification_status = "unverified" if is_demo else "pending_review"
     return {
         "data_origin": origin,
         "verification_status": verification_status,

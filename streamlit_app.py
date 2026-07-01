@@ -1639,9 +1639,13 @@ with tabs[23]:
                     key="gs001_archive_all_demo",
                 ):
                     result = archive_all_demo_data(DB_PATH, DEFAULT_STUDY_ID)
+                    count_text = ", ".join(
+                        f"{table.replace('_', ' ')}: {count}"
+                        for table, count in dict(result.get("counts") or {}).items()
+                    )
                     set_golden_flash(
                         "success",
-                        f"{result['records_archived']} demo records archived and preserved for history.",
+                        f"{result['records_archived']} demo records archived and preserved for history. {count_text}",
                         result,
                     )
                     st.rerun()
@@ -1661,7 +1665,7 @@ with tabs[23]:
                         run_result = switch_study_run_mode(DB_PATH, DEFAULT_STUDY_ID, "production", production_confirmed)
                         set_golden_flash(
                             "success",
-                            "Production run started. Production KPIs now use a clean active run.",
+                            "Production run started. Production KPIs now use a clean active run. Demo records were archived by table before switching.",
                             {"archive": archive_result, "production_run": run_result},
                         )
                         st.rerun()

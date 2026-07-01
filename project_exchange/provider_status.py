@@ -26,3 +26,23 @@ def provider_connection_rows() -> list[dict[str, object]]:
             }
         )
     return rows
+
+
+def provider_ready_for_research() -> dict[str, object]:
+    rows = provider_connection_rows()
+    search_providers = {"Tavily", "SerpAPI", "NewsAPI"}
+    connected = [
+        row for row in rows
+        if row["provider"] in search_providers and row["status"] == "connected"
+    ]
+    if connected:
+        return {
+            "ready": True,
+            "message": "Provider ready for research.",
+            "providers": [row["provider"] for row in connected],
+        }
+    return {
+        "ready": False,
+        "message": "No provider configured. Add API keys in Provider Settings or paste evidence manually.",
+        "providers": [],
+    }

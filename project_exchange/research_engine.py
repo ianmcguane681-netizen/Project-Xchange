@@ -12,6 +12,7 @@ from project_exchange.ids import next_sequence_id
 from project_exchange.provider_base import ProviderResult, build_query
 from project_exchange.provider_modules.newsapi_provider import NewsAPIProvider
 from project_exchange.provider_modules.tavily_serpapi_provider import TavilySerpAPIProvider
+from project_exchange.provider_status import provider_ready_for_research
 from workers.px_r001_research.research_scanner import run_market_scan
 
 
@@ -25,6 +26,7 @@ class ResearchProvider(Protocol):
 class SearchUrlProvider:
     name = "Search"
     base_url = "https://www.google.com/search?q="
+    placeholder_only = True
 
     def search(self, command: dict[str, object]) -> list[ProviderResult]:
         query = build_query(command)
@@ -88,6 +90,7 @@ class PublicAPIProvider(SearchUrlProvider):
 
 class CompanyWebsiteProvider:
     name = "Company Website"
+    placeholder_only = False
 
     def search(self, command: dict[str, object]) -> list[ProviderResult]:
         website = str(command.get("website") or "").strip()
@@ -102,6 +105,7 @@ class CompanyWebsiteProvider:
 
 class RSSProvider:
     name = "RSS Feeds"
+    placeholder_only = False
 
     def search(self, command: dict[str, object]) -> list[ProviderResult]:
         feed_url = str(command.get("rss_url") or "").strip()
@@ -167,8 +171,6 @@ def extract_signals(results: list[ProviderResult], command: dict[str, object]) -
     competitors = sorted(set(re.findall(r"\b[A-Z][A-Za-z0-9]+(?:\s+[A-Z][A-Za-z0-9]+)?\b", text)))[:10]
     pricing = sorted(set(re.findall(r"(?:[$€£]\s?\d+(?:\.\d+)?|\d+\s?(?:per month|/mo|monthly|pricing))", text, re.IGNORECASE)))[:10]
     trends = [word for word in ["ai", "automation", "integration", "self-service", "analytics", "workflow"] if word in lower]
-    if not complaints:
-        complaints = [f"More evidence needed for {command.get('company') or command.get('market') or 'this market'}."]
     return {
         "findings": [result.snippet for result in results[:8]],
         "complaints": complaints[:8],
@@ -205,7 +207,15 @@ def run_internet_research(
     command: dict[str, object],
     providers: list[ResearchProvider] | None = None,
 ) -> dict[str, object]:
-    providers = providers or DEFAULT_PROVIDERS
+    if providers is None:
+        readiness = provider_ready_for_research()
+        if not readiness["ready"]:
+            message = str(readiness["message"])
+            add_log(db_path, "warning", message, "PX-R001", status="provider_not_configured")
+            raise ValueError(message)
+        providers = DEFAULT_PROVIDERS
+    else:
+        providers = providers
     query = build_query(command)
     all_results: list[ProviderResult] = []
     for provider in providers:
@@ -218,7 +228,17 @@ def run_internet_research(
             safe_error = f"{provider.name} request failed"
             record_provider_finish(db_path, provider_id, "failed", 0, safe_error)
             add_log(db_path, "warning", safe_error, "PX-R001", status="provider_failed")
-    deduped = dedupe_results(all_results)
+    evidence_results = [
+        result for result in all_results
+        if str(result.snippet or "").strip()
+        and not str(result.snippet).lower().startswith("search candidate for")
+        and not str(result.title).lower().startswith(("google search for", "news search for", "trustpilot search for", "reddit search for", "github repositories search for", "product hunt search for", "documentation search for", "public api search for"))
+    ]
+    deduped = dedupe_results(evidence_results)
+    if not deduped:
+        message = "Provider search returned no usable evidence. No placeholder, demo, or invented evidence was created."
+        add_log(db_path, "warning", message, "PX-R001", status="no_provider_evidence")
+        raise ValueError(message)
     signals = extract_signals(deduped, command)
     score = confidence_score(deduped, signals)
     source_text = "\n".join(f"{result.provider}: {result.title}. {result.snippet}" for result in deduped)
