@@ -231,6 +231,91 @@ CATEGORY_KEYWORDS = {
     "Poor customer experiences": ["slow", "poor", "bad", "frustrating", "support"],
 }
 
+CANONICAL_GS001_CLUSTERS = {
+    "Maintenance Communication Failure": {
+        "summary": "Residents, tenants, landlords, or property teams do not receive clear repair status, explanations, or follow-up during maintenance handling.",
+        "patterns": [
+            "not updated",
+            "no update",
+            "resident not updated",
+            "tenant not updated",
+            "failed to communicate",
+            "poor communication",
+            "communication is poor",
+            "repair communication",
+            "communication updates",
+            "lack of communication",
+            "no repair updates",
+            "unclear maintenance status",
+            "complaint handling failed",
+            "complaint handling",
+            "emergency repair not explained",
+            "lack of follow-up",
+            "follow-up",
+            "failure to respond",
+            "no response",
+            "repair took months",
+            "not explain",
+            "poor complaint handling",
+            "work order updates",
+            "maintenance coordination",
+            "updates are slow",
+            "updates are delayed",
+        ],
+    },
+    "Maintenance Delay / Repair Delay": {
+        "summary": "Maintenance requests, work orders, or repairs are delayed, ignored, unresolved, or require repeated chasing.",
+        "patterns": [
+            "repair took months",
+            "work order delayed",
+            "maintenance request ignored",
+            "request ignored",
+            "unresolved repair",
+            "emergency repair delayed",
+            "repair not completed",
+            "repeated chasing",
+            "chase repairs",
+            "repairs delayed",
+            "delayed",
+            "unresolved",
+            "ignored",
+        ],
+    },
+    "Complaint Handling Failure": {
+        "summary": "Complaint escalation, redress, learning, or resolution processes fail after maintenance problems are raised.",
+        "patterns": [
+            "complaint ignored",
+            "complaint escalation failed",
+            "complaint response poor",
+            "complaint not resolved",
+            "poor redress",
+            "maladministration",
+            "failure to learn",
+            "complaint handling",
+            "redress process",
+        ],
+    },
+    "Property Management Coordination Failure": {
+        "summary": "Property, housing, repair, or contractor teams fail to coordinate responsibility and handoffs for maintenance work.",
+        "patterns": [
+            "teams not coordinated",
+            "not aligned",
+            "poor handoff",
+            "internal process failure",
+            "no owner",
+            "no accountability",
+            "fragmented workflow",
+            "coordination",
+            "handoff",
+            "contractor",
+        ],
+    },
+    "Accounting / Payment Issues": {
+        "summary": "Payment or accounting friction is present, but it only belongs in GS-001 if directly connected to maintenance communication.",
+        "patterns": ["payment", "accounting", "invoice", "rent", "arrears", "deposit"],
+    },
+}
+
 COUNTRY_HINTS = [
     "Ireland",
     "United Kingdom",
@@ -816,6 +901,248 @@ def consolidate_category(text: str, category: str) -> str:
     return category
 
 
+def signal_semantic_text(signal: dict[str, object]) -> str:
+    quality = signal_quality_metadata(signal)
+    pain = quality.get("operational_pain") if isinstance(quality.get("operational_pain"), dict) else {}
+    metadata = provider_signal_metadata(signal)
+    parts = [
+        str(metadata.get("original_title") or ""),
+        str(signal.get("source_name") or ""),
+        str(signal.get("summary") or ""),
+        str(signal.get("raw_text") or ""),
+        str(pain.get("what_pain") or ""),
+        str(pain.get("why_it_occurs") or ""),
+        str(pain.get("evidence_quote") or ""),
+        str(pain.get("root_cause") or ""),
+        str(signal.get("stakeholder_type") or ""),
+        str(signal.get("complaint_category") or ""),
+    ]
+    return " ".join(part for part in parts if part).strip()
+
+
+def signal_scope_text(signal: dict[str, object]) -> str:
+    metadata = provider_signal_metadata(signal)
+    parts = [
+        str(metadata.get("original_title") or ""),
+        str(signal.get("source_name") or ""),
+        str(signal.get("summary") or ""),
+        str(signal.get("raw_text") or ""),
+        str(signal.get("stakeholder_type") or ""),
+        str(signal.get("complaint_category") or ""),
+        str(signal.get("source_url") or ""),
+    ]
+    return " ".join(part for part in parts if part).strip()
+
+
+def is_signal_in_gs001_scope(signal: dict[str, object]) -> bool:
+    text = signal_scope_text(signal).lower()
+    property_context = any(
+        keyword in text
+        for keyword in [
+            "residential",
+            "property",
+            "housing",
+            "tenant",
+            "resident",
+            "landlord",
+            "property manager",
+            "apartment",
+            "rental",
+            "homeowner",
+            "hoa",
+        ]
+    )
+    maintenance_context = any(
+        keyword in text
+        for keyword in [
+            "maintenance",
+            "repair",
+            "work order",
+            "complaint handling",
+            "complaint",
+            "communication",
+            "update",
+            "follow-up",
+            "maladministration",
+            "redress",
+            "habitability",
+        ]
+    )
+    return property_context and maintenance_context and has_required_gs001_maintenance_context(text)
+
+
+def canonical_pain_category(signal: dict[str, object]) -> dict[str, object]:
+    text = signal_semantic_text(signal).lower()
+    quality = signal_quality_metadata(signal)
+    if not is_accepted_production_signal(signal):
+        return {
+            "canonical_category": str(quality.get("classification") or "Context Only").replace("_", " ").title(),
+            "canonical_summary": "Signal is not production-eligible evidence for GS-001.",
+            "matched_reasons": [str(quality.get("rejection_reason") or "Not production eligible")],
+            "scope_status": "context_only",
+            "confidence": 20,
+        }
+    if not is_signal_in_gs001_scope(signal):
+        return {
+            "canonical_category": "Out of Scope",
+            "canonical_summary": "Evidence does not directly support GS-001 maintenance communication pain.",
+            "matched_reasons": ["Missing residential/property context or maintenance communication context"],
+            "scope_status": "out_of_scope",
+            "confidence": 30,
+        }
+
+    best_category = "Maintenance Communication Failure"
+    best_matches: list[str] = []
+    for category, config in CANONICAL_GS001_CLUSTERS.items():
+        matches = [pattern for pattern in config["patterns"] if pattern in text]
+        if category == "Accounting / Payment Issues" and matches and not any(term in text for term in ["maintenance", "repair", "work order", "complaint handling"]):
+            return {
+                "canonical_category": category,
+                "canonical_summary": str(config["summary"]),
+                "matched_reasons": matches,
+                "scope_status": "out_of_scope",
+                "confidence": 60,
+            }
+        if len(matches) > len(best_matches):
+            best_category = category
+            best_matches = matches
+    if not best_matches and any(term in text for term in ["update", "communicat", "response", "follow-up", "explain"]):
+        best_matches = ["semantic communication/update language"]
+        best_category = "Maintenance Communication Failure"
+    elif not best_matches and any(term in text for term in ["delay", "unresolved", "ignored", "months", "not completed"]):
+        best_matches = ["semantic repair delay language"]
+        best_category = "Maintenance Delay / Repair Delay"
+    elif not best_matches and "complaint" in text:
+        best_matches = ["semantic complaint handling language"]
+        best_category = "Complaint Handling Failure"
+    if best_category != "Maintenance Communication Failure" and any(term in text for term in ["update", "updates", "communicat", "follow-up", "response", "not updated", "repair communication", "complaint handling"]):
+        best_category = "Maintenance Communication Failure"
+        best_matches = sorted(set([*best_matches, "semantic maintenance communication context"]))
+
+    confidence = min(100, 65 + len(best_matches) * 8 + int(quality.get("authority_score") or quality.get("source_trust_score") or 0) // 10)
+    return {
+        "canonical_category": best_category,
+        "canonical_summary": str(CANONICAL_GS001_CLUSTERS[best_category]["summary"]),
+        "matched_reasons": best_matches or ["Accepted GS-001 operational pain"],
+        "scope_status": "in_scope",
+        "confidence": confidence,
+    }
+
+
+def build_evidence_clusters(signals: list[dict[str, object]]) -> list[dict[str, object]]:
+    grouped: dict[str, dict[str, object]] = {}
+    excluded = 0
+    for signal in signals:
+        canonical = canonical_pain_category(signal)
+        category = str(canonical["canonical_category"])
+        cluster = grouped.setdefault(
+            category,
+            {
+                "canonical_category": category,
+                "canonical_summary": canonical["canonical_summary"],
+                "supporting_signal_ids": [],
+                "signals": [],
+                "independent_source_domains": set(),
+                "independent_organisations": set(),
+                "independent_events": set(),
+                "countries": set(),
+                "stakeholders": set(),
+                "trust_scores": [],
+                "evidence_strengths": [],
+                "source_dates": [],
+                "representative_quotes": [],
+                "rejected_or_context_signals_excluded": 0,
+                "scope_status": canonical["scope_status"],
+                "matched_reasons": [],
+            },
+        )
+        if canonical["scope_status"] != "in_scope" or not is_accepted_production_signal(signal):
+            cluster["rejected_or_context_signals_excluded"] = int(cluster["rejected_or_context_signals_excluded"]) + 1
+            excluded += 1
+            continue
+        quality = signal_quality_metadata(signal)
+        cluster["supporting_signal_ids"].append(str(signal["id"]))  # type: ignore[index]
+        cluster["signals"].append(signal)  # type: ignore[index]
+        cluster["independent_source_domains"].add(source_domain_or_identity(signal))  # type: ignore[union-attr]
+        cluster["independent_organisations"].add(signal_organisation_identity(signal))  # type: ignore[union-attr]
+        cluster["independent_events"].add(signal_market_event_id(signal))  # type: ignore[union-attr]
+        cluster["countries"].add(str(signal.get("country") or "Unknown"))  # type: ignore[union-attr]
+        cluster["stakeholders"].add(str(signal.get("stakeholder_type") or "Unknown"))  # type: ignore[union-attr]
+        cluster["trust_scores"].append(int(quality.get("authority_score") or quality.get("source_trust_score") or 0))  # type: ignore[index]
+        cluster["evidence_strengths"].append(int(signal.get("evidence_strength") or 0))  # type: ignore[index]
+        if signal.get("source_date"):
+            cluster["source_dates"].append(str(signal.get("source_date")))  # type: ignore[index]
+        cluster["representative_quotes"].append(str((quality.get("operational_pain") or {}).get("evidence_quote") or signal.get("summary") or signal.get("raw_text") or "")[:240])  # type: ignore[index]
+        cluster["matched_reasons"].extend(str(reason) for reason in canonical.get("matched_reasons", []))  # type: ignore[union-attr]
+
+    clusters = []
+    for cluster in grouped.values():
+        trust_scores = list(cluster.pop("trust_scores"))  # type: ignore[arg-type]
+        evidence_strengths = list(cluster.pop("evidence_strengths"))  # type: ignore[arg-type]
+        source_dates = sorted(set(cluster.pop("source_dates")))  # type: ignore[arg-type]
+        signal_count = len(cluster["supporting_signal_ids"])  # type: ignore[arg-type]
+        domains = sorted(cluster["independent_source_domains"])  # type: ignore[arg-type]
+        organisations = sorted(cluster["independent_organisations"])  # type: ignore[arg-type]
+        events = sorted(cluster["independent_events"])  # type: ignore[arg-type]
+        countries = sorted(cluster["countries"])  # type: ignore[arg-type]
+        stakeholders = sorted(cluster["stakeholders"])  # type: ignore[arg-type]
+        average_trust = round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 0
+        evidence_score = min(100, round(average_trust + min(len(domains) * 2, 8) + min(len(events) * 3, 12))) if signal_count else 0
+        pain_score = min(100, round((sum(evidence_strengths) / len(evidence_strengths)) + 10)) if evidence_strengths else 0
+        status, why = cluster_finding_status(signal_count, domains, organisations, events, average_trust, str(cluster["scope_status"]))
+        clusters.append(
+            {
+                "canonical_category": cluster["canonical_category"],
+                "canonical_summary": cluster["canonical_summary"],
+                "supporting_signal_ids": cluster["supporting_signal_ids"],
+                "supporting_signals": cluster["signals"],
+                "independent_source_domains": domains,
+                "independent_organisations": organisations,
+                "independent_events": events,
+                "countries": countries,
+                "stakeholders": stakeholders,
+                "average_trust_score": average_trust,
+                "evidence_score": evidence_score,
+                "pain_score": pain_score,
+                "earliest_evidence_date": source_dates[0] if source_dates else "",
+                "latest_evidence_date": source_dates[-1] if source_dates else "",
+                "representative_quotes": [quote for quote in cluster["representative_quotes"] if quote][:5],
+                "rejected_or_context_signals_excluded": int(cluster["rejected_or_context_signals_excluded"]) + excluded if str(cluster["scope_status"]) == "in_scope" else int(cluster["rejected_or_context_signals_excluded"]),
+                "scope_status": cluster["scope_status"],
+                "matched_reasons": sorted(set(cluster["matched_reasons"])),
+                "status": status,
+                "why": why,
+            }
+        )
+    return sorted(clusters, key=lambda item: (item["scope_status"] != "in_scope", -len(item["supporting_signal_ids"]), str(item["canonical_category"])))
+
+
+def cluster_finding_status(
+    signal_count: int,
+    domains: list[str],
+    organisations: list[str],
+    events: list[str],
+    average_trust: float,
+    scope_status: str,
+) -> tuple[str, str]:
+    if scope_status == "out_of_scope":
+        return "Out of scope for GS-001", "Evidence does not directly support maintenance communication pain."
+    if scope_status == "context_only":
+        return "Context only", "Evidence is not production-eligible and cannot support a finding."
+    missing = []
+    if signal_count < 3:
+        missing.append(f"{signal_count}/3 production-eligible signals")
+    if len(domains) < 2:
+        missing.append(f"{len(domains)}/2 independent domains")
+    if max(len(organisations), len(events)) < 2:
+        missing.append(f"{len(organisations)} organisations and {len(events)} events; need 2 of either")
+    if average_trust < MIN_PRODUCTION_AUTHORITY_SCORE:
+        missing.append(f"average trust {average_trust}/{MIN_PRODUCTION_AUTHORITY_SCORE}")
+    if missing:
+        return "Evidence Cluster - Needs More Evidence", "Thresholds not met: " + "; ".join(missing)
+    return "Draft finding ready", "Multiple independent sources describe repeated maintenance communication pain."
+
+
 def choose_from_keywords(text: str, groups: dict[str, list[str]], fallback: str) -> str:
     lower = text.lower()
     best = fallback
@@ -875,8 +1202,15 @@ def generate_findings(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID, min
     include_demo = bool(active_run and active_run.get("study_mode") == "demo")
     signals = [signal for signal in list_signals(db_path, study_id, include_demo=include_demo) if signal["status"] == "active"]
     if active_run and active_run.get("study_mode") == "production":
-        min_signals = max(min_signals, 3)
-        signals = [signal for signal in signals if is_accepted_production_signal(signal)]
+        clusters = build_evidence_clusters(signals)
+        created = []
+        for cluster in clusters:
+            if cluster["status"] != "Draft finding ready":
+                continue
+            finding = upsert_finding(db_path, study_id, list(cluster["supporting_signals"]), cluster)
+            created.append(finding)
+        add_event(db_path, "StudyFindingsGenerated", "PX-R001", "PX-R001 generated study findings", str(len(created)), study_id)
+        return created
     groups: dict[str, list[dict[str, object]]] = {}
     for signal in signals:
         key = str(signal["complaint_category"] or "Market problem")
@@ -892,9 +1226,9 @@ def generate_findings(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID, min
     return created
 
 
-def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, object]]) -> dict[str, object]:
+def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, object]], cluster: dict[str, object] | None = None) -> dict[str, object]:
     study_run_id = str(signals[0].get("study_run_id") or "")
-    category = str(signals[0]["complaint_category"] or "Market problem")
+    category = str((cluster or {}).get("canonical_category") or signals[0]["complaint_category"] or "Market problem")
     theme = category
     signal_ids = [str(signal["id"]) for signal in signals]
     sources = sorted({source_domain_or_identity(signal) for signal in signals})
@@ -908,13 +1242,32 @@ def upsert_finding(db_path: str | Path, study_id: str, signals: list[dict[str, o
     confidence = min(100, round((sum(int(signal["evidence_strength"] or 0) for signal in signals) / len(signals)) + min(len(event_ids) * 8, 24) + min(len(sources) * 3, 12)))
     if len(event_ids) <= 1 and not any(bool(signal.get("is_demo")) for signal in signals):
         confidence = min(confidence, 65)
-    problem = f"{category} appears across {len(signals)} evidence items, {len(sources)} independent sources, and {len(event_ids)} independent market events."
-    evidence_summary = " | ".join(str(signal["summary"]) for signal in signals[:3])
+    problem = str((cluster or {}).get("canonical_summary") or f"{category} appears across {len(signals)} evidence items, {len(sources)} independent sources, and {len(event_ids)} independent market events.")
+    evidence_summary = json.dumps(
+        {
+            "evidence_cluster": {
+                "canonical_category": category,
+                "canonical_summary": problem,
+                "supporting_signal_ids": signal_ids,
+                "independent_source_domains": sources,
+                "independent_organisations": organisations,
+                "independent_events": event_ids,
+                "countries": countries,
+                "stakeholders": stakeholders,
+                "average_trust_score": avg_trust,
+                "representative_quotes": [str(signal["summary"]) for signal in signals[:3]],
+                "scope_status": str((cluster or {}).get("scope_status") or "in_scope"),
+                "cluster_status": str((cluster or {}).get("status") or "Draft finding ready"),
+                "why": str((cluster or {}).get("why") or ""),
+            }
+        },
+        ensure_ascii=False,
+    )
     contains_demo = any(bool(signal.get("is_demo")) for signal in signals)
     non_demo_only = not contains_demo
     accepted_only = all(is_accepted_production_signal(signal) for signal in signals) if non_demo_only else False
     required_signal_count = 2 if contains_demo else 3
-    sufficient = len(signals) >= required_signal_count and len(sources) >= 2 and len(event_ids) >= 1 and avg_trust >= MIN_PRODUCTION_AUTHORITY_SCORE and non_demo_only and accepted_only
+    sufficient = len(signals) >= required_signal_count and len(sources) >= 2 and max(len(organisations), len(event_ids)) >= 2 and avg_trust >= MIN_PRODUCTION_AUTHORITY_SCORE and non_demo_only and accepted_only
     status = "Demo Finding" if contains_demo and len(signals) >= 2 else "pending_audit" if sufficient else "Insufficient Evidence"
     data_origin = "demo" if contains_demo else "verified_import"
     verification_status = "unverified" if contains_demo else "pending_review"
@@ -1527,7 +1880,7 @@ def traceability_chain(db_path: str | Path, opportunity_id: str, include_archive
         }
         for signal in signals
     ]
-    return {"opportunity": opportunity, "audit": audit, "finding": finding, "signals": signals, "sources": sources}
+    return {"opportunity": opportunity, "audit": audit, "finding": finding, "evidence_cluster": finding_cluster_metadata(finding), "signals": signals, "sources": sources}
 
 
 def finding_evidence(db_path: str | Path, finding_id: str, include_archived: bool = False) -> dict[str, object]:
@@ -1537,7 +1890,29 @@ def finding_evidence(db_path: str | Path, finding_id: str, include_archived: boo
     signals = [get_signal(db_path, str(signal_id)) for signal_id in _loads_list(finding.get("representative_signals"))]
     if not include_archived:
         signals = [signal for signal in signals if signal.get("status") != "archived" and signal.get("study_run_id") == finding.get("study_run_id")]
-    return {"finding": finding, "signals": signals}
+    return {"finding": finding, "evidence_cluster": finding_cluster_metadata(finding), "signals": signals}
+
+
+def finding_cluster_metadata(finding: dict[str, object]) -> dict[str, object]:
+    raw = str(finding.get("evidence_summary") or "")
+    if raw.strip().startswith("{"):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            parsed = {}
+        if isinstance(parsed, dict) and isinstance(parsed.get("evidence_cluster"), dict):
+            return parsed["evidence_cluster"]
+    return {
+        "canonical_category": finding.get("theme") or finding.get("complaint_category") or "Market problem",
+        "canonical_summary": finding.get("problem_statement") or "",
+        "supporting_signal_ids": _loads_list(finding.get("representative_signals")),
+        "independent_source_domains": [],
+        "independent_organisations": [],
+        "independent_events": [],
+        "scope_status": "legacy",
+        "cluster_status": str(finding.get("status") or ""),
+        "why": "Legacy finding created before semantic cluster metadata.",
+    }
 
 
 def study_progress(
@@ -2976,7 +3351,7 @@ def findings_feedback(findings: list[dict[str, object]]) -> tuple[str, str]:
     count = len(findings)
     if count:
         return "success", f"{count} findings generated"
-    return "warning", "No findings generated. Need at least 2 supporting signals."
+    return "warning", "Evidence clusters reviewed. No production finding created because thresholds were not met."
 
 
 def audit_batch_feedback(audits: list[dict[str, object]], findings: list[dict[str, object]]) -> tuple[str, str]:

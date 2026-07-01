@@ -58,6 +58,7 @@ from project_exchange.golden_study import (
     archive_record,
     audit_batch_feedback,
     audit_finding,
+    build_evidence_clusters,
     create_signal,
     demo_warning_active,
     delete_archived_demo_data,
@@ -2040,10 +2041,35 @@ with tabs[23]:
             level, message = findings_feedback(generated)
             set_golden_flash(level, message, generated)
             st.rerun()
+        st.subheader("Evidence Clusters")
+        clusters = build_evidence_clusters(signals) if is_production_run else []
+        if clusters:
+            for cluster in clusters:
+                with st.container(border=True):
+                    render_business_card(
+                        cluster.get("canonical_category"),
+                        cluster.get("status"),
+                        cluster.get("canonical_summary"),
+                        [
+                            ("Signals", len(cluster.get("supporting_signal_ids") or [])),
+                            ("Domains", len(cluster.get("independent_source_domains") or [])),
+                            ("Events", len(cluster.get("independent_events") or [])),
+                            ("Avg Trust", cluster.get("average_trust_score") or 0),
+                        ],
+                    )
+                    st.caption(f"Scope: {cluster.get('scope_status')}")
+                    st.caption(f"Why: {cluster.get('why')}")
+                    with st.expander("Technical Details"):
+                        st.json({key: value for key, value in cluster.items() if key != "supporting_signals"})
+        elif is_production_run:
+            empty_state(
+                "Evidence Clusters",
+                "No evidence clusters yet. Pull accepted production evidence before generating findings.",
+            )
         if not findings:
             empty_state(
                 "Findings",
-                "No findings yet. Findings are generated once repeated evidence exists.",
+                "No production findings yet. Evidence clusters must meet independence and trust thresholds first.",
                 "No demo findings yet. Generate findings after loading repeated demo evidence.",
             )
         for finding in findings:

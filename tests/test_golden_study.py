@@ -11,6 +11,8 @@ from project_exchange.golden_study import (
     archive_record,
     audit_batch_feedback,
     audit_finding,
+    build_evidence_clusters,
+    canonical_pain_category,
     calculate_oci,
     create_signal,
     create_study,
@@ -21,8 +23,10 @@ from project_exchange.golden_study import (
     generate_executive_brief,
     generate_findings,
     findings_feedback,
+    finding_cluster_metadata,
     get_active_study_run,
     get_or_create_default_study,
+    is_signal_in_gs001_scope,
     list_findings,
     list_signals,
     list_study_runs,
@@ -1079,13 +1083,11 @@ def test_px017_multiple_articles_about_same_event_do_not_approve_opportunity(tmp
     )
 
     pull_real_market_evidence(db_path, providers=[provider])
-    finding = generate_findings(db_path)[0]
-    audit = audit_finding(db_path, finding["id"])
+    clusters = build_evidence_clusters(list_signals(db_path))
 
-    assert finding["signal_count"] == 3
-    assert "1 independent market events" in finding["confidence_reasoning"]
-    assert audit["decision"] == "Needs More Evidence"
-    assert "Minimum independent market events not met" in audit["missing_evidence_warnings"]
+    assert clusters[0]["canonical_category"] == "Maintenance Communication Failure"
+    assert clusters[0]["status"] == "Evidence Cluster - Needs More Evidence"
+    assert generate_findings(db_path) == []
     assert approve_audited_opportunities(db_path) == []
 
 
@@ -1119,6 +1121,171 @@ def test_needs_more_evidence_audit_does_not_create_opportunity(tmp_path):
 
     assert audit["decision"] == "Needs More Evidence"
     assert approve_audited_opportunities(db_path) == []
+
+
+def test_px018_housing_ombudsman_repair_communication_clusters_as_maintenance_communication(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Housing Ombudsman repair communication complaint", "https://www.housing-ombudsman.org.uk/case-a", "Resident complaint says the landlord failed to communicate during repairs and the tenant was not updated about maintenance work.", "article"),
+            ProviderResult("Tavily", "Housing Ombudsman complaint handling failed", "https://www.bbb.org/case-b", "Tenant complaint says complaint handling failed after a maintenance repair took months and repair updates were unclear.", "article"),
+            ProviderResult("Tavily", "Regulator emergency repair not explained", "https://www.gov.example/case-c", "Resident complaint says an emergency repair was not explained and the property manager failed to communicate maintenance status.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    clusters = build_evidence_clusters(list_signals(db_path))
+
+    cluster = clusters[0]
+    assert cluster["canonical_category"] == "Maintenance Communication Failure"
+    assert cluster["status"] == "Draft finding ready"
+    assert len(cluster["supporting_signal_ids"]) == 3
+
+
+def test_px018_repair_months_not_updated_and_complaint_failed_cluster_together(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Repair took months", "https://www.consumeraffairs.com/repair-months", "Tenant complaint says the apartment maintenance repair took months and the resident had no repair updates.", "article"),
+            ProviderResult("Tavily", "Resident not updated", "https://www.bbb.org/not-updated", "Resident complaint says the property manager failed to communicate and the tenant was not updated about maintenance work.", "article"),
+            ProviderResult("Tavily", "Complaint handling failed", "https://www.gov.example/complaint-failed", "Government complaint says complaint handling failed after maintenance repairs and follow-up were ignored.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    clusters = build_evidence_clusters(list_signals(db_path))
+
+    assert len([cluster for cluster in clusters if cluster["canonical_category"] == "Maintenance Communication Failure"]) == 1
+    assert clusters[0]["canonical_category"] == "Maintenance Communication Failure"
+    assert len(clusters[0]["supporting_signal_ids"]) == 3
+
+
+def test_px018_accounting_payment_signals_are_out_of_scope_without_maintenance():
+    signal = {
+        "source_url": "https://www.bbb.org/payment-complaint",
+        "source_name": "BBB payment complaint",
+        "raw_text": "Tenant complaint says rent payment accounting and invoice arrears were handled poorly by the property manager.",
+        "summary": "Payment accounting complaint",
+        "stakeholder_type": "Tenants",
+        "complaint_category": "Accounting / payment issues",
+        "data_origin": "provider",
+        "is_demo": 0,
+    }
+
+    category = canonical_pain_category(signal)
+
+    assert is_signal_in_gs001_scope(signal) is False
+    assert category["scope_status"] in {"context_only", "out_of_scope"}
+
+
+def test_px018_market_trend_articles_do_not_become_findings(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Property Management Trends 2026", "https://example.com/trends", "Property management trends 2026 market outlook and best software guide for residential investors.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+
+    assert build_evidence_clusters(list_signals(db_path)) == []
+    assert generate_findings(db_path) == []
+
+
+def test_px018_vendor_pages_do_not_create_eligible_clusters(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Our maintenance communication platform", "https://vendor.example.com/features", "Our platform automates maintenance repair updates. Book a demo for features and pricing.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+
+    assert build_evidence_clusters(list_signals(db_path)) == []
+    assert generate_findings(db_path) == []
+
+
+def test_px018_three_signals_from_one_domain_need_more_evidence(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Maintenance complaint A", "https://www.housing-ombudsman.org.uk/a", "Resident complaint says landlord failed to communicate repair updates for maintenance work.", "article"),
+            ProviderResult("Tavily", "Maintenance complaint B", "https://www.housing-ombudsman.org.uk/b", "Tenant complaint says no repair updates were provided and maintenance follow-up was poor.", "article"),
+            ProviderResult("Tavily", "Maintenance complaint C", "https://www.housing-ombudsman.org.uk/c", "Resident complaint says complaint handling failed and repairs took months without updates.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    clusters = build_evidence_clusters(list_signals(db_path))
+
+    assert clusters[0]["status"] == "Evidence Cluster - Needs More Evidence"
+    assert "independent domains" in clusters[0]["why"]
+    assert generate_findings(db_path) == []
+
+
+def test_px018_independent_trusted_sources_create_semantic_finding(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Maintenance complaint A", "https://www.housing-ombudsman.org.uk/a", "Resident complaint says landlord failed to communicate repair updates for maintenance work.", "article"),
+            ProviderResult("Tavily", "Maintenance complaint B", "https://www.bbb.org/b", "Tenant complaint says no repair updates were provided and maintenance follow-up was poor.", "article"),
+            ProviderResult("Tavily", "Maintenance complaint C", "https://www.gov.example/c", "Resident complaint says complaint handling failed and repairs took months without updates.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+
+    findings = generate_findings(db_path)
+    cluster = finding_cluster_metadata(findings[0])
+
+    assert len(findings) == 1
+    assert findings[0]["theme"] == "Maintenance Communication Failure"
+    assert cluster["canonical_category"] == "Maintenance Communication Failure"
+    assert len(cluster["supporting_signal_ids"]) == 3
+
+
+def test_px018_generate_findings_feedback_mentions_clusters_when_thresholds_fail(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Maintenance complaint A", "https://www.housing-ombudsman.org.uk/a", "Resident complaint says landlord failed to communicate repair updates for maintenance work.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+
+    level, message = findings_feedback(generate_findings(db_path))
+
+    assert level == "warning"
+    assert message == "Evidence clusters reviewed. No production finding created because thresholds were not met."
+
+
+def test_px018_finding_evidence_chain_includes_cluster(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "Maintenance complaint A", "https://www.housing-ombudsman.org.uk/a", "Resident complaint says landlord failed to communicate repair updates for maintenance work.", "article"),
+            ProviderResult("Tavily", "Maintenance complaint B", "https://www.bbb.org/b", "Tenant complaint says no repair updates were provided and maintenance follow-up was poor.", "article"),
+            ProviderResult("Tavily", "Maintenance complaint C", "https://www.gov.example/c", "Resident complaint says complaint handling failed and repairs took months without updates.", "article"),
+        ]
+    )
+    pull_real_market_evidence(db_path, providers=[provider])
+    finding = generate_findings(db_path)[0]
+    chain = finding_evidence(db_path, finding["id"])
+
+    assert chain["evidence_cluster"]["canonical_category"] == "Maintenance Communication Failure"
+    assert chain["evidence_cluster"]["supporting_signal_ids"]
+    assert chain["signals"]
 
 
 def test_vendor_marketing_page_is_skipped_as_production_signal(tmp_path):
@@ -1289,15 +1456,11 @@ def test_opportunity_cannot_exist_without_minimum_independent_domains(tmp_path):
         ]
     )
     pull_real_market_evidence(db_path, providers=[provider])
-    finding = generate_findings(db_path)[0]
+    clusters = build_evidence_clusters(list_signals(db_path))
 
-    assert finding["status"] == "Insufficient Evidence"
-    try:
-        audit_finding(db_path, finding["id"])
-    except ValueError as exc:
-        assert "independent sources" in str(exc)
-    else:
-        raise AssertionError("One-domain evidence should not be auditable")
+    assert clusters[0]["status"] == "Evidence Cluster - Needs More Evidence"
+    assert "independent domains" in clusters[0]["why"]
+    assert generate_findings(db_path) == []
 
 
 def test_opportunity_cannot_exist_without_minimum_verified_complaint_threshold(tmp_path):
@@ -1433,8 +1596,8 @@ def test_production_pipeline_unlocks_only_after_required_records(tmp_path):
     pull_real_market_evidence(db_path, providers=[third_provider])
     generate_findings(db_path)
     finding_pipeline = production_pipeline_statuses(study_progress(db_path))
-    assert finding_pipeline["Finding Generation"] == "Completed"
-    assert finding_pipeline["Audit"] == "Active"
+    assert finding_pipeline["Finding Generation"] == "Active"
+    assert finding_pipeline["Audit"] == "Locked"
     assert finding_pipeline["Opportunity"] == "Locked"
 
 
@@ -1599,7 +1762,7 @@ def test_generate_findings_feedback_messages(tmp_path):
 
     level, message = findings_feedback(generate_findings(db_path))
     assert level == "warning"
-    assert message == "No findings generated. Need at least 2 supporting signals."
+    assert message == "Evidence clusters reviewed. No production finding created because thresholds were not met."
 
     run_research_batch(
         db_path,
