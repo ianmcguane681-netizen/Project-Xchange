@@ -60,6 +60,13 @@ class OpenAIOnlyEvidenceProvider:
         ]
 
 
+class BrokenEvidenceProvider:
+    name = "NewsAPI"
+
+    def search(self, command):
+        raise RuntimeError("provider unavailable")
+
+
 def start_production_run(db_path):
     return switch_study_run_mode(db_path, DEFAULT_STUDY_ID, "production", production_confirmed=True)
 
@@ -571,6 +578,17 @@ def test_pull_real_market_evidence_blocked_outside_production(tmp_path):
     assert list_signals(db_path, include_demo=True) == []
 
 
+def test_pull_real_market_evidence_blocks_when_no_active_run_exists(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    result = pull_real_market_evidence(db_path)
+
+    assert result["status"] == "blocked"
+    assert result["signals_stored"] == 0
+    assert result["active_run_id"] == ""
+
+
 def test_pull_real_market_evidence_requires_configured_provider(monkeypatch, tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
@@ -591,6 +609,19 @@ def test_pull_real_market_evidence_requires_configured_provider(monkeypatch, tmp
     assert list_signals(db_path) == []
 
 
+def test_pull_real_market_evidence_provider_failure_creates_no_fake_records(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+
+    result = pull_real_market_evidence(db_path, providers=[BrokenEvidenceProvider()])
+
+    assert result["status"] == "empty"
+    assert result["signals_stored"] == 0
+    assert any(item["reason"] == "provider_failed" for item in result["skipped"])
+    assert list_signals(db_path) == []
+
+
 def test_pull_real_market_evidence_skips_missing_source_and_text(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
@@ -607,6 +638,7 @@ def test_pull_real_market_evidence_skips_missing_source_and_text(tmp_path):
     assert result["status"] == "empty"
     assert result["signals_stored"] == 0
     assert result["skipped_missing_source_or_text"] == 2
+    assert len(result["skipped"]) == 2
     assert list_signals(db_path) == []
 
 
@@ -631,6 +663,14 @@ def test_pull_real_market_evidence_creates_provider_signal_in_active_production_
 
     assert result["status"] == "completed"
     assert result["signals_stored"] == 1
+    assert result["active_run_id"] == production_run["id"]
+    assert result["stored_signal_ids"]
+    assert result["queries"]
+    assert result["sources_searched"] == len(result["queries"])
+    assert result["candidate_results_found"] == 1
+    assert result["skipped_duplicates"] == 0
+    assert result["skipped_missing_source_or_text"] == 0
+    assert result["providers_used"] == ["Tavily"]
     assert len(signals) == 1
     signal = signals[0]
     assert signal["study_run_id"] == production_run["id"]
@@ -662,6 +702,7 @@ def test_pull_real_market_evidence_skips_duplicate_url_and_raw_text(tmp_path):
 
     assert result["signals_stored"] == 2
     assert result["skipped_duplicates"] == 2
+    assert len([item for item in result["skipped"] if item["reason"] == "duplicate"]) == 2
     assert len(list_signals(db_path)) == 2
 
 
@@ -674,7 +715,8 @@ def test_openai_output_alone_cannot_create_production_evidence(tmp_path):
 
     assert result["status"] == "empty"
     assert result["signals_stored"] == 0
-    assert result["skipped_openai_only"] == 0
+    assert result["skipped_openai_only"] >= 1
+    assert any(item["reason"] == "openai_not_evidence" for item in result["skipped"])
     assert list_signals(db_path) == []
 
 

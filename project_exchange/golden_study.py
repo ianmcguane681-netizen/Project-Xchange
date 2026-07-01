@@ -9,7 +9,7 @@ from project_exchange.eos import add_event, add_notification
 from project_exchange.ids import next_sequence_id
 from project_exchange.provider_base import ProviderResult
 from project_exchange.provider_modules.newsapi_provider import NewsAPIProvider
-from project_exchange.provider_modules.tavily_serpapi_provider import TavilySerpAPIProvider
+from project_exchange.provider_modules.tavily_serpapi_provider import SerpAPISearchProvider, TavilySearchProvider
 from project_exchange.provider_status import provider_ready_for_research
 
 
@@ -1397,6 +1397,16 @@ def pull_real_market_evidence(
         return {
             "status": "blocked",
             "message": "Real market evidence can only be pulled in Production Mode.",
+            "sources_searched": 0,
+            "candidate_results_found": 0,
+            "signals_stored": 0,
+            "skipped_duplicates": 0,
+            "skipped_missing_source_or_text": 0,
+            "providers_used": [],
+            "active_run_id": "",
+            "queries": GS001_REAL_EVIDENCE_QUERIES,
+            "stored_signal_ids": [],
+            "skipped": [],
             "signals": [],
             "technical_details": {},
         }
@@ -1406,16 +1416,29 @@ def pull_real_market_evidence(
             return {
                 "status": "blocked",
                 "message": str(readiness["message"]),
+                "sources_searched": 0,
+                "candidate_results_found": 0,
+                "signals_stored": 0,
+                "skipped_duplicates": 0,
+                "skipped_missing_source_or_text": 0,
+                "providers_used": [],
+                "active_run_id": str(active_run["id"]),
+                "queries": GS001_REAL_EVIDENCE_QUERIES,
+                "stored_signal_ids": [],
+                "skipped": [],
                 "signals": [],
                 "technical_details": readiness,
             }
-        providers = [TavilySerpAPIProvider(), NewsAPIProvider()]
+        providers = configured_gs001_evidence_providers()
 
     retrieved_at = utc_now()
     provider_names: list[str] = []
     candidates: list[dict[str, object]] = []
-    provider_errors: list[dict[str, str]] = []
+    skipped: list[dict[str, object]] = []
+    skipped_openai = 0
+    sources_searched = 0
     for query in GS001_REAL_EVIDENCE_QUERIES:
+        sources_searched += 1
         command = {
             "study": study_id,
             "industry": "Residential Property Management",
@@ -1427,14 +1450,15 @@ def pull_real_market_evidence(
         for provider in providers:
             provider_name = str(getattr(provider, "name", provider.__class__.__name__))
             if "openai" in provider_name.lower():
-                provider_errors.append({"provider": provider_name, "query": query, "error": "OpenAI output is not accepted as market evidence."})
+                skipped_openai += 1
+                skipped.append({"reason": "openai_not_evidence", "provider": provider_name, "query": query})
                 continue
             if provider_name not in provider_names:
                 provider_names.append(provider_name)
             try:
                 results = provider.search(command)  # type: ignore[attr-defined]
             except Exception:
-                provider_errors.append({"provider": provider_name, "query": query, "error": "Provider search failed."})
+                skipped.append({"reason": "provider_failed", "provider": provider_name, "query": query})
                 continue
             for result in results:
                 normalized = normalize_provider_result(result, query, retrieved_at)
@@ -1449,16 +1473,18 @@ def pull_real_market_evidence(
     stored = []
     skipped_missing = 0
     skipped_duplicates = 0
-    skipped_openai = 0
     for candidate in candidates[:max_sources]:
         if "openai" in str(candidate.get("provider_name") or "").lower():
             skipped_openai += 1
+            skipped.append({"reason": "openai_not_evidence", "candidate": candidate})
             continue
         if not (str(candidate.get("source_url") or "").strip() or str(candidate.get("source_name") or "").strip()):
             skipped_missing += 1
+            skipped.append({"reason": "missing_source", "candidate": candidate})
             continue
         if not str(candidate.get("raw_text") or "").strip():
             skipped_missing += 1
+            skipped.append({"reason": "missing_raw_text", "candidate": candidate})
             continue
         if signal_duplicate_exists(
             db_path,
@@ -1468,6 +1494,7 @@ def pull_real_market_evidence(
             str(candidate.get("raw_text") or ""),
         ):
             skipped_duplicates += 1
+            skipped.append({"reason": "duplicate", "candidate": candidate})
             continue
         signal = create_signal(
             db_path,
@@ -1495,20 +1522,24 @@ def pull_real_market_evidence(
     result = {
         "status": status,
         "message": message,
-        "sources_searched": len(GS001_REAL_EVIDENCE_QUERIES),
+        "sources_searched": sources_searched,
         "candidate_results_found": len(candidates),
         "signals_stored": len(stored),
         "skipped_duplicates": skipped_duplicates,
         "skipped_missing_source_or_text": skipped_missing,
         "skipped_openai_only": skipped_openai,
         "providers_used": provider_names,
+        "active_run_id": str(active_run["id"]),
+        "queries": GS001_REAL_EVIDENCE_QUERIES,
+        "stored_signal_ids": [str(signal["id"]) for signal in stored],
+        "skipped": skipped,
         "signals": stored,
         "technical_details": {
             "study_id": study_id,
             "study_run_id": active_run["id"],
             "queries": GS001_REAL_EVIDENCE_QUERIES,
             "retrieved_at": retrieved_at,
-            "provider_errors": provider_errors,
+            "skipped": skipped,
             "candidates": candidates,
         },
     }
@@ -1543,6 +1574,18 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
         "summary": summarize(snippet or title),
         "source_confidence": rough_provider_evidence_strength(provider_name, url, snippet),
     }
+
+
+def configured_gs001_evidence_providers() -> list[object]:
+    providers: list[object] = []
+    for provider in [TavilySearchProvider(), SerpAPISearchProvider(), NewsAPIProvider()]:
+        try:
+            status = provider.status()
+        except Exception:
+            continue
+        if getattr(status, "status", "") == "connected":
+            providers.append(provider)
+    return providers
 
 
 def infer_gs001_stakeholder(text: str) -> str:

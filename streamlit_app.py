@@ -1687,7 +1687,11 @@ with tabs[23]:
             with st.container(border=True):
                 st.caption("Production provider pull")
                 st.markdown("**Pull Real Market Evidence**")
-                st.write("Scope: US residential property management, maintenance communication complaints and unmet needs.")
+                scope_cols = st.columns(4)
+                scope_cols[0].metric("Market", "United States")
+                scope_cols[1].metric("Industry", "Residential Property Management")
+                scope_cols[2].metric("Focus", "Maintenance Communication")
+                scope_cols[3].metric("Max sources", 10)
                 if st.button("Pull Real Market Evidence", key="gs001_pull_real_market_evidence", type="primary"):
                     result = pull_real_market_evidence(DB_PATH, DEFAULT_STUDY_ID)
                     if result["status"] == "blocked":
