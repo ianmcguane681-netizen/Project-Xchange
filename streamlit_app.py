@@ -1323,12 +1323,6 @@ with tabs[23]:
     def shell_status_card(label: str, value: object, note: str, tone: str = "blue") -> str:
         return f"**{label}**\n\n{value}\n\n{note}"
 
-    def business_card_html(title: object, status: object, summary: object, kpis: list[tuple[str, object]] | None = None) -> str:
-        lines = [f"**{title or 'Untitled'}**", "", badge_html(status), "", str(summary or "No summary available.")]
-        if kpis:
-            lines.extend(["", *[f"- **{label}:** {value}" for label, value in kpis]])
-        return "\n".join(lines)
-
     def brief_item(label: str, value: object) -> str:
         return f"**{label}:** {value or 'Not specified'}"
 
@@ -1351,6 +1345,17 @@ with tabs[23]:
                 cols = st.columns(min(4, len(kpis)))
                 for index, (label, value) in enumerate(kpis):
                     cols[index % len(cols)].metric(str(label), value)
+
+    def empty_state(tab_name: str, production_text: str, demo_text: str | None = None) -> None:
+        if is_production_run:
+            message = production_text
+        elif is_demo_run:
+            message = demo_text or production_text.replace("production", "demo")
+        else:
+            message = f"No active run is available for {tab_name}."
+        with st.container(border=True):
+            st.caption("Empty state")
+            st.info(message)
 
     def production_timeline_status(stage: str) -> str:
         if not is_production_run:
@@ -1527,7 +1532,7 @@ with tabs[23]:
         st.info(f"Top opportunity: {shell_top_problem} | {evidence_note} | Next action: {recommended_action_text()}")
 
     workflow_tabs = st.tabs([
-        "Overview",
+        "Mission Control",
         "Add Evidence",
         "Signals",
         "Findings",
@@ -1546,7 +1551,7 @@ with tabs[23]:
         top_opportunity = opportunities[0] if opportunities else {}
         highest_score = displayed_oci(top_opportunity) if top_opportunity else demo_oci(top_problem)
         score_label = "Demo OCI" if is_demo_run else "Highest OCI"
-        section_header("Overview", "Current run workflow, evidence health, warnings, and safe mode controls.", mode_label)
+        section_header("Mission Control", "Current run workflow, evidence health, warnings, and safe mode controls.", mode_label)
         if production_empty:
             st.subheader("Production Mode Active")
             st.write("No production research has been started.")
@@ -1758,22 +1763,23 @@ with tabs[23]:
     with workflow_tabs[2]:
         section_header("Signals", "Evidence cards for the current active run. Technical IDs stay inside each expander.", workflow_stage_status("Signals"))
         if not signals:
-            st.info("No signals in this run yet.")
+            empty_state(
+                "Signals",
+                "No production signals yet. Add verified evidence to begin.",
+                "No demo signals yet. Load the demo sample batch to rehearse evidence collection.",
+            )
         for signal in signals:
             with st.container(border=True):
-                st.markdown(
-                    business_card_html(
-                        f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown stakeholder'}",
-                        signal.get("verification_status"),
-                        signal.get("summary") or signal.get("raw_text") or "No evidence summary",
-                        [
-                            ("Evidence strength", signal.get("evidence_strength") or 0),
-                            ("Source", source_label(signal)),
-                            ("Origin", signal.get("data_origin")),
-                            ("Status", signal.get("status")),
-                        ],
-                    ),
-                    unsafe_allow_html=True,
+                render_business_card(
+                    f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown stakeholder'}",
+                    signal.get("verification_status"),
+                    signal.get("summary") or signal.get("raw_text") or "No evidence summary",
+                    [
+                        ("Evidence strength", signal.get("evidence_strength") or 0),
+                        ("Source", source_label(signal)),
+                        ("Origin", signal.get("data_origin")),
+                        ("Status", signal.get("status")),
+                    ],
                 )
                 cols = st.columns(3)
                 if signal.get("source_url"):
@@ -1792,22 +1798,23 @@ with tabs[23]:
             set_golden_flash(level, message, generated)
             st.rerun()
         if not findings:
-            st.info("No findings yet. You need at least 2 supporting signals.")
+            empty_state(
+                "Findings",
+                "No findings yet. Findings are generated once repeated evidence exists.",
+                "No demo findings yet. Generate findings after loading repeated demo evidence.",
+            )
         for finding in findings:
             with st.container(border=True):
-                st.markdown(
-                    business_card_html(
-                        str(finding.get("theme") or "Market problem"),
-                        finding.get("status"),
-                        finding.get("problem_statement"),
-                        [
-                            ("Confidence", finding.get("confidence_score") or 0),
-                            ("Signals", finding.get("signal_count") or 0),
-                            ("Sources", finding.get("independent_source_count") or 0),
-                            ("Countries", list_count(finding.get("countries"))),
-                        ],
-                    ),
-                    unsafe_allow_html=True,
+                render_business_card(
+                    str(finding.get("theme") or "Market problem"),
+                    finding.get("status"),
+                    finding.get("problem_statement"),
+                    [
+                        ("Confidence", finding.get("confidence_score") or 0),
+                        ("Signals", finding.get("signal_count") or 0),
+                        ("Sources", finding.get("independent_source_count") or 0),
+                        ("Countries", list_count(finding.get("countries"))),
+                    ],
                 )
                 cols = st.columns(3)
                 if cols[0].button("Audit Finding", key=f"audit_finding_{finding['id']}"):
@@ -1853,23 +1860,24 @@ with tabs[23]:
                     set_golden_flash("error", str(exc))
                     st.rerun()
         if not audits:
-            st.info("No audits yet. Generate findings, then run the audit batch.")
+            empty_state(
+                "Audits",
+                "No audits yet. Generate findings before running audit.",
+                "No demo audits yet. Generate demo findings, then run the demo audit batch.",
+            )
         for audit in audits:
             finding_label = next((str(finding.get("theme")) for finding in findings if finding.get("id") == audit.get("finding_id")), "Audited finding")
             with st.container(border=True):
-                st.markdown(
-                    business_card_html(
-                        finding_label,
-                        audit.get("status") or audit.get("decision"),
-                        audit.get("recommendation"),
-                        [
-                            ("Evidence", audit.get("evidence_score") or 0),
-                            ("Pain", audit.get("pain_severity_score") or 0),
-                            ("Frequency", audit.get("frequency_score") or 0),
-                            ("Demo OCI" if bool(audit.get("is_demo")) else "OCI", demo_oci(audit) if bool(audit.get("is_demo")) else audit.get("opportunity_confidence_index") or 0),
-                        ],
-                    ),
-                    unsafe_allow_html=True,
+                render_business_card(
+                    finding_label,
+                    audit.get("status") or audit.get("decision"),
+                    audit.get("recommendation"),
+                    [
+                        ("Evidence", audit.get("evidence_score") or 0),
+                        ("Pain", audit.get("pain_severity_score") or 0),
+                        ("Traceability", audit.get("traceability_score") or 0),
+                        ("Demo OCI" if bool(audit.get("is_demo")) else "OCI", demo_oci(audit) if bool(audit.get("is_demo")) else audit.get("opportunity_confidence_index") or 0),
+                    ],
                 )
                 cols = st.columns(2)
                 if cols[0].button("Approve Opportunity", key=f"approve_audit_{audit['id']}"):
@@ -1890,22 +1898,23 @@ with tabs[23]:
     with workflow_tabs[5]:
         section_header("Opportunities", "Current-run opportunity cards with commercial and engineering readiness context.", workflow_stage_status("Opportunities"))
         if not opportunities:
-            st.info("No opportunities yet. Audited findings can become demo or production opportunities depending on run mode.")
+            empty_state(
+                "Opportunities",
+                "No opportunities yet. Opportunities appear after audit approval.",
+                "No demo opportunities yet. Approve demo audits to continue the rehearsal.",
+            )
         for opportunity in opportunities:
             with st.container(border=True):
-                st.markdown(
-                    business_card_html(
-                        str(opportunity.get("recommended_component") or "Opportunity"),
-                        opportunity.get("status"),
-                        opportunity.get("problem"),
-                        [
-                            ("Demo OCI" if bool(opportunity.get("is_demo")) else "OCI", displayed_oci(opportunity)),
-                            ("Commercial", opportunity.get("commercial_potential") or "Not set"),
-                            ("Complexity", opportunity.get("estimated_build_complexity") or "Not set"),
-                            ("Countries", list_count(opportunity.get("countries"))),
-                        ],
-                    ),
-                    unsafe_allow_html=True,
+                render_business_card(
+                    str(opportunity.get("recommended_component") or "Opportunity"),
+                    opportunity.get("status"),
+                    opportunity.get("problem"),
+                    [
+                        ("Demo OCI" if bool(opportunity.get("is_demo")) else "OCI", displayed_oci(opportunity)),
+                        ("Commercial", opportunity.get("commercial_potential") or "Not set"),
+                        ("Complexity", opportunity.get("estimated_build_complexity") or "Not set"),
+                        ("Countries", list_count(opportunity.get("countries"))),
+                    ],
                 )
                 st.caption(f"Engineering status: {opportunity.get('engineering_status') or 'Not started'}")
                 cols = st.columns(3)
@@ -1924,7 +1933,11 @@ with tabs[23]:
         section_header("Engineering Specs", "Professional engineering briefs for opportunities that are ready for specification.", workflow_stage_status("Engineering Specs"))
         spec_opportunities = [row for row in opportunities if row.get("engineering_status") in {"Engineering Specification Required", "Engineering Ready", "Demo Opportunity", "Demo Engineering Ready"}]
         if not spec_opportunities:
-            st.info("No engineering specs yet. Create an opportunity first.")
+            empty_state(
+                "Engineering Specs",
+                "No engineering specs yet. Approve an opportunity first.",
+                "No demo engineering specs yet. Create a demo opportunity first.",
+            )
         for row in spec_opportunities:
             demo_prefix = "Demo " if bool(row.get("is_demo")) else ""
             with st.container(border=True):
@@ -1981,33 +1994,33 @@ with tabs[23]:
             finding_options = {str(row.get("theme") or row.get("problem_statement") or row["id"]): row["id"] for row in chain_findings}
             selected_label = st.selectbox("Finding", list(finding_options), key="golden_chain_finding") if finding_options else None
             selected = finding_options[selected_label] if selected_label else None
+            if not selected:
+                empty_state(
+                    "Evidence Chain",
+                    "No finding evidence chain yet. Generate findings from verified evidence first.",
+                    "No demo finding evidence chain yet. Generate demo findings first.",
+                )
             if selected:
                 try:
                     chain = finding_evidence(DB_PATH, str(selected), include_archived=include_history)
-                    st.markdown(
-                        business_card_html(
-                            chain["finding"].get("theme") or "Finding",
-                            chain["finding"].get("status"),
-                            chain["finding"].get("problem_statement"),
-                            [
-                                ("Signals", len(chain["signals"])),
-                                ("Sources", len(chain.get("sources", []))),
-                                ("Mode", "Demo" if bool(chain["finding"].get("is_demo")) else "Production"),
-                                ("Confidence", chain["finding"].get("confidence_score") or 0),
-                            ],
-                        ),
-                        unsafe_allow_html=True,
+                    render_business_card(
+                        chain["finding"].get("theme") or "Finding",
+                        chain["finding"].get("status"),
+                        chain["finding"].get("problem_statement"),
+                        [
+                            ("Signals", len(chain["signals"])),
+                            ("Sources", len(chain.get("sources", []))),
+                            ("Mode", "Demo" if bool(chain["finding"].get("is_demo")) else "Production"),
+                            ("Confidence", chain["finding"].get("confidence_score") or 0),
+                        ],
                     )
                     st.subheader("Supporting Signals")
                     for signal in chain["signals"]:
-                        st.markdown(
-                            business_card_html(
-                                f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown'}",
-                                signal.get("verification_status"),
-                                signal.get("summary") or signal.get("raw_text"),
-                                [("Source", source_label(signal)), ("Strength", signal.get("evidence_strength") or 0)],
-                            ),
-                            unsafe_allow_html=True,
+                        render_business_card(
+                            f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown'}",
+                            signal.get("verification_status"),
+                            signal.get("summary") or signal.get("raw_text"),
+                            [("Source", source_label(signal)), ("Strength", signal.get("evidence_strength") or 0)],
                         )
                     with st.expander("Technical Details"):
                         st.json(chain)
@@ -2018,33 +2031,33 @@ with tabs[23]:
             opportunity_options = {str(row.get("recommended_component") or row.get("problem") or row["id"]): row["id"] for row in chain_opportunities}
             selected_label = st.selectbox("Opportunity", list(opportunity_options), key="golden_chain_opportunity") if opportunity_options else None
             selected = opportunity_options[selected_label] if selected_label else None
+            if not selected:
+                empty_state(
+                    "Evidence Chain",
+                    "No opportunity evidence chain yet. Approve an audited production opportunity first.",
+                    "No demo opportunity evidence chain yet. Approve a demo audit first.",
+                )
             if selected:
                 try:
                     chain = traceability_chain(DB_PATH, str(selected), include_archived=include_history)
-                    st.markdown(
-                        business_card_html(
-                            chain["opportunity"].get("recommended_component") or "Opportunity",
-                            chain["opportunity"].get("status"),
-                            chain["opportunity"].get("problem"),
-                            [
-                                ("Audit", chain["audit"].get("decision")),
-                                ("Finding", chain["finding"].get("theme")),
-                                ("Signals", len(chain["signals"])),
-                                ("Sources", len(chain["sources"])),
-                            ],
-                        ),
-                        unsafe_allow_html=True,
+                    render_business_card(
+                        chain["opportunity"].get("recommended_component") or "Opportunity",
+                        chain["opportunity"].get("status"),
+                        chain["opportunity"].get("problem"),
+                        [
+                            ("Audit", chain["audit"].get("decision")),
+                            ("Finding", chain["finding"].get("theme")),
+                            ("Signals", len(chain["signals"])),
+                            ("Sources", len(chain["sources"])),
+                        ],
                     )
                     st.subheader("Supporting Signals")
                     for signal in chain["signals"]:
-                        st.markdown(
-                            business_card_html(
-                                f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown'}",
-                                signal.get("verification_status"),
-                                signal.get("summary") or signal.get("raw_text"),
-                                [("Source", source_label(signal)), ("Strength", signal.get("evidence_strength") or 0)],
-                            ),
-                            unsafe_allow_html=True,
+                        render_business_card(
+                            f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown'}",
+                            signal.get("verification_status"),
+                            signal.get("summary") or signal.get("raw_text"),
+                            [("Source", source_label(signal)), ("Strength", signal.get("evidence_strength") or 0)],
                         )
                     with st.expander("Technical Details"):
                         st.json(chain)
@@ -2055,23 +2068,21 @@ with tabs[23]:
         section_header("Executive Brief", "Founder-facing summary of the current run, risks, opportunities and next actions.", "Brief")
         if st.button("Generate Executive Brief", key="gs001_executive_brief"):
             brief = generate_executive_brief(DB_PATH, DEFAULT_STUDY_ID)
-            st.markdown(
-                business_card_html(brief.get("title"), brief.get("brief_type"), brief.get("body")),
-                unsafe_allow_html=True,
-            )
+            render_business_card(brief.get("title"), brief.get("brief_type"), brief.get("body"))
             with st.expander("Technical Details"):
                 st.json(brief)
         briefs = list_study_briefs(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
         if briefs:
             latest = briefs[0]
-            st.markdown(
-                business_card_html(latest.get("title"), latest.get("brief_type"), latest.get("body")),
-                unsafe_allow_html=True,
-            )
+            render_business_card(latest.get("title"), latest.get("brief_type"), latest.get("body"))
             with st.expander("Technical Details"):
                 st.json(latest)
         else:
-            st.info("No executive brief for this run yet.")
+            empty_state(
+                "Executive Brief",
+                "No executive brief for this run yet. Generate one after evidence, findings, and audits exist.",
+                "No demo executive brief yet. Generate one after the demo rehearsal creates outputs.",
+            )
 
     with workflow_tabs[9]:
         section_header("Integrity Check", "Operational safety checks shown as cards. Full technical rows are hidden below.", "Protected")
@@ -2098,14 +2109,11 @@ with tabs[23]:
             passed = not failed
             fix = failed[0].get("recommended_fix") if failed else "No action required."
             with card_cols[index % 2]:
-                st.markdown(
-                    business_card_html(
-                        group_name,
-                        "Passed" if passed else "Failed",
-                        "Checks passed." if passed else "Attention required.",
-                        [("Checks", len(relevant)), ("Failed", len(failed)), ("Recommended fix", fix)],
-                    ),
-                    unsafe_allow_html=True,
+                render_business_card(
+                    group_name,
+                    "Passed" if passed else "Failed",
+                    "Checks passed." if passed else "Attention required.",
+                    [("Checks", len(relevant)), ("Failed", len(failed)), ("Recommended fix", fix)],
                 )
         with st.expander("Technical Details"):
             st.dataframe(
@@ -2127,29 +2135,29 @@ with tabs[23]:
         section_header("Archive / Demo History", "Archived demo records remain visible for traceability but excluded from production metrics.", "History")
         st.warning("These records are preserved for traceability but excluded from production metrics.")
         demo_runs = [row for row in list_study_runs(DB_PATH, DEFAULT_STUDY_ID) if row.get("study_mode") == "demo" and row.get("status") in {"closed", "archived"}]
+        if not demo_runs:
+            empty_state(
+                "Archive / Demo History",
+                "No archived demo history yet.",
+                "No archived demo history yet. Archive demo data when you are ready to preserve rehearsal records.",
+            )
         for run in demo_runs:
-            st.markdown(
-                business_card_html(
-                    "Archived demo run",
-                    run.get("status"),
-                    run.get("notes") or "Demo run preserved for history.",
-                    [("Mode", run.get("study_mode")), ("Origin", run.get("data_origin")), ("Verification", run.get("verification_status"))],
-                ),
-                unsafe_allow_html=True,
+            render_business_card(
+                "Archived demo run",
+                run.get("status"),
+                run.get("notes") or "Demo run preserved for history.",
+                [("Mode", run.get("study_mode")), ("Origin", run.get("data_origin")), ("Verification", run.get("verification_status"))],
             )
             with st.expander("Technical Details"):
                 st.json(run)
         for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]:
             rows = [row for row in fetch_all(DB_PATH, table_name) if row.get("study_id") == DEFAULT_STUDY_ID and row.get("is_demo") and row.get("status") == "archived"]
             st.subheader(table_name.replace("_", " ").title())
-            st.markdown(
-                business_card_html(
-                    table_name.replace("_", " ").title(),
-                    "Archived",
-                    f"{len(rows)} archived demo records preserved.",
-                    [("Records", len(rows))],
-                ),
-                unsafe_allow_html=True,
+            render_business_card(
+                table_name.replace("_", " ").title(),
+                "Archived",
+                f"{len(rows)} archived demo records preserved.",
+                [("Records", len(rows))],
             )
             with st.expander("Technical Details"):
                 st.dataframe(rows, use_container_width=True)
