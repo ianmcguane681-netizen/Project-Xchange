@@ -849,9 +849,6 @@ with tabs[22]:
     st.dataframe(list_system_recommendations(DB_PATH), use_container_width=True)
 
 with tabs[23]:
-    st.header("Golden Study 001")
-    st.caption("Operational research and audit workflow for the global Property Management market.")
-
     study = get_or_create_default_study(DB_PATH)
     active_run = get_active_study_run(DB_PATH, DEFAULT_STUDY_ID)
     active_run_id = str((active_run or {}).get("id") or "")
@@ -1472,27 +1469,9 @@ with tabs[23]:
     audits = list_finding_audits(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
     opportunities = list_opportunities(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
 
-    if is_demo_run:
-        st.warning("DEMO RUN ACTIVE - sample evidence only. Do not approve as real market evidence.")
-        st.info("Demo rehearsal mode: workflow can be tested safely, but no real opportunities are created.")
-    elif is_production_run:
-        st.success("PRODUCTION RUN ACTIVE - only real, source-backed evidence is allowed.")
-    else:
-        st.info("No active Golden Study run. Create a demo run or start a production run.")
     show_golden_flash()
 
-    top_problem_for_shell = findings[0] if findings else {}
-    top_opportunity_for_shell = opportunities[0] if opportunities else {}
-    shell_score = displayed_oci(top_opportunity_for_shell) if top_opportunity_for_shell else demo_oci(top_problem_for_shell)
-    shell_score_label = "Demo OCI" if is_demo_run else "Overall OCI"
-    shell_top_problem = str(
-        top_problem_for_shell.get("theme")
-        or top_opportunity_for_shell.get("recommended_component")
-        or "Waiting for evidence"
-    )
     mode_label = "Demo Mode" if is_demo_run else "Production Mode" if is_production_run else "No Active Run"
-    mode_tone = "orange" if is_demo_run else "green" if is_production_run else "red"
-    evidence_note = f"{progress['source_coverage']} sources across {len(progress['countries_covered'])} countries"
     production_empty = is_production_run and not any(
         [
             progress["signals_collected"],
@@ -1503,33 +1482,13 @@ with tabs[23]:
         ]
     )
 
-    with st.container(border=True):
-        st.caption(f"{mode_label} | {str(run_status or 'Waiting').title()}")
-        st.title("Golden Study Executive Dashboard")
-        st.caption("Operational research workflow for maintenance communication opportunities.")
-        if production_empty:
-            st.subheader("Production Mode Active")
-            st.write("No production research has been started.")
-            action_cols = st.columns(2)
-            if action_cols[0].button("+ Add First Verified Evidence", key="gs001_shell_add_first_verified", type="primary"):
-                st.session_state["gs001_focus_add_evidence"] = True
-            if action_cols[1].button("View Demo History", key="gs001_shell_view_demo_history"):
-                st.session_state["gs001_focus_demo_history"] = True
-        else:
-            card_cols = st.columns(6)
-            with card_cols[0]:
-                render_status_card("Current Run", mode_label, "Demo and production runs stay separated", mode_label)
-            with card_cols[1]:
-                render_status_card("Signals", progress["signals_collected"], "Evidence captured in this run", workflow_stage_status("Signals"))
-            with card_cols[2]:
-                render_status_card("Findings", progress["findings_created"], "Problems formed from evidence", workflow_stage_status("Findings"))
-            with card_cols[3]:
-                render_status_card("Audits", progress["audits_completed"], "Evidence reviews completed", workflow_stage_status("Audits"))
-            with card_cols[4]:
-                render_status_card(shell_score_label, shell_score, "Demo score is rehearsal-only" if is_demo_run else "Production score excludes demo data", mode_label)
-            with card_cols[5]:
-                render_status_card("Engineering Ready", len(progress["engineering_ready"]), "Current-run specs only", workflow_stage_status("Engineering Ready"))
-        st.info(f"Top opportunity: {shell_top_problem} | {evidence_note} | Next action: {recommended_action_text()}")
+    title_cols = st.columns([4, 1])
+    with title_cols[0]:
+        st.header("Golden Study 001")
+        st.caption("Operational research and audit workflow for Global Property Management")
+    with title_cols[1]:
+        st.caption(badge_html(mode_label))
+        st.caption(f"Run status: {str(run_status or 'Waiting').title()}")
 
     workflow_tabs = st.tabs([
         "Mission Control",
@@ -2116,7 +2075,7 @@ with tabs[23]:
                     [("Checks", len(relevant)), ("Failed", len(failed)), ("Recommended fix", fix)],
                 )
         with st.expander("Technical Details"):
-            st.dataframe(
+            st.json(
                 [
                     {
                         "Status": "Passed" if row.get("passed") else "Failed",
@@ -2126,9 +2085,7 @@ with tabs[23]:
                         "Severity": "High" if not row.get("passed") else "OK",
                     }
                     for row in checks
-                ],
-                use_container_width=True,
-                hide_index=True,
+                ]
             )
 
     with workflow_tabs[10]:
@@ -2160,7 +2117,7 @@ with tabs[23]:
                 [("Records", len(rows))],
             )
             with st.expander("Technical Details"):
-                st.dataframe(rows, use_container_width=True)
+                st.json(rows)
 
     with workflow_tabs[11]:
         section_header("Raw Database View - technical audit only", "Full ID-heavy tables are intentionally kept here for inspection.", "Technical")
