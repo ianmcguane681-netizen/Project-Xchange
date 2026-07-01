@@ -33,13 +33,92 @@ STAKEHOLDER_KEYWORDS = {
 }
 
 GS001_REAL_EVIDENCE_QUERIES = [
-    "tenant complaint maintenance request no response property management",
-    "apartment resident complaints maintenance not fixed property manager",
-    "property management company complaints maintenance communication",
-    "HOA management complaints maintenance communication",
-    "property manager maintenance request delayed tenant complaint",
-    "rental property maintenance complaints poor communication",
+    "tenant maintenance complaint property management",
+    "tenant maintenance ignored",
+    "property management complaint maintenance delay",
+    "property management repair complaint",
+    "maintenance request ignored",
+    "maintenance response time complaint",
+    "property manager never fixes repairs",
+    "site:bbb.org property management complaints",
+    "site:bbb.org maintenance complaint",
+    "site:bbb.org landlord complaint",
+    "site:consumeraffairs.com property management",
+    "site:consumeraffairs.com apartment management",
+    "site:consumeraffairs.com landlord complaints",
+    "site:.gov tenant maintenance complaint",
+    "site:hud.gov maintenance complaint",
+    "site:.gov landlord repairs",
+    "site:.gov habitability complaint",
+    "site:ag.* tenant complaint",
+    "site:ag.* landlord complaint",
+    "site:ombudsman.org property management",
+    "site:housing-ombudsman.org.uk repairs",
+    "tenant maintenance lawsuit",
+    "property management lawsuit maintenance",
+    "habitability lawsuit landlord",
+    "tenant maintenance complaints",
+    "property management fined maintenance",
+    "landlord maintenance investigation",
+    "property management reviews maintenance",
+    "apartment management complaints",
+    "reddit tenant maintenance ignored",
+    "reddit landlord repair complaint",
 ]
+
+GS001_EVIDENCE_QUERY_GROUPS = {
+    "consumer_complaint": [
+        "tenant maintenance complaint property management",
+        "tenant maintenance ignored",
+        "property management complaint maintenance delay",
+        "property management repair complaint",
+        "maintenance request ignored",
+        "maintenance response time complaint",
+        "property manager never fixes repairs",
+    ],
+    "bbb": [
+        "site:bbb.org property management complaints",
+        "site:bbb.org maintenance complaint",
+        "site:bbb.org landlord complaint",
+    ],
+    "consumer_affairs": [
+        "site:consumeraffairs.com property management",
+        "site:consumeraffairs.com apartment management",
+        "site:consumeraffairs.com landlord complaints",
+    ],
+    "government": [
+        "site:.gov tenant maintenance complaint",
+        "site:hud.gov maintenance complaint",
+        "site:.gov landlord repairs",
+        "site:.gov habitability complaint",
+    ],
+    "attorney_general": [
+        "site:ag.* tenant complaint",
+        "site:ag.* landlord complaint",
+    ],
+    "housing_ombudsman": [
+        "site:ombudsman.org property management",
+        "site:housing-ombudsman.org.uk repairs",
+    ],
+    "court_cases": [
+        "tenant maintenance lawsuit",
+        "property management lawsuit maintenance",
+        "habitability lawsuit landlord",
+    ],
+    "news": [
+        "tenant maintenance complaints",
+        "property management fined maintenance",
+        "landlord maintenance investigation",
+    ],
+    "review_platforms": [
+        "property management reviews maintenance",
+        "apartment management complaints",
+    ],
+    "forums": [
+        "reddit tenant maintenance ignored",
+        "reddit landlord repair complaint",
+    ],
+}
 
 VALID_COMPLAINT_RELEVANCE = {"complaint", "operational_pain", "workflow_inefficiency"}
 PRODUCTION_ELIGIBLE_CLASSIFICATIONS = {"verified_complaint", "operational_pain", "workflow_inefficiency"}
@@ -1609,6 +1688,14 @@ def pull_real_market_evidence(
             "status": "blocked",
             "message": "Real market evidence can only be pulled in Production Mode.",
             "sources_searched": 0,
+            "queries_executed": 0,
+            "urls_retrieved": 0,
+            "urls_skipped": 0,
+            "vendor_urls": 0,
+            "government_urls": 0,
+            "complaint_urls": 0,
+            "accepted_signals": 0,
+            "rejected_signals": 0,
             "candidate_results_found": 0,
             "signals_stored": 0,
             "skipped_duplicates": 0,
@@ -1630,6 +1717,14 @@ def pull_real_market_evidence(
                 "status": "blocked",
                 "message": str(readiness["message"]),
                 "sources_searched": 0,
+                "queries_executed": 0,
+                "urls_retrieved": 0,
+                "urls_skipped": 0,
+                "vendor_urls": 0,
+                "government_urls": 0,
+                "complaint_urls": 0,
+                "accepted_signals": 0,
+                "rejected_signals": 0,
                 "candidate_results_found": 0,
                 "signals_stored": 0,
                 "skipped_duplicates": 0,
@@ -1652,15 +1747,21 @@ def pull_real_market_evidence(
     skipped: list[dict[str, object]] = []
     skipped_openai = 0
     sources_searched = 0
-    for query in GS001_REAL_EVIDENCE_QUERIES:
+    urls_retrieved = 0
+    urls_skipped = 0
+    query_runs = [(group, query) for group, queries in GS001_EVIDENCE_QUERY_GROUPS.items() for query in queries]
+    for query_group, query in query_runs:
         sources_searched += 1
         command = {
             "study": study_id,
             "industry": "Residential Property Management",
             "market": "United States",
             "keyword": query,
+            "query_group": query_group,
             "focus": "Maintenance Communication",
             "objective": "collect real, source-backed evidence of recurring problems, complaints, inefficiencies, or unmet needs",
+            "preferred_sources": ["government", "regulators", "courts", "BBB", "Consumer Affairs", "ombudsman", "major news", "review platforms", "forums"],
+            "avoid_sources": ["vendor websites", "pricing pages", "feature pages", "product landing pages", "software blogs"],
         }
         for provider in providers:
             provider_name = str(getattr(provider, "name", provider.__class__.__name__))
@@ -1677,20 +1778,46 @@ def pull_real_market_evidence(
                 continue
             for result in results:
                 normalized = normalize_provider_result(result, query, retrieved_at)
+                normalized["query_group"] = query_group
                 candidates.append(normalized)
-                if len(candidates) >= max_sources:
-                    break
-            if len(candidates) >= max_sources:
-                break
-        if len(candidates) >= max_sources:
-            break
+                urls_retrieved += 1
+
+    deduped_candidates: list[dict[str, object]] = []
+    seen_candidate_keys: set[str] = set()
+    discovery_duplicates = 0
+    prefilter_vendor_urls = 0
+    government_urls = 0
+    complaint_urls = 0
+    for candidate in candidates:
+        key = str(candidate.get("source_url") or candidate.get("raw_text") or "").strip().lower()
+        if key and key in seen_candidate_keys:
+            urls_skipped += 1
+            discovery_duplicates += 1
+            skipped.append({"reason": "duplicate", "stage": "discovery", "candidate": candidate})
+            continue
+        if key:
+            seen_candidate_keys.add(key)
+        if candidate.get("classification") == "vendor_content":
+            prefilter_vendor_urls += 1
+        if candidate.get("source_type_detected") in {"government", "court", "ombudsman"}:
+            government_urls += 1
+        if candidate.get("accepted_complaint_evidence"):
+            complaint_urls += 1
+        deduped_candidates.append(candidate)
+    candidates = sorted(
+        deduped_candidates,
+        key=lambda candidate: int(candidate.get("discovery_priority_score") or 0),
+        reverse=True,
+    )
 
     stored = []
     skipped_missing = 0
     skipped_duplicates = 0
     skipped_not_pain = 0
     skipped_market_generic = 0
-    for candidate in candidates[:max_sources]:
+    for candidate in candidates:
+        if len(stored) >= max_sources:
+            break
         if "openai" in str(candidate.get("provider_name") or "").lower():
             skipped_openai += 1
             skipped.append({"reason": "openai_not_evidence", "candidate": candidate})
@@ -1751,9 +1878,17 @@ def pull_real_market_evidence(
         "status": status,
         "message": message,
         "sources_searched": sources_searched,
+        "queries_executed": sources_searched,
+        "urls_retrieved": urls_retrieved,
+        "urls_skipped": urls_skipped,
+        "vendor_urls": prefilter_vendor_urls,
+        "government_urls": government_urls,
+        "complaint_urls": complaint_urls,
+        "accepted_signals": len(stored),
+        "rejected_signals": skipped_not_pain + skipped_market_generic,
         "candidate_results_found": len(candidates),
         "signals_stored": len(stored),
-        "skipped_duplicates": skipped_duplicates,
+        "skipped_duplicates": skipped_duplicates + discovery_duplicates,
         "skipped_missing_source_or_text": skipped_missing,
         "skipped_not_complaint_or_pain_evidence": skipped_not_pain,
         "skipped_market_size_generic_or_marketing": skipped_market_generic,
@@ -1768,9 +1903,22 @@ def pull_real_market_evidence(
             "study_id": study_id,
             "study_run_id": active_run["id"],
             "queries": GS001_REAL_EVIDENCE_QUERIES,
+            "query_groups": GS001_EVIDENCE_QUERY_GROUPS,
             "retrieved_at": retrieved_at,
             "skipped": skipped,
             "candidates": candidates,
+            "domain_learning": discovery_domain_learning(candidates),
+            "discovery_metrics": {
+                "queries_executed": sources_searched,
+                "urls_retrieved": urls_retrieved,
+                "urls_skipped": urls_skipped,
+                "discovery_duplicates": discovery_duplicates,
+                "vendor_urls": prefilter_vendor_urls,
+                "government_urls": government_urls,
+                "complaint_urls": complaint_urls,
+                "accepted_signals": len(stored),
+                "rejected_signals": skipped_not_pain + skipped_market_generic,
+            },
         },
     }
     add_event(db_path, "GoldenStudyEvidencePulled", "PX-R001", message, str(len(stored)), study_id)
@@ -1785,6 +1933,9 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
     raw_text = snippet if snippet else ""
     quality = evidence_quality_profile(f"{title}\n{snippet}", query, url, title)
     source_type = normalize_source_type(str(getattr(result, "source_type", "") or ""), url, title)
+    discovery_score = discovery_url_priority_score(url, title, snippet) + int(quality.get("source_trust_score") or 0)
+    if quality.get("accepted_complaint_evidence"):
+        discovery_score += 50
     return {
         "provider_name": provider_name,
         "query": query,
@@ -1799,6 +1950,7 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
         "raw_text": raw_text,
         "summary": summarize(snippet or title),
         "source_confidence": rough_provider_evidence_strength(provider_name, url, snippet),
+        "discovery_priority_score": discovery_score,
         **quality,
     }
 
@@ -2079,6 +2231,55 @@ def source_domain_or_identity(signal: dict[str, object]) -> str:
         parsed = urlparse(url)
         return parsed.netloc.lower().removeprefix("www.") or url
     return str(signal.get("source_name") or signal.get("id") or "unknown")
+
+
+def url_domain(url: str) -> str:
+    parsed = urlparse(str(url or "").strip())
+    return parsed.netloc.lower().removeprefix("www.") or str(url or "").strip().lower()
+
+
+def discovery_url_priority_score(url: str, title: str = "", text: str = "") -> int:
+    lower = " ".join([url, title, text]).lower()
+    score = 0
+    boosts = {
+        "bbb.org": 95,
+        "consumeraffairs.com": 95,
+        ".gov": 95,
+        ".gov.uk": 95,
+        "housing-ombudsman": 94,
+        "ombudsman": 90,
+        "courtlistener": 90,
+        "justice.gov": 95,
+        "hud.gov": 95,
+        "attorneygeneral": 90,
+        "reuters": 85,
+        "apnews": 85,
+        "bbc": 85,
+        "guardian": 80,
+        "reddit": 45,
+        "forum": 40,
+    }
+    penalties = ["pricing", "features", "product", "demo", "blog", "our-software", "industries", "solution", "use-cases", "customers", "case-studies"]
+    for marker, boost in boosts.items():
+        if marker in lower:
+            score += boost
+    for marker in penalties:
+        if marker in lower:
+            score -= 45
+    return score
+
+
+def discovery_domain_learning(candidates: list[dict[str, object]]) -> dict[str, list[str]]:
+    accepted_domains = sorted({url_domain(str(candidate.get("source_url") or "")) for candidate in candidates if candidate.get("accepted_complaint_evidence") and candidate.get("source_url")})
+    trusted_domains = sorted({url_domain(str(candidate.get("source_url") or "")) for candidate in candidates if int(candidate.get("source_trust_score") or 0) >= 80 and candidate.get("source_url")})
+    vendor_domains = sorted({url_domain(str(candidate.get("source_url") or "")) for candidate in candidates if candidate.get("classification") == "vendor_content" and candidate.get("source_url")})
+    rejected_domains = sorted({url_domain(str(candidate.get("source_url") or "")) for candidate in candidates if not candidate.get("accepted_complaint_evidence") and candidate.get("source_url")})
+    return {
+        "accepted_domains": [domain for domain in accepted_domains if domain],
+        "trusted_domains": [domain for domain in trusted_domains if domain],
+        "vendor_domains": [domain for domain in vendor_domains if domain],
+        "rejected_domains": [domain for domain in rejected_domains if domain],
+    }
 
 
 def is_accepted_production_signal(signal: dict[str, object]) -> bool:

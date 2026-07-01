@@ -73,6 +73,56 @@ class BrokenEvidenceProvider:
         raise RuntimeError("provider unavailable")
 
 
+class QueryAwareEvidenceProvider:
+    name = "Tavily"
+
+    def __init__(self):
+        self.commands = []
+
+    def search(self, command):
+        self.commands.append(command)
+        keyword = str(command.get("keyword") or "")
+        if "bbb.org" in keyword:
+            return [
+                ProviderResult(
+                    "Tavily",
+                    "BBB property management maintenance complaint",
+                    "https://www.bbb.org/property-management-maintenance-complaint",
+                    "Tenant complaint says maintenance request had no response and apartment repair was delayed.",
+                    "search_result",
+                )
+            ]
+        if "consumeraffairs.com" in keyword:
+            return [
+                ProviderResult(
+                    "Tavily",
+                    "Consumer Affairs maintenance complaint",
+                    "https://www.consumeraffairs.com/property-management-maintenance",
+                    "Property manager complaint says maintenance request updates are slow and tenants are not updated.",
+                    "search_result",
+                )
+            ]
+        if "reddit" in keyword:
+            return [
+                ProviderResult(
+                    "Tavily",
+                    "Reddit landlord repair complaint",
+                    "https://www.reddit.com/r/tenant/comments/repair",
+                    "Resident complaint says rental maintenance request is unresolved and repair communication is poor.",
+                    "search_result",
+                )
+            ]
+        return [
+            ProviderResult(
+                "Tavily",
+                "Vendor maintenance response page",
+                "https://vendor.example.com/industries/property-management/maintenance-response",
+                "Our platform tracks maintenance response times and automates work orders.",
+                "search_result",
+            )
+        ]
+
+
 def start_production_run(db_path):
     return switch_study_run_mode(db_path, DEFAULT_STUDY_ID, "production", production_confirmed=True)
 
@@ -719,6 +769,27 @@ def test_pull_real_market_evidence_creates_provider_signal_in_active_production_
     assert metadata["original_query"] == result["queries"][0]
     assert metadata["retrieved_at"]
     assert metadata["original_title"] == "Tenant maintenance complaints rise"
+
+
+def test_evidence_discovery_runs_focused_query_groups_and_prioritizes_trusted_sources(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = QueryAwareEvidenceProvider()
+
+    result = pull_real_market_evidence(db_path, providers=[provider], max_sources=2)
+    signals = list_signals(db_path)
+
+    assert len(provider.commands) >= 15
+    assert {command["query_group"] for command in provider.commands} >= {"consumer_complaint", "bbb", "consumer_affairs", "government", "forums"}
+    assert result["queries_executed"] == len(provider.commands)
+    assert result["urls_retrieved"] >= len(provider.commands)
+    assert result["vendor_urls"] > 0
+    assert result["complaint_urls"] >= 2
+    assert result["accepted_signals"] == 2
+    assert result["signals_stored"] == 2
+    assert result["technical_details"]["domain_learning"]["trusted_domains"]
+    assert all("vendor.example.com" not in str(signal.get("source_url")) for signal in signals)
 
 
 def test_pull_real_market_evidence_skips_duplicate_url_and_raw_text(tmp_path):
