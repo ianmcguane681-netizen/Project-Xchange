@@ -3,6 +3,7 @@ from project_exchange.golden_study import (
     DEFAULT_STUDY_ID,
     approve_audited_opportunities,
     approval_feedback,
+    archive_all_demo_data,
     archive_record,
     audit_batch_feedback,
     audit_finding,
@@ -285,6 +286,31 @@ def test_demo_data_is_labelled_and_blocked_from_approval(tmp_path):
     assert opportunity["is_demo"] == 1
     assert opportunity["data_origin"] == "demo"
     assert opportunity["verification_status"] == "unverified"
+
+
+def test_archive_all_demo_data_preserves_records_and_archives_briefs(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    create_signal(db_path, "Property managers repeatedly complain that maintenance communication is slow.", source_name="Demo A")
+    create_signal(db_path, "Tenants repeatedly complain that maintenance communication is slow.", source_name="Demo B")
+    generate_findings(db_path)
+    run_audit_batch(db_path)
+    approve_audited_opportunities(db_path)
+    generate_executive_brief(db_path)
+
+    result = archive_all_demo_data(db_path)
+    rows = {
+        table_name: fetch_all(db_path, table_name)
+        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]
+    }
+    demo_runs = [run for run in list_study_runs(db_path) if run["study_mode"] == "demo"]
+
+    assert result["records_archived"] >= 5
+    assert all(row["status"] == "archived" for table_rows in rows.values() for row in table_rows)
+    assert demo_runs[0]["status"] == "archived"
+    assert rows["study_signals"]
+    assert rows["study_briefs"]
 
 
 def test_switching_to_production_creates_clean_active_run(tmp_path):

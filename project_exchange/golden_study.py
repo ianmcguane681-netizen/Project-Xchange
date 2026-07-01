@@ -308,7 +308,7 @@ def switch_study_run_mode(
 def archive_run_records(db_path: str | Path, study_id: str, study_run_id: str, demo_only: bool = True) -> list[dict[str, object]]:
     archived = []
     with connect(db_path) as connection:
-        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
+        for table_name in RUN_SCOPED_TABLES:
             demo_clause = "AND is_demo = 1" if demo_only else ""
             rows = connection.execute(
                 f"""
@@ -322,6 +322,61 @@ def archive_run_records(db_path: str | Path, study_id: str, study_run_id: str, d
     for row in archived:
         archive_record(db_path, str(row["table"]), str(row["id"]))
     return archived
+
+
+def archive_all_demo_data(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    """Archive demo records and demo runs while preserving traceability."""
+    archived: list[dict[str, object]] = []
+    with connect(db_path) as connection:
+        for table_name in RUN_SCOPED_TABLES:
+            rows = connection.execute(
+                f"""
+                SELECT id FROM {table_name}
+                WHERE study_id = ? AND is_demo = 1 AND status != 'archived'
+                """,
+                (study_id,),
+            ).fetchall()
+            archived.extend({"table": table_name, "id": row["id"]} for row in rows)
+    for row in archived:
+        archive_record(db_path, str(row["table"]), str(row["id"]))
+
+    now = utc_now()
+    with connect(db_path) as connection:
+        demo_runs = connection.execute(
+            """
+            SELECT id, status FROM study_runs
+            WHERE study_id = ? AND study_mode = 'demo' AND status != 'archived'
+            """,
+            (study_id,),
+        ).fetchall()
+        for run in demo_runs:
+            connection.execute(
+                """
+                UPDATE study_runs
+                SET status = 'archived', closed_at = COALESCE(closed_at, ?), notes = ?
+                WHERE id = ?
+                """,
+                (now, "Demo data archived through Golden Study cleanup action.", run["id"]),
+            )
+        counts = {
+            table_name: sum(1 for row in archived if row["table"] == table_name)
+            for table_name in RUN_SCOPED_TABLES
+        }
+    add_event(
+        db_path,
+        "DemoDataArchived",
+        "PX-H001",
+        "Golden Study demo data archived instead of deleted",
+        json.dumps(counts, ensure_ascii=False),
+        study_id,
+    )
+    return {
+        "study_id": study_id,
+        "status": "archived",
+        "records_archived": len(archived),
+        "runs_archived": len(demo_runs),
+        "counts": counts,
+    }
 
 
 def assign_legacy_records_to_runs(db_path: str | Path, study_id: str, active_run_id: str) -> None:
@@ -1076,6 +1131,7 @@ def archive_record(db_path: str | Path, table_name: str, record_id: str) -> dict
         "study_findings": "id",
         "finding_audits": "id",
         "opportunity_records": "id",
+        "study_briefs": "id",
     }
     if table_name not in allowed:
         raise ValueError(f"Unsupported archive table: {table_name}")
@@ -1190,7 +1246,7 @@ def archived_count(db_path: str | Path, study_id: str, study_run_id: str | None 
     run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
     total = 0
     with connect(db_path) as connection:
-        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
+        for table_name in RUN_SCOPED_TABLES:
             total += int(connection.execute(f"SELECT COUNT(*) AS count FROM {table_name} WHERE study_id = ? AND study_run_id = ? AND status = 'archived'", (study_id, run_id)).fetchone()["count"])
     return total
 

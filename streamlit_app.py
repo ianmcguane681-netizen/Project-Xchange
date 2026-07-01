@@ -53,6 +53,7 @@ from project_exchange.golden_study import (
     DEFAULT_STUDY_ID,
     approve_audited_opportunities,
     approval_feedback,
+    archive_all_demo_data,
     archive_record,
     audit_batch_feedback,
     audit_finding,
@@ -1097,8 +1098,94 @@ with tabs[23]:
             padding: 14px;
             background: #FFFFFF;
         }
+        .px-section-header {
+            border: 1px solid #D7E2F6;
+            border-left: 6px solid #003399;
+            border-radius: 16px;
+            padding: 16px 18px;
+            background: linear-gradient(90deg, #FFFFFF 0%, #F7F9FC 100%);
+            box-shadow: 0 8px 22px rgba(31, 41, 55, 0.06);
+            margin: 10px 0 14px 0;
+        }
+        .px-section-header h3 {
+            margin: 0;
+            color: #003399;
+            font-size: 1.15rem;
+        }
+        .px-section-header p {
+            margin: 4px 0 0 0;
+            color: #6B7280;
+            font-size: 0.9rem;
+        }
+        .px-business-card {
+            border: 1px solid #E5EAF2;
+            border-top: 4px solid #003399;
+            border-radius: 14px;
+            padding: 16px;
+            background: #FFFFFF;
+            box-shadow: 0 8px 20px rgba(31, 41, 55, 0.055);
+            margin-bottom: 12px;
+        }
+        .px-business-card h4 {
+            margin: 0 0 8px 0;
+            color: #1F2937;
+            font-size: 1rem;
+        }
+        .px-card-meta {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .px-card-summary {
+            color: #1F2937;
+            line-height: 1.45;
+            margin: 0 0 12px 0;
+        }
+        .px-card-kpis {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .px-card-kpi {
+            border: 1px solid #E5EAF2;
+            border-radius: 10px;
+            padding: 9px;
+            background: #F7F9FC;
+        }
+        .px-card-kpi span {
+            display: block;
+            color: #6B7280;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .px-card-kpi strong {
+            display: block;
+            color: #1F2937;
+            font-size: 1rem;
+            margin-top: 3px;
+        }
+        .px-brief-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .px-brief-item {
+            border: 1px solid #E5EAF2;
+            border-radius: 12px;
+            padding: 12px;
+            background: #F7F9FC;
+        }
+        .px-brief-item strong {
+            display: block;
+            color: #003399;
+            margin-bottom: 4px;
+        }
         @media (max-width: 1000px) {
-            .px-card-grid, .px-workflow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .px-card-grid, .px-workflow, .px-card-kpis, .px-brief-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .golden-shell-header {
                 background: linear-gradient(180deg, #003399 0%, #0047CC 62%, #F7F9FC 62%, #FFFFFF 100%);
                 align-items: flex-start;
@@ -1220,38 +1307,85 @@ with tabs[23]:
         return "blue"
 
     def badge_html(value: object) -> str:
-        return f'<span class="px-badge px-badge-{badge_class(value)}">{html_escape(badge_text(value))}</span>'
+        return f"Status: {badge_text(value)}"
 
     def metric_card(icon: str, title: str, value: object, description: str, status: object = "Active") -> str:
-        return f"""
-        <div class="px-metric-card">
-            <div class="px-metric-top">
-                <span class="px-icon">{html_escape(icon)}</span>
-                {badge_html(status)}
-            </div>
-            <div class="px-card-title">{html_escape(title)}</div>
-            <div class="px-metric-value">{html_escape(value)}</div>
-            <div class="px-muted">{html_escape(description)}</div>
-        </div>
-        """
+        return f"**{title}**\n\n{value}\n\n{description}\n\n{badge_html(status)}"
+
+    def section_header(title: str, subtitle: str = "", status: object | None = None) -> None:
+        with st.container(border=True):
+            if status:
+                st.caption(badge_html(status))
+            st.subheader(title)
+            if subtitle:
+                st.caption(subtitle)
 
     def shell_status_card(label: str, value: object, note: str, tone: str = "blue") -> str:
-        return f"""
-        <div class="golden-status-card is-{html_escape(tone)}">
-            <div class="golden-status-label">{html_escape(label)}</div>
-            <div class="golden-status-value">{html_escape(value)}</div>
-            <div class="golden-status-note">{html_escape(note)}</div>
-        </div>
-        """
+        return f"**{label}**\n\n{value}\n\n{note}"
+
+    def business_card_html(title: object, status: object, summary: object, kpis: list[tuple[str, object]] | None = None) -> str:
+        lines = [f"**{title or 'Untitled'}**", "", badge_html(status), "", str(summary or "No summary available.")]
+        if kpis:
+            lines.extend(["", *[f"- **{label}:** {value}" for label, value in kpis]])
+        return "\n".join(lines)
+
+    def brief_item(label: str, value: object) -> str:
+        return f"**{label}:** {value or 'Not specified'}"
 
     def workflow_stage_card(stage: str) -> str:
         state = workflow_stage_status(stage)
-        return f"""
-        <div class="px-stage">
-            <div class="px-card-title">{html_escape(stage)}</div>
-            {badge_html(state)}
-        </div>
-        """
+        return f"**{stage}**\n\n{badge_html(state)}"
+
+    def render_status_card(label: str, value: object, note: str, status: object = "Active") -> None:
+        with st.container(border=True):
+            st.caption(badge_html(status))
+            st.metric(label, value)
+            st.caption(note)
+
+    def render_business_card(title: object, status: object, summary: object, kpis: list[tuple[str, object]] | None = None) -> None:
+        with st.container(border=True):
+            st.caption(badge_html(status))
+            st.markdown(f"**{title or 'Untitled'}**")
+            st.write(str(summary or "No summary available."))
+            if kpis:
+                cols = st.columns(min(4, len(kpis)))
+                for index, (label, value) in enumerate(kpis):
+                    cols[index % len(cols)].metric(str(label), value)
+
+    def production_timeline_status(stage: str) -> str:
+        if not is_production_run:
+            return workflow_stage_status(stage) if stage in {"Signals", "Findings", "Audits", "Opportunities", "Engineering Specs"} else "Not Started"
+        values = {
+            "Evidence Collection": progress["signals_collected"],
+            "Signal Detection": progress["signals_collected"],
+            "Finding Generation": progress["findings_created"],
+            "Audit": progress["audits_completed"],
+            "Opportunity": progress["opportunities_approved"],
+            "Engineering Spec": len([row for row in opportunities if row.get("engineering_status")]),
+            "Prototype": 0,
+            "Internal Validation": 0,
+            "External Validation": 0,
+            "Commercial Ready": 0,
+        }
+        order = list(values)
+        current = values.get(stage, 0)
+        if current:
+            return "Complete"
+        index = order.index(stage)
+        if index == 0:
+            return "Active"
+        if values.get(order[index - 1], 0):
+            return "Active"
+        return "Locked" if progress["signals_collected"] == 0 else "Not Started"
+
+    def render_workflow_timeline(stages: list[str]) -> None:
+        cols = st.columns(5)
+        for index, stage in enumerate(stages):
+            with cols[index % 5]:
+                with st.container(border=True):
+                    state = production_timeline_status(stage)
+                    st.caption(badge_html(state))
+                    st.write(stage)
 
     def demo_oci(record: dict[str, object]) -> int:
         if not record:
@@ -1354,40 +1488,43 @@ with tabs[23]:
     mode_label = "Demo Mode" if is_demo_run else "Production Mode" if is_production_run else "No Active Run"
     mode_tone = "orange" if is_demo_run else "green" if is_production_run else "red"
     evidence_note = f"{progress['source_coverage']} sources across {len(progress['countries_covered'])} countries"
-    st.markdown(
-        f"""
-        <div class="golden-shell">
-            <div class="golden-shell-header">
-                <div class="golden-shell-title">
-                    <div class="golden-brand-mark">PX</div>
-                    <div>
-                        <h2>Golden Study Executive Dashboard</h2>
-                        <p>Operational research workflow for maintenance communication opportunities</p>
-                    </div>
-                </div>
-                <div class="golden-shell-actions">
-                    {badge_html(mode_label)}
-                    {badge_html(str(run_status or "Waiting").title())}
-                </div>
-            </div>
-            <div class="golden-shell-body">
-                <div class="golden-status-grid">
-                    {shell_status_card("Current Run", mode_label, "Demo and production runs stay separated", mode_tone)}
-                    {shell_status_card("Signals", progress["signals_collected"], "Evidence captured in this run", "blue")}
-                    {shell_status_card("Findings", progress["findings_created"], "Problems formed from evidence", "blue")}
-                    {shell_status_card("Audits", progress["audits_completed"], "Evidence reviews completed", "blue")}
-                    {shell_status_card(shell_score_label, shell_score, "Demo score is rehearsal-only" if is_demo_run else "Production score excludes demo data", "orange" if is_demo_run else "green")}
-                    {shell_status_card("Engineering Ready", len(progress["engineering_ready"]), "Current-run specs only", "green" if progress["engineering_ready"] else "blue")}
-                </div>
-                <div class="golden-callout">
-                    <div><strong>Top opportunity:</strong> {html_escape(shell_top_problem)} &middot; {html_escape(evidence_note)}</div>
-                    <div><strong>Next action:</strong> {html_escape(recommended_action_text())}</div>
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    production_empty = is_production_run and not any(
+        [
+            progress["signals_collected"],
+            progress["findings_created"],
+            progress["audits_completed"],
+            progress["opportunities_approved"],
+            len(progress["engineering_ready"]),
+        ]
     )
+
+    with st.container(border=True):
+        st.caption(f"{mode_label} | {str(run_status or 'Waiting').title()}")
+        st.title("Golden Study Executive Dashboard")
+        st.caption("Operational research workflow for maintenance communication opportunities.")
+        if production_empty:
+            st.subheader("Production Mode Active")
+            st.write("No production research has been started.")
+            action_cols = st.columns(2)
+            if action_cols[0].button("+ Add First Verified Evidence", key="gs001_shell_add_first_verified", type="primary"):
+                st.session_state["gs001_focus_add_evidence"] = True
+            if action_cols[1].button("View Demo History", key="gs001_shell_view_demo_history"):
+                st.session_state["gs001_focus_demo_history"] = True
+        else:
+            card_cols = st.columns(6)
+            with card_cols[0]:
+                render_status_card("Current Run", mode_label, "Demo and production runs stay separated", mode_label)
+            with card_cols[1]:
+                render_status_card("Signals", progress["signals_collected"], "Evidence captured in this run", workflow_stage_status("Signals"))
+            with card_cols[2]:
+                render_status_card("Findings", progress["findings_created"], "Problems formed from evidence", workflow_stage_status("Findings"))
+            with card_cols[3]:
+                render_status_card("Audits", progress["audits_completed"], "Evidence reviews completed", workflow_stage_status("Audits"))
+            with card_cols[4]:
+                render_status_card(shell_score_label, shell_score, "Demo score is rehearsal-only" if is_demo_run else "Production score excludes demo data", mode_label)
+            with card_cols[5]:
+                render_status_card("Engineering Ready", len(progress["engineering_ready"]), "Current-run specs only", workflow_stage_status("Engineering Ready"))
+        st.info(f"Top opportunity: {shell_top_problem} | {evidence_note} | Next action: {recommended_action_text()}")
 
     workflow_tabs = st.tabs([
         "Overview",
@@ -1409,38 +1546,61 @@ with tabs[23]:
         top_opportunity = opportunities[0] if opportunities else {}
         highest_score = displayed_oci(top_opportunity) if top_opportunity else demo_oci(top_problem)
         score_label = "Demo OCI" if is_demo_run else "Highest OCI"
-        st.markdown(
-            f"""
-            <div class="px-hero">
-                <div class="px-muted">Golden Study</div>
-                <h2>Executive Operating Dashboard</h2>
-                <div>{badge_html(run_mode.title())} {badge_html(run_status.title())}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="px-workflow">'
-            + "".join(workflow_stage_card(stage) for stage in ["Signals", "Findings", "Audits", "Opportunities", "Engineering Specs", "Engineering Ready"])
-            + "</div>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            '<div class="px-card-grid">'
-            + metric_card("SG", "Signals", progress["signals_collected"], "Evidence items in current run", workflow_stage_status("Signals"))
-            + metric_card("FN", "Findings", progress["findings_created"], "Problems formed from evidence", workflow_stage_status("Findings"))
-            + metric_card("AU", "Audits", progress["audits_completed"], "Verification reviews completed", workflow_stage_status("Audits"))
-            + metric_card("OP", "Opportunities", progress["opportunities_approved"], "Approved or demo opportunities", workflow_stage_status("Opportunities"))
-            + metric_card("SP", "Engineering Specs", len([row for row in opportunities if row.get("engineering_status")]), "Blueprints awaiting readiness", workflow_stage_status("Engineering Specs"))
-            + metric_card("BR", "Executive Brief", len(list_study_briefs(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)) if active_run_id else 0, "Current run brief count", "Complete" if list_study_briefs(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) else "Waiting")
-            + "</div>",
-            unsafe_allow_html=True,
-        )
+        section_header("Overview", "Current run workflow, evidence health, warnings, and safe mode controls.", mode_label)
+        if production_empty:
+            st.subheader("Production Mode Active")
+            st.write("No production research has been started.")
+            action_cols = st.columns(2)
+            if action_cols[0].button("+ Add First Verified Evidence", key="gs001_overview_add_first_verified", type="primary"):
+                st.session_state["gs001_focus_add_evidence"] = True
+                st.info("Open the Add Evidence tab to enter the first verified source.")
+            if action_cols[1].button("View Demo History", key="gs001_overview_view_demo_history"):
+                st.info("Open Archive / Demo History to view preserved demo records.")
+            st.caption("0% - Awaiting first verified evidence")
+            render_workflow_timeline([
+                "Evidence Collection",
+                "Signal Detection",
+                "Finding Generation",
+                "Audit",
+                "Opportunity",
+                "Engineering Spec",
+                "Prototype",
+                "Internal Validation",
+                "External Validation",
+                "Commercial Ready",
+            ])
+            empty_cols = st.columns(3)
+            with empty_cols[0]:
+                render_status_card("Signals", "No evidence collected", "Add verified evidence to begin.", "Active")
+            with empty_cols[1]:
+                render_status_card("Findings", "Waiting for evidence", "Findings unlock after repeated signals.", "Locked")
+            with empty_cols[2]:
+                render_status_card("Audits", "Locked until findings exist", "Audit requires auditable findings.", "Locked")
+            empty_cols = st.columns(3)
+            with empty_cols[0]:
+                render_status_card("Opportunities", "Locked until audit approval", "Production opportunities require approved audits.", "Locked")
+            with empty_cols[1]:
+                render_status_card("OCI", "Unavailable", "OCI appears after production opportunities exist.", "Locked")
+            with empty_cols[2]:
+                render_status_card("Engineering", "No approved opportunities", "Specs unlock after approval.", "Locked")
+        else:
+            render_workflow_timeline([
+                "Evidence Collection",
+                "Signal Detection",
+                "Finding Generation",
+                "Audit",
+                "Opportunity",
+                "Engineering Spec",
+                "Prototype",
+                "Internal Validation",
+                "External Validation",
+                "Commercial Ready",
+            ])
 
-        summary_cols = st.columns(3)
-        summary_cols[0].metric("Evidence Health", f"{progress['source_coverage']} sources")
-        summary_cols[1].metric(score_label, highest_score)
-        summary_cols[2].metric("Countries", len(progress["countries_covered"]))
+            summary_cols = st.columns(3)
+            summary_cols[0].metric("Evidence Health", f"{progress['source_coverage']} sources")
+            summary_cols[1].metric(score_label, highest_score)
+            summary_cols[2].metric("Countries", len(progress["countries_covered"]))
 
         st.subheader("Evidence Coverage")
         st.write(f"Countries: {', '.join(progress['countries_covered']) or 'None'}")
@@ -1458,6 +1618,7 @@ with tabs[23]:
 
         st.subheader("Recommended Next Action")
         if is_demo_run:
+            st.info("Demo Mode Active. Demo workflow can be rehearsed safely, but no real production opportunities are created.")
             if progress["opportunities_approved"] == 0 and progress["audits_completed"]:
                 st.write("Approve demo opportunities to continue rehearsal.")
             elif progress["audits_completed"] == 0 and progress["findings_created"]:
@@ -1466,15 +1627,48 @@ with tabs[23]:
                 st.write("Generate demo findings from sample signals.")
             else:
                 st.write("Start a production run when you are ready to use real market evidence.")
-            production_confirmed = st.checkbox("Confirm production GS-001", key="gs001_overview_production_confirmed")
-            if st.button("Start Production Run", key="gs001_overview_start_production", type="primary"):
-                try:
-                    result = switch_study_run_mode(DB_PATH, DEFAULT_STUDY_ID, "production", production_confirmed)
-                    set_golden_flash("success", "Production run started. Production KPIs now use a clean active run.", result)
+            cleanup_cols = st.columns(2)
+            with cleanup_cols[0]:
+                archive_confirmed = st.checkbox(
+                    "I understand this archives demo data and preserves it for history.",
+                    key="gs001_archive_demo_confirmed",
+                )
+                if st.button(
+                    "Clear / Archive All Demo Data",
+                    disabled=not archive_confirmed,
+                    key="gs001_archive_all_demo",
+                ):
+                    result = archive_all_demo_data(DB_PATH, DEFAULT_STUDY_ID)
+                    set_golden_flash(
+                        "success",
+                        f"{result['records_archived']} demo records archived and preserved for history.",
+                        result,
+                    )
                     st.rerun()
-                except ValueError as exc:
-                    st.error(str(exc))
+            with cleanup_cols[1]:
+                production_confirmed = st.checkbox(
+                    "I understand production mode requires real, source-backed evidence.",
+                    key="gs001_overview_production_confirmed",
+                )
+                if st.button(
+                    "Start Real / Production Run",
+                    key="gs001_overview_start_production",
+                    type="primary",
+                    disabled=not production_confirmed,
+                ):
+                    try:
+                        archive_result = archive_all_demo_data(DB_PATH, DEFAULT_STUDY_ID)
+                        run_result = switch_study_run_mode(DB_PATH, DEFAULT_STUDY_ID, "production", production_confirmed)
+                        set_golden_flash(
+                            "success",
+                            "Production run started. Production KPIs now use a clean active run.",
+                            {"archive": archive_result, "production_run": run_result},
+                        )
+                        st.rerun()
+                    except ValueError as exc:
+                        st.error(str(exc))
         elif is_production_run:
+            st.success("Production Mode Active. Add real, source-backed evidence to build production metrics.")
             if progress["signals_collected"] == 0:
                 st.write("Add real source-backed evidence.")
             elif progress["findings_created"] == 0:
@@ -1504,8 +1698,12 @@ with tabs[23]:
                 st.warning(warning)
 
     with workflow_tabs[1]:
+        section_header(
+            "Add Evidence",
+            "Capture source-backed production evidence or load clearly marked demo rehearsal records.",
+            "Production Mode Active" if is_production_run else "Demo Mode Active" if is_demo_run else "Waiting",
+        )
         if is_production_run:
-            st.subheader("Add Real Evidence")
             with st.form("golden_real_evidence_form"):
                 source_cols = st.columns(3)
                 signal_source = source_cols[0].text_input("Source URL", key="golden_real_source")
@@ -1554,17 +1752,28 @@ with tabs[23]:
             st.info("No active run is available.")
 
     with workflow_tabs[2]:
+        section_header("Signals", "Evidence cards for the current active run. Technical IDs stay inside each expander.", workflow_stage_status("Signals"))
+        if not signals:
+            st.info("No signals in this run yet.")
         for signal in signals:
             with st.container(border=True):
-                st.markdown(f"**{html_escape(signal.get('country') or 'Unknown')} | {html_escape(signal.get('stakeholder_type') or 'Unknown stakeholder')}**")
-                st.markdown(badge_html(signal.get("verification_status")), unsafe_allow_html=True)
-                st.write(str(signal.get("summary") or signal.get("raw_text") or "No evidence summary"))
+                st.markdown(
+                    business_card_html(
+                        f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown stakeholder'}",
+                        signal.get("verification_status"),
+                        signal.get("summary") or signal.get("raw_text") or "No evidence summary",
+                        [
+                            ("Evidence strength", signal.get("evidence_strength") or 0),
+                            ("Source", source_label(signal)),
+                            ("Origin", signal.get("data_origin")),
+                            ("Status", signal.get("status")),
+                        ],
+                    ),
+                    unsafe_allow_html=True,
+                )
                 cols = st.columns(3)
-                cols[0].metric("Evidence Strength", signal.get("evidence_strength") or 0)
-                cols[1].write(f"Source: {source_label(signal)}")
-                cols[2].write(f"Origin: {signal.get('data_origin')}")
                 if signal.get("source_url"):
-                    st.markdown(f"[View Source]({signal['source_url']})")
+                    cols[0].markdown(f"[View Source]({signal['source_url']})")
                 if st.button("Archive", key=f"archive_signal_{signal['id']}"):
                     archive_record(DB_PATH, "study_signals", str(signal["id"]))
                     st.rerun()
@@ -1572,19 +1781,29 @@ with tabs[23]:
                     st.json(signal)
 
     with workflow_tabs[3]:
+        section_header("Findings", "Problems generated from repeated supporting signals in the active run.", workflow_stage_status("Findings"))
         if st.button("Generate Findings", key="gs001_generate_findings"):
             generated = generate_findings(DB_PATH, DEFAULT_STUDY_ID)
             level, message = findings_feedback(generated)
             set_golden_flash(level, message, generated)
             st.rerun()
+        if not findings:
+            st.info("No findings yet. You need at least 2 supporting signals.")
         for finding in findings:
             with st.container(border=True):
-                show_record_card(
-                    str(finding.get("theme") or "Market problem"),
-                    finding.get("status"),
-                    "Confidence",
-                    finding.get("confidence_score") or 0,
-                    finding.get("problem_statement"),
+                st.markdown(
+                    business_card_html(
+                        str(finding.get("theme") or "Market problem"),
+                        finding.get("status"),
+                        finding.get("problem_statement"),
+                        [
+                            ("Confidence", finding.get("confidence_score") or 0),
+                            ("Signals", finding.get("signal_count") or 0),
+                            ("Sources", finding.get("independent_source_count") or 0),
+                            ("Countries", list_count(finding.get("countries"))),
+                        ],
+                    ),
+                    unsafe_allow_html=True,
                 )
                 cols = st.columns(3)
                 if cols[0].button("Audit Finding", key=f"audit_finding_{finding['id']}"):
@@ -1606,6 +1825,7 @@ with tabs[23]:
                     st.json(finding)
 
     with workflow_tabs[4]:
+        section_header("Audits", "Audit decisions, evidence scoring, reasoning and opportunity approval controls.", workflow_stage_status("Audits"))
         audit_actions = st.columns(2)
         with audit_actions[0]:
             if st.button("Run Audit Batch", key="gs001_run_audit_batch"):
@@ -1628,15 +1848,24 @@ with tabs[23]:
                 except ValueError as exc:
                     set_golden_flash("error", str(exc))
                     st.rerun()
+        if not audits:
+            st.info("No audits yet. Generate findings, then run the audit batch.")
         for audit in audits:
             finding_label = next((str(finding.get("theme")) for finding in findings if finding.get("id") == audit.get("finding_id")), "Audited finding")
             with st.container(border=True):
-                show_record_card(
-                    finding_label,
-                    audit.get("status") or audit.get("decision"),
-                    "Demo OCI" if bool(audit.get("is_demo")) else "OCI",
-                    demo_oci(audit) if bool(audit.get("is_demo")) else audit.get("opportunity_confidence_index") or 0,
-                    audit.get("recommendation"),
+                st.markdown(
+                    business_card_html(
+                        finding_label,
+                        audit.get("status") or audit.get("decision"),
+                        audit.get("recommendation"),
+                        [
+                            ("Evidence", audit.get("evidence_score") or 0),
+                            ("Pain", audit.get("pain_severity_score") or 0),
+                            ("Frequency", audit.get("frequency_score") or 0),
+                            ("Demo OCI" if bool(audit.get("is_demo")) else "OCI", demo_oci(audit) if bool(audit.get("is_demo")) else audit.get("opportunity_confidence_index") or 0),
+                        ],
+                    ),
+                    unsafe_allow_html=True,
                 )
                 cols = st.columns(2)
                 if cols[0].button("Approve Opportunity", key=f"approve_audit_{audit['id']}"):
@@ -1655,21 +1884,26 @@ with tabs[23]:
                     st.json(audit)
 
     with workflow_tabs[5]:
+        section_header("Opportunities", "Current-run opportunity cards with commercial and engineering readiness context.", workflow_stage_status("Opportunities"))
+        if not opportunities:
+            st.info("No opportunities yet. Audited findings can become demo or production opportunities depending on run mode.")
         for opportunity in opportunities:
             with st.container(border=True):
-                show_record_card(
-                    str(opportunity.get("recommended_component") or "Opportunity"),
-                    opportunity.get("status"),
-                    "Demo OCI" if bool(opportunity.get("is_demo")) else "OCI",
-                    displayed_oci(opportunity),
-                    opportunity.get("problem"),
+                st.markdown(
+                    business_card_html(
+                        str(opportunity.get("recommended_component") or "Opportunity"),
+                        opportunity.get("status"),
+                        opportunity.get("problem"),
+                        [
+                            ("Demo OCI" if bool(opportunity.get("is_demo")) else "OCI", displayed_oci(opportunity)),
+                            ("Commercial", opportunity.get("commercial_potential") or "Not set"),
+                            ("Complexity", opportunity.get("estimated_build_complexity") or "Not set"),
+                            ("Countries", list_count(opportunity.get("countries"))),
+                        ],
+                    ),
+                    unsafe_allow_html=True,
                 )
                 st.caption(f"Engineering status: {opportunity.get('engineering_status') or 'Not started'}")
-                opp_cols = st.columns(4)
-                opp_cols[0].metric("Commercial Potential", opportunity.get("commercial_potential") or "Not set")
-                opp_cols[1].metric("Engineering Complexity", opportunity.get("estimated_build_complexity") or "Not set")
-                opp_cols[2].metric("Evidence Quality", opportunity.get("source_confidence") or opportunity.get("opportunity_confidence_index") or 0)
-                opp_cols[3].metric("Countries", list_count(opportunity.get("countries")))
                 cols = st.columns(3)
                 if cols[0].button("View Evidence Chain", key=f"opp_chain_{opportunity['id']}"):
                     st.session_state["golden_chain_target_type"] = "Opportunity"
@@ -1683,21 +1917,31 @@ with tabs[23]:
                     st.json(opportunity)
 
     with workflow_tabs[6]:
+        section_header("Engineering Specs", "Professional engineering briefs for opportunities that are ready for specification.", workflow_stage_status("Engineering Specs"))
         spec_opportunities = [row for row in opportunities if row.get("engineering_status") in {"Engineering Specification Required", "Engineering Ready", "Demo Opportunity", "Demo Engineering Ready"}]
+        if not spec_opportunities:
+            st.info("No engineering specs yet. Create an opportunity first.")
         for row in spec_opportunities:
             demo_prefix = "Demo " if bool(row.get("is_demo")) else ""
             with st.container(border=True):
+                st.caption(badge_html(row.get("engineering_status") or "Not started"))
                 st.markdown(f"**{row.get('recommended_component') or 'Component'}**")
-                st.markdown(badge_html(row.get("engineering_status") or "Not started"), unsafe_allow_html=True)
-                st.write(f"Purpose: {row.get('problem_scope') or row.get('problem') or demo_prefix + 'rehearsal scope based on the current problem statement.'}")
-                st.write(f"Primary Users: {row.get('target_users') or demo_prefix + 'property managers and operations teams'}")
-                st.write(f"Secondary Users: {demo_prefix + 'tenants, owners, and support teams'}")
-                st.write(f"Inputs: {row.get('required_inputs') or demo_prefix + 'maintenance requests, status updates, source evidence, user notes'}")
-                st.write(f"Outputs: {row.get('expected_outputs') or demo_prefix + 'prioritised workflow, notifications, evidence summary, audit trail'}")
-                st.write(f"Dependencies: {demo_prefix + 'PX-R001 research, PX-A001 audit, PX-L001 library'}")
-                st.write(f"System Boundaries: {row.get('system_boundaries') or demo_prefix + 'no production automation until verified evidence exists'}")
-                st.write(f"Architecture Recommendation: {row.get('engineering_recommendation') or demo_prefix + 'component-first workflow with traceable evidence chain'}")
-                st.write(f"Implementation Complexity: {row.get('estimated_build_complexity') or 'Not specified'}")
+                brief_cols = st.columns(2)
+                items = [
+                    ("Purpose", row.get("problem_scope") or row.get("problem") or demo_prefix + "rehearsal scope based on the current problem statement."),
+                    ("Primary Users", row.get("target_users") or demo_prefix + "property managers and operations teams"),
+                    ("Secondary Users", demo_prefix + "tenants, owners, and support teams"),
+                    ("Inputs", row.get("required_inputs") or demo_prefix + "maintenance requests, status updates, source evidence, user notes"),
+                    ("Outputs", row.get("expected_outputs") or demo_prefix + "prioritised workflow, notifications, evidence summary, audit trail"),
+                    ("Dependencies", demo_prefix + "PX-R001 research, PX-A001 audit, PX-L001 library"),
+                    ("System Boundaries", row.get("system_boundaries") or demo_prefix + "no production automation until verified evidence exists"),
+                    ("Architecture Recommendation", row.get("engineering_recommendation") or demo_prefix + "component-first workflow with traceable evidence chain"),
+                    ("Implementation Complexity", row.get("estimated_build_complexity") or "Not specified"),
+                    ("Engineering Status", row.get("engineering_status") or "Not started"),
+                ]
+                for index, (label, value) in enumerate(items):
+                    with brief_cols[index % 2]:
+                        st.markdown(brief_item(label, value))
                 with st.expander("Technical Details"):
                     st.json(row)
         spec_options = {str(row.get("recommended_component") or row.get("problem") or row["id"]): row["id"] for row in spec_opportunities}
@@ -1725,6 +1969,7 @@ with tabs[23]:
                     st.rerun()
 
     with workflow_tabs[7]:
+        section_header("Evidence Chain", "Trace the business chain from evidence to finding, audit and opportunity.", "Traceability")
         include_history = st.toggle("Include archived/demo history", value=False, key="golden_chain_include_history")
         target_type = st.radio("Evidence target", ["Finding", "Opportunity"], horizontal=True, key="golden_chain_type")
         if target_type == "Finding":
@@ -1735,10 +1980,31 @@ with tabs[23]:
             if selected:
                 try:
                     chain = finding_evidence(DB_PATH, str(selected), include_archived=include_history)
-                    st.subheader(str(chain["finding"].get("theme") or selected))
-                    st.write(chain["finding"].get("problem_statement"))
-                    st.write("Signals")
-                    st.dataframe(compact_signals(chain["signals"]), use_container_width=True, hide_index=True)
+                    st.markdown(
+                        business_card_html(
+                            chain["finding"].get("theme") or "Finding",
+                            chain["finding"].get("status"),
+                            chain["finding"].get("problem_statement"),
+                            [
+                                ("Signals", len(chain["signals"])),
+                                ("Sources", len(chain.get("sources", []))),
+                                ("Mode", "Demo" if bool(chain["finding"].get("is_demo")) else "Production"),
+                                ("Confidence", chain["finding"].get("confidence_score") or 0),
+                            ],
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                    st.subheader("Supporting Signals")
+                    for signal in chain["signals"]:
+                        st.markdown(
+                            business_card_html(
+                                f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown'}",
+                                signal.get("verification_status"),
+                                signal.get("summary") or signal.get("raw_text"),
+                                [("Source", source_label(signal)), ("Strength", signal.get("evidence_strength") or 0)],
+                            ),
+                            unsafe_allow_html=True,
+                        )
                     with st.expander("Technical Details"):
                         st.json(chain)
                 except ValueError as exc:
@@ -1751,63 +2017,141 @@ with tabs[23]:
             if selected:
                 try:
                     chain = traceability_chain(DB_PATH, str(selected), include_archived=include_history)
-                    st.write(f"Opportunity: {chain['opportunity'].get('problem')}")
-                    st.write(f"Audit: {chain['audit'].get('decision')} | OCI {chain['audit'].get('opportunity_confidence_index')}")
-                    st.write(f"Finding: {chain['finding'].get('theme')}")
-                    st.dataframe(compact_signals(chain["signals"]), use_container_width=True, hide_index=True)
-                    st.write("Sources")
-                    st.dataframe(chain["sources"], use_container_width=True, hide_index=True)
+                    st.markdown(
+                        business_card_html(
+                            chain["opportunity"].get("recommended_component") or "Opportunity",
+                            chain["opportunity"].get("status"),
+                            chain["opportunity"].get("problem"),
+                            [
+                                ("Audit", chain["audit"].get("decision")),
+                                ("Finding", chain["finding"].get("theme")),
+                                ("Signals", len(chain["signals"])),
+                                ("Sources", len(chain["sources"])),
+                            ],
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                    st.subheader("Supporting Signals")
+                    for signal in chain["signals"]:
+                        st.markdown(
+                            business_card_html(
+                                f"{signal.get('country') or 'Unknown'} - {signal.get('stakeholder_type') or 'Unknown'}",
+                                signal.get("verification_status"),
+                                signal.get("summary") or signal.get("raw_text"),
+                                [("Source", source_label(signal)), ("Strength", signal.get("evidence_strength") or 0)],
+                            ),
+                            unsafe_allow_html=True,
+                        )
                     with st.expander("Technical Details"):
                         st.json(chain)
                 except ValueError as exc:
                     st.error(str(exc))
 
     with workflow_tabs[8]:
+        section_header("Executive Brief", "Founder-facing summary of the current run, risks, opportunities and next actions.", "Brief")
         if st.button("Generate Executive Brief", key="gs001_executive_brief"):
             brief = generate_executive_brief(DB_PATH, DEFAULT_STUDY_ID)
-            st.text(brief["body"])
-            with st.expander("Raw Data"):
+            st.markdown(
+                business_card_html(brief.get("title"), brief.get("brief_type"), brief.get("body")),
+                unsafe_allow_html=True,
+            )
+            with st.expander("Technical Details"):
                 st.json(brief)
         briefs = list_study_briefs(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view) if active_run_id else []
         if briefs:
             latest = briefs[0]
-            st.text(latest.get("body") or "")
-            with st.expander("Raw Data"):
+            st.markdown(
+                business_card_html(latest.get("title"), latest.get("brief_type"), latest.get("body")),
+                unsafe_allow_html=True,
+            )
+            with st.expander("Technical Details"):
                 st.json(latest)
+        else:
+            st.info("No executive brief for this run yet.")
 
     with workflow_tabs[9]:
+        section_header("Integrity Check", "Operational safety checks shown as cards. Full technical rows are hidden below.", "Protected")
         validation = validate_golden_study_integrity(DB_PATH, DEFAULT_STUDY_ID)
         if validation["passed"]:
             st.success("Passed")
         else:
             st.error(f"Failed: {validation['failed_count']} checks need attention.")
         checks = sorted(validation["checks"], key=lambda row: bool(row.get("passed")))
-        st.dataframe(
-            [
-                {
-                    "Status": "Passed" if row.get("passed") else "Failed",
-                    "Check": row.get("check"),
-                    "Recommended fix": row.get("recommended_fix"),
-                    "Related record": row.get("record_id", ""),
-                    "Severity": "High" if not row.get("passed") else "OK",
-                }
-                for row in checks
-            ],
-            use_container_width=True,
-            hide_index=True,
-        )
+        integrity_groups = {
+            "Traceability": ["run", "trace", "source", "links"],
+            "Demo Isolation": ["demo"],
+            "Production Safety": ["production", "approved"],
+            "Engineering Readiness": ["Engineering Ready", "engineering"],
+            "Evidence Completeness": ["signal", "evidence", "OCI"],
+        }
+        card_cols = st.columns(2)
+        for index, (group_name, keywords) in enumerate(integrity_groups.items()):
+            relevant = [
+                row for row in checks
+                if any(keyword.lower() in str(row.get("check", "")).lower() for keyword in keywords)
+            ]
+            failed = [row for row in relevant if not row.get("passed")]
+            passed = not failed
+            fix = failed[0].get("recommended_fix") if failed else "No action required."
+            with card_cols[index % 2]:
+                st.markdown(
+                    business_card_html(
+                        group_name,
+                        "Passed" if passed else "Failed",
+                        "Checks passed." if passed else "Attention required.",
+                        [("Checks", len(relevant)), ("Failed", len(failed)), ("Recommended fix", fix)],
+                    ),
+                    unsafe_allow_html=True,
+                )
+        with st.expander("Technical Details"):
+            st.dataframe(
+                [
+                    {
+                        "Status": "Passed" if row.get("passed") else "Failed",
+                        "Check": row.get("check"),
+                        "Recommended fix": row.get("recommended_fix"),
+                        "Related record": row.get("record_id", ""),
+                        "Severity": "High" if not row.get("passed") else "OK",
+                    }
+                    for row in checks
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
 
     with workflow_tabs[10]:
+        section_header("Archive / Demo History", "Archived demo records remain visible for traceability but excluded from production metrics.", "History")
         st.warning("These records are preserved for traceability but excluded from production metrics.")
         demo_runs = [row for row in list_study_runs(DB_PATH, DEFAULT_STUDY_ID) if row.get("study_mode") == "demo" and row.get("status") in {"closed", "archived"}]
-        st.subheader("Archived Demo Runs")
-        st.dataframe(demo_runs, use_container_width=True)
-        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records"]:
+        for run in demo_runs:
+            st.markdown(
+                business_card_html(
+                    "Archived demo run",
+                    run.get("status"),
+                    run.get("notes") or "Demo run preserved for history.",
+                    [("Mode", run.get("study_mode")), ("Origin", run.get("data_origin")), ("Verification", run.get("verification_status"))],
+                ),
+                unsafe_allow_html=True,
+            )
+            with st.expander("Technical Details"):
+                st.json(run)
+        for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]:
             rows = [row for row in fetch_all(DB_PATH, table_name) if row.get("study_id") == DEFAULT_STUDY_ID and row.get("is_demo") and row.get("status") == "archived"]
             st.subheader(table_name.replace("_", " ").title())
-            st.dataframe(rows, use_container_width=True)
+            st.markdown(
+                business_card_html(
+                    table_name.replace("_", " ").title(),
+                    "Archived",
+                    f"{len(rows)} archived demo records preserved.",
+                    [("Records", len(rows))],
+                ),
+                unsafe_allow_html=True,
+            )
+            with st.expander("Technical Details"):
+                st.dataframe(rows, use_container_width=True)
 
     with workflow_tabs[11]:
+        section_header("Raw Database View - technical audit only", "Full ID-heavy tables are intentionally kept here for inspection.", "Technical")
         for table_name in ["studies", "study_runs", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]:
             st.subheader(table_name)
             st.dataframe(fetch_all(DB_PATH, table_name), use_container_width=True)

@@ -659,6 +659,7 @@ CREATE TABLE IF NOT EXISTS study_briefs (
     brief_type TEXT NOT NULL,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
     metrics TEXT,
     top_opportunities TEXT,
     risks TEXT,
@@ -857,6 +858,7 @@ MIGRATIONS = {
     },
     "study_briefs": {
         "study_run_id": "TEXT",
+        "status": "TEXT NOT NULL DEFAULT 'active'",
         "data_origin": "TEXT DEFAULT 'demo'",
         "verification_status": "TEXT DEFAULT 'unverified'",
         "is_demo": "INTEGER NOT NULL DEFAULT 1",
