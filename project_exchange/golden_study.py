@@ -1839,6 +1839,61 @@ def keyword_matches(text: str, keywords: list[str]) -> list[str]:
     return [keyword for keyword in keywords if keyword in lower]
 
 
+TRUSTED_NON_VENDOR_MARKERS = [
+    "consumeraffairs",
+    "consumer affairs",
+    "bbb.org",
+    "better business bureau",
+    "ombudsman",
+    ".gov",
+    "government",
+    "regulator",
+    "court",
+    "filing",
+    "reuters",
+    "apnews",
+    "bbc",
+    "guardian",
+    "nytimes",
+    "wsj",
+]
+
+VENDOR_LANGUAGE_MARKERS = [
+    "sign up free",
+    "book a demo",
+    "request demo",
+    "our platform",
+    "our software",
+    "our solution",
+    "tracks",
+    "automate",
+    "automatic sla",
+    "features",
+    "pricing",
+    "solution",
+    "platform",
+    "product page",
+    "industries/",
+    "/industries/",
+    "use cases/",
+    "/use-cases/",
+    "customers/",
+    "/customers/",
+    "case studies/",
+    "/case-studies/",
+]
+
+
+def is_trusted_non_vendor_source(text: str) -> bool:
+    lower = text.lower()
+    return any(marker in lower for marker in TRUSTED_NON_VENDOR_MARKERS)
+
+
+def has_vendor_language(text: str) -> bool:
+    lower = text.lower()
+    return any(marker in lower for marker in VENDOR_LANGUAGE_MARKERS)
+
+
 def detect_source_type(url: str = "", title: str = "", text: str = "") -> str:
     lower = " ".join([url, title, text]).lower()
     if any(word in lower for word in ["court", "filing", "lawsuit", "docket"]):
@@ -1861,6 +1916,8 @@ def detect_source_type(url: str = "", title: str = "", text: str = "") -> str:
         return "research"
     if any(word in lower for word in ["news", "reuters", "apnews", "bbc", "guardian", "nyt", "wsj", "forbes"]):
         return "news"
+    if not is_trusted_non_vendor_source(lower) and has_vendor_language(lower):
+        return "vendor"
     if any(word in lower for word in ["blog", "help.", "support.", "docs.", "features", "pricing", "demo", "vendor"]):
         return "vendor"
     if any(word in lower for word in ["marketing", "landing page", "sales page"]):
@@ -1880,6 +1937,8 @@ def source_trust_score(source_type: str, url: str = "", title: str = "", text: s
 def evidence_quality_profile(text: str, query: str = "", url: str = "", title: str = "") -> dict[str, object]:
     combined = text.strip()
     lower = combined.lower()
+    all_text = " ".join([url, title, combined])
+    vendor_detected = has_vendor_language(all_text) and not is_trusted_non_vendor_source(all_text)
     source_type = detect_source_type(url, title, combined)
     trust_score = source_trust_score(source_type, url, title, combined)
     pain_matches = keyword_matches(combined, PAIN_KEYWORDS)
@@ -1909,7 +1968,9 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
         ]
     )
 
-    if source_type in {"vendor", "marketing"} or any(word in lower for word in ["book a demo", "request demo", "our platform", "software solution", "features include", "pricing page"]):
+    if vendor_detected or source_type in {"vendor", "marketing"}:
+        source_type = "vendor"
+        trust_score = 20
         classification = "vendor_content"
         relevance = "vendor_marketing"
         reason = "Vendor-authored guidance. Useful background information only."

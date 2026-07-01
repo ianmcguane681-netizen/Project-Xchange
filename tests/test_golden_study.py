@@ -793,6 +793,36 @@ def test_v2_vendor_blog_classifies_as_vendor_content():
     assert quality["source_trust_score"] == 20
 
 
+def test_oxmaint_page_classifies_as_vendor_content():
+    quality = evidence_quality_profile(
+        "Track and reduce property maintenance response times for tenants. Our platform automates work orders, tracks response times, and reduces legal risk.",
+        url="https://oxmaint.com/industries/property-management/track-reduce-property-maintenance-response-times-2026",
+        title="Track & Reduce Property Maintenance Response Times",
+    )
+
+    assert quality["classification"] == "vendor_content"
+    assert quality["evidence_classification"] == "vendor_content"
+    assert quality["evidence_relevance"] == "vendor_marketing"
+    assert quality["source_type_detected"] == "vendor"
+    assert quality["source_trust_score"] == 20
+    assert quality["production_eligible"] is False
+    assert quality["accepted_complaint_evidence"] is False
+    assert quality["skip_reason"] == "market_size_generic_or_marketing"
+
+
+def test_vendor_blog_with_tenant_complaints_is_not_production_eligible():
+    quality = evidence_quality_profile(
+        "Tenant complaints about delayed maintenance requests are common. Our software solution automates communication, includes features, and lets teams book a demo.",
+        url="https://vendor.example.com/blog/tenant-maintenance-complaints",
+        title="How our software solves tenant maintenance complaints",
+    )
+
+    assert quality["classification"] == "vendor_content"
+    assert quality["production_eligible"] is False
+    assert quality["accepted_complaint_evidence"] is False
+    assert quality["source_type_detected"] == "vendor"
+
+
 def test_v2_facebook_classifies_as_community_signal():
     quality = evidence_quality_profile(
         "Facebook group residents complain maintenance requests are ignored by the landlord.",
