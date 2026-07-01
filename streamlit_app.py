@@ -78,6 +78,7 @@ from project_exchange.golden_study import (
     pull_real_market_evidence,
     run_audit_batch,
     run_research_batch,
+    signal_trace_card_view_model,
     study_progress,
     switch_study_run_mode,
     traceability_chain,
@@ -1218,9 +1219,9 @@ with tabs[23]:
             return parsed
         return {}
 
-    def signal_source_name(record: dict[str, object]) -> str:
+    def get_signal_source_display_name(record: dict[str, object]) -> str:
         metadata = signal_provider_metadata(record)
-        return str(metadata.get("original_title") or record.get("source_name") or record.get("source_url") or "No source name")
+        return str(metadata.get("original_title") or record.get("source_name") or record.get("source_url") or metadata.get("provider_name") or "Unknown source")
 
     def source_label(record: dict[str, object]) -> str:
         metadata = signal_provider_metadata(record)
@@ -1233,30 +1234,31 @@ with tabs[23]:
         )
 
     def render_signal_trace_card(signal: dict[str, object]) -> None:
-        provider_metadata = signal_provider_metadata(signal)
-        provider_name = str(provider_metadata.get("provider_name") or signal.get("data_origin") or "Manual")
-        original_query = str(provider_metadata.get("original_query") or "Manual entry")
-        retrieved_at = str(provider_metadata.get("retrieved_at") or signal.get("source_date") or signal.get("created_at") or "Unknown")
-        source_url = str(signal.get("source_url") or "No source URL")
-        with st.container(border=True):
-            render_business_card(
-                signal_source_name(signal),
-                signal.get("verification_status"),
-                signal.get("raw_text") or signal.get("summary") or "No evidence quote",
-                [
-                    ("Provider", provider_name),
-                    ("Source URL", source_url),
-                    ("Country", signal.get("country") or "Unknown"),
-                    ("Stakeholder", signal.get("stakeholder_type") or "Unknown"),
-                    ("Retrieved", retrieved_at),
-                    ("Evidence strength", signal.get("evidence_strength") or 0),
-                ],
-            )
-            st.caption(f"Original query: {original_query}")
-            if signal.get("source_url"):
-                st.markdown(f"[Open source]({signal['source_url']})")
+        try:
+            view = signal_trace_card_view_model(signal)
+            with st.container(border=True):
+                render_business_card(
+                    view["source_name"],
+                    view["verification_status"],
+                    view["raw_text"],
+                    [
+                        ("Provider", view["provider"]),
+                        ("Source URL", view["source_url"]),
+                        ("Country", view["country"]),
+                        ("Stakeholder", view["stakeholder"]),
+                        ("Retrieved", view["retrieved"]),
+                        ("Evidence strength", view["evidence_strength"]),
+                    ],
+                )
+                st.caption(f"Original query: {view['query']}")
+                if signal.get("source_url"):
+                    st.markdown(f"[Open source]({signal['source_url']})")
+                with st.expander("Technical Details"):
+                    st.json(signal)
+        except Exception as exc:
+            st.warning("This signal could not be rendered as a card, but the record is preserved.")
             with st.expander("Technical Details"):
-                st.json(signal)
+                st.json({"error": str(exc), "signal": signal})
 
     def render_research_run_result(result: dict[str, object]) -> None:
         if result.get("status") == "completed":
@@ -1780,7 +1782,7 @@ with tabs[23]:
             with st.form("golden_real_evidence_form"):
                 source_cols = st.columns(3)
                 signal_source = source_cols[0].text_input("Source URL", key="golden_real_source")
-                signal_source_name = source_cols[1].text_input("Source name", key="golden_real_source_name")
+                manual_signal_source_name = source_cols[1].text_input("Source name", key="golden_real_source_name")
                 signal_source_type = source_cols[2].selectbox("Source type", ["manual", "url", "pdf", "csv", "txt", "article", "provider"], key="golden_real_source_type")
                 meta_cols = st.columns(4)
                 signal_country = meta_cols[0].text_input("Country", value="Unknown", key="golden_real_country")
@@ -1796,7 +1798,7 @@ with tabs[23]:
                             signal_text,
                             DEFAULT_STUDY_ID,
                             signal_source,
-                            signal_source_name,
+                            manual_signal_source_name,
                             signal_source_type,
                             signal_source_date.isoformat(),
                             signal_country,

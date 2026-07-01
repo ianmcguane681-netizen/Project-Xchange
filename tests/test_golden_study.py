@@ -28,6 +28,7 @@ from project_exchange.golden_study import (
     switch_study_run_mode,
     run_audit_batch,
     run_research_batch,
+    signal_trace_card_view_model,
     study_progress,
     traceability_chain,
     validate_golden_study_integrity,
@@ -804,6 +805,70 @@ def test_production_pipeline_unlocks_only_after_required_records(tmp_path):
     assert finding_pipeline["Finding Generation"] == "Completed"
     assert finding_pipeline["Audit"] == "Active"
     assert finding_pipeline["Opportunity"] == "Locked"
+
+
+def test_signal_trace_card_view_model_uses_source_url_when_source_name_missing():
+    signal = {
+        "source_url": "https://example.com/provider-signal",
+        "provider_name": "Tavily",
+        "query": "maintenance communication",
+        "source_date": "2026-07-01T20:00:00Z",
+        "raw_text": "Tenants complain that maintenance updates are unclear.",
+        "verification_status": "pending_verification",
+    }
+
+    view = signal_trace_card_view_model(signal)
+
+    assert view["source_name"] == "https://example.com/provider-signal"
+    assert view["provider"] == "Tavily"
+    assert view["query"] == "maintenance communication"
+    assert view["retrieved"] == "2026-07-01T20:00:00Z"
+    assert view["raw_text"].startswith("Tenants complain")
+
+
+def test_signal_trace_card_view_model_handles_none_source_name():
+    signal = {
+        "source_name": None,
+        "source_url": "",
+        "raw_text": None,
+        "summary": "Provider signal summary",
+    }
+
+    view = signal_trace_card_view_model(signal)
+
+    assert view["source_name"] == "Unknown source"
+    assert view["provider"] == "Unknown provider"
+    assert view["query"] == "Not recorded"
+    assert view["retrieved"] == "Not recorded"
+    assert view["raw_text"] == "Provider signal summary"
+
+
+def test_signals_page_card_model_handles_provider_signal_after_pull(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "Maintenance communication source",
+                "https://example.com/maintenance-source",
+                "Property managers complain that maintenance communication is too manual and hard to track.",
+                "article",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+    signal = list_signals(db_path)[0]
+    view = signal_trace_card_view_model(signal)
+
+    assert result["signals_stored"] == 1
+    assert view["source_name"] == "Maintenance communication source"
+    assert view["provider"] == "Tavily"
+    assert view["source_url"] == "https://example.com/maintenance-source"
+    assert view["verification_status"] == "pending_verification"
+    assert view["retrieved"] != "Not recorded"
 
 
 def test_demo_rehearsal_can_reach_demo_engineering_ready(tmp_path):

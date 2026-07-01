@@ -1606,6 +1606,47 @@ def encode_provider_signal_metadata(provider_name: str, original_query: str, ret
     return json.dumps(metadata, sort_keys=True)
 
 
+def provider_signal_metadata(signal: dict[str, object]) -> dict[str, object]:
+    raw = signal.get("source_name")
+    if not isinstance(raw, str) or not raw.strip().startswith("{"):
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    if isinstance(parsed, dict) and parsed.get("metadata_type") == "provider_evidence":
+        return parsed
+    return {}
+
+
+def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
+    metadata = provider_signal_metadata(signal)
+    source_name = (
+        signal.get("source_name")
+        or signal.get("source_url")
+        or metadata.get("provider_name")
+        or "Unknown source"
+    )
+    if metadata.get("original_title"):
+        source_name = metadata["original_title"]
+    provider = metadata.get("provider_name") or signal.get("provider_name") or "Unknown provider"
+    query = metadata.get("original_query") or signal.get("query") or "Not recorded"
+    retrieved = metadata.get("retrieved_at") or signal.get("retrieved_at") or signal.get("source_date") or "Not recorded"
+    raw_text = signal.get("raw_text") or signal.get("summary") or "No evidence quote recorded."
+    return {
+        "source_name": str(source_name),
+        "provider": str(provider),
+        "query": str(query),
+        "retrieved": str(retrieved),
+        "source_url": str(signal.get("source_url") or "No source URL"),
+        "raw_text": str(raw_text),
+        "country": str(signal.get("country") or "Unknown"),
+        "stakeholder": str(signal.get("stakeholder_type") or "Unknown"),
+        "verification_status": str(signal.get("verification_status") or "Not recorded"),
+        "evidence_strength": str(signal.get("evidence_strength") or 0),
+    }
+
+
 def configured_gs001_evidence_providers() -> list[object]:
     providers: list[object] = []
     for provider in [TavilySearchProvider(), SerpAPISearchProvider(), NewsAPIProvider()]:
