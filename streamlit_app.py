@@ -1224,7 +1224,26 @@ with tabs[23]:
 
     def get_signal_source_display_name(record: dict[str, object]) -> str:
         metadata = signal_provider_metadata(record)
-        return str(metadata.get("original_title") or record.get("source_name") or record.get("source_url") or metadata.get("provider_name") or "Unknown source")
+        source_name = record.get("source_name")
+        if metadata.get("original_title"):
+            return str(metadata["original_title"])
+        if isinstance(source_name, str) and source_name.strip() and not source_name.strip().startswith("{"):
+            return source_name
+        source_url = str(record.get("source_url") or "").strip()
+        if source_url:
+            try:
+                from urllib.parse import urlparse
+
+                domain = urlparse(source_url).netloc.replace("www.", "")
+                return domain or source_url
+            except Exception:
+                return source_url
+        if metadata.get("provider_name"):
+            return str(metadata["provider_name"])
+        return "Unknown source"
+
+    def clean_signal_source_title(signal: dict[str, object]) -> str:
+        return get_signal_source_display_name(signal)
 
     def source_label(record: dict[str, object]) -> str:
         metadata = signal_provider_metadata(record)
@@ -1241,7 +1260,7 @@ with tabs[23]:
             view = signal_trace_card_view_model(signal)
             with st.container(border=True):
                 render_business_card(
-                    view["source_name"],
+                    clean_signal_source_title(signal),
                     view["verification_status"],
                     view["raw_text"],
                     [
@@ -1266,6 +1285,30 @@ with tabs[23]:
                     st.json(signal)
         except Exception as exc:
             st.warning("This signal could not be rendered as a card, but the record is preserved.")
+            with st.expander("Technical Details"):
+                st.json({"error": str(exc), "signal": signal})
+
+    def render_rejected_signal_card(signal: dict[str, object]) -> None:
+        try:
+            view = signal_trace_card_view_model(signal)
+            badge = view["evidence_classification"].replace("_", " ").title()
+            if view["production_eligible"] != "YES":
+                badge = f"{badge} / Not Production Eligible"
+            with st.container(border=True):
+                st.caption(badge)
+                st.markdown(f"**{clean_signal_source_title(signal)}**")
+                st.write(view["why_accepted"])
+                cols = st.columns(4)
+                cols[0].metric("Classification", view["evidence_classification"].replace("_", " ").title())
+                cols[1].metric("Source Type", view["source_type"].replace("_", " ").title())
+                cols[2].metric("Trust", view["source_trust_score"])
+                cols[3].metric("Provider", view["provider"])
+                if signal.get("source_url"):
+                    st.markdown(f"[Open source]({signal['source_url']})")
+                with st.expander("Technical Details"):
+                    st.json(signal)
+        except Exception as exc:
+            st.warning("This context record could not be rendered as a card, but the record is preserved.")
             with st.expander("Technical Details"):
                 st.json({"error": str(exc), "signal": signal})
 
@@ -1861,17 +1904,41 @@ with tabs[23]:
 
     with workflow_tabs[2]:
         section_header("Signals", "Evidence cards for the current active run. Technical IDs stay inside each expander.", workflow_stage_status("Signals"))
-        if not signals:
+        accepted_signals = []
+        rejected_signals = []
+        for signal in signals:
+            view = signal_trace_card_view_model(signal)
+            if view["production_eligible"] == "YES":
+                accepted_signals.append(signal)
+            else:
+                rejected_signals.append(signal)
+
+        st.subheader("Accepted Production Signals")
+        if not accepted_signals:
             empty_state(
                 "Signals",
-                "No production signals yet. Add verified evidence to begin.",
+                "No accepted production signals yet. Pull evidence or review rejected/context results.",
                 "No demo signals yet. Load the demo sample batch to rehearse evidence collection.",
             )
-        for signal in signals:
+        for signal in accepted_signals:
             render_signal_trace_card(signal)
             if st.button("Archive", key=f"archive_signal_{signal['id']}"):
                 archive_record(DB_PATH, "study_signals", str(signal["id"]))
                 st.rerun()
+
+        st.subheader("Rejected / Context / Non-Eligible Evidence")
+        if rejected_signals:
+            st.info("Evidence was found, but did not meet production quality rules.")
+            for signal in rejected_signals:
+                render_rejected_signal_card(signal)
+                if st.button("Archive", key=f"archive_rejected_signal_{signal['id']}"):
+                    archive_record(DB_PATH, "study_signals", str(signal["id"]))
+                    st.rerun()
+        else:
+            st.caption("No rejected or context evidence in the active run.")
+
+        with st.expander("Technical Raw Data"):
+            st.dataframe(signals, use_container_width=True)
 
     with workflow_tabs[3]:
         section_header("Findings", "Problems generated from repeated supporting signals in the active run.", workflow_stage_status("Findings"))

@@ -1216,6 +1216,30 @@ def test_signals_page_card_model_handles_provider_signal_after_pull(tmp_path):
     assert view["retrieved"] != "Not recorded"
 
 
+def test_provider_signal_view_model_hides_raw_source_name_json(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "Readable complaint title",
+                "https://www.consumeraffairs.com/readable",
+                "Tenant complaint says maintenance request had no response and apartment repair was delayed.",
+                "article",
+            )
+        ]
+    )
+
+    pull_real_market_evidence(db_path, providers=[provider])
+    signal = list_signals(db_path)[0]
+    view = signal_trace_card_view_model(signal)
+
+    assert str(signal["source_name"]).startswith("{")
+    assert view["source_name"] == "Readable complaint title"
+
+
 def test_demo_rehearsal_can_reach_demo_engineering_ready(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
