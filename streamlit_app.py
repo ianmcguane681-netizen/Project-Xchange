@@ -1335,9 +1335,16 @@ with tabs[23]:
         skip_cols[1].metric("Invalid sources skipped", result.get("skipped_missing_source_or_text", 0))
         skip_cols[2].metric("Skipped not pain evidence", result.get("skipped_not_complaint_or_pain_evidence", 0))
         skip_cols[3].metric("Skipped market/generic/marketing", result.get("skipped_market_size_generic_or_marketing", 0))
+        quality_cols = st.columns(4)
+        quality_cols[0].metric("Marketing rejected", result.get("marketing_pages_rejected", 0))
+        quality_cols[1].metric("Low authority rejected", result.get("low_authority_sources", 0))
+        quality_cols[2].metric("Market events", result.get("market_events", 0))
+        quality_cols[3].metric("Merged event coverage", result.get("merged_into_existing_events", 0))
         run_cols = st.columns(2)
         run_cols[0].metric("Providers used", ", ".join(str(provider) for provider in result.get("providers_used", [])) or "None")
         run_cols[1].metric("Run ID", result.get("run_id") or result.get("active_run_id") or "No run")
+        if result.get("reason_no_opportunity_generated"):
+            st.info(str(result["reason_no_opportunity_generated"]))
         learning = result.get("discovery_learning_update")
         if isinstance(learning, dict):
             st.subheader("Discovery Learning Update")

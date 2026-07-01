@@ -17,6 +17,7 @@ from project_exchange.golden_study import (
     discovery_learning_dashboard,
     discovery_memory_rows,
     evidence_quality_profile,
+    finding_evidence,
     generate_executive_brief,
     generate_findings,
     findings_feedback,
@@ -239,17 +240,9 @@ def test_audit_approval_and_traceability_chain(tmp_path):
     assert audits[0]["opportunity_confidence_index"] >= 85
 
     opportunities = approve_audited_opportunities(db_path)
-    assert opportunities
-    opportunity = opportunities[0]
-    assert opportunity["engineering_status"] == "Engineering Specification Required"
-    assert opportunity["status"] == "Approved Opportunity"
-
-    chain = traceability_chain(db_path, opportunity["id"])
-    assert chain["opportunity"]["id"] == opportunity["id"]
-    assert chain["audit"]["id"] == opportunity["audit_id"]
-    assert chain["finding"]["id"] == opportunity["finding_id"]
-    assert len(chain["signals"]) >= 2
-    assert chain["sources"]
+    assert opportunities == []
+    assert audits[0]["decision"] == "Needs More Evidence"
+    assert "Minimum independent market events" in audits[0]["missing_evidence_warnings"]
 
 
 def test_archive_instead_of_delete_and_executive_brief(tmp_path):
@@ -1021,6 +1014,81 @@ def test_v2_consumer_affairs_bbb_and_government_are_verified_complaints():
         assert quality["source_trust_score"] == trust
 
 
+def test_px017_marketing_content_is_rejected_before_signal_creation(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "7 Essential Things To Know About Property Management",
+                "https://example.com/property-management-guide",
+                "This ultimate guide explains property management trends 2026, best companies, best software, and industry outlook.",
+                "article",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+
+    assert result["signals_stored"] == 0
+    assert result["marketing_pages_rejected"] == 1
+    assert result["skipped"][0]["candidate"]["classification"] == "marketing_content"
+    assert result["skipped"][0]["candidate"]["classification_code"] == "MARKETING_CONTENT"
+    assert result["skipped"][0]["candidate"]["rejection_reason"] == "Marketing / Promotional / Generic Industry Content."
+
+
+def test_px017_government_investigation_gets_high_authority_and_structured_pain(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "Government investigation into landlord maintenance complaints",
+                "https://housing.gov.example/investigation-maintenance-complaints",
+                "Government investigation says tenants complain that apartment maintenance requests get no response, repairs remain unresolved, and residents are not updated.",
+                "article",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider])
+    signal = list_signals(db_path)[0]
+    metadata = json.loads(signal["source_name"])
+
+    assert result["signals_stored"] == 1
+    assert metadata["authority_score"] == 100
+    assert metadata["operational_pain"]["what_pain"]
+    assert metadata["operational_pain"]["business_impact"]
+    assert metadata["operational_pain"]["root_cause"]
+
+
+def test_px017_multiple_articles_about_same_event_do_not_approve_opportunity(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult("Tavily", "DOJ RealPage lawsuit maintenance complaint A", "https://news.example.com/a", "DOJ lawsuit against RealPage says tenants complain apartment maintenance requests had no response and repair communication was poor.", "article"),
+            ProviderResult("Tavily", "DOJ RealPage lawsuit maintenance complaint B", "https://reuters.example.com/b", "DOJ lawsuit against RealPage says property managers complain maintenance request updates are delayed and tenants are not updated.", "article"),
+            ProviderResult("Tavily", "DOJ RealPage lawsuit maintenance complaint C", "https://apnews.example.com/c", "DOJ lawsuit against RealPage says residents complain rental maintenance requests remain unresolved and repair updates are ignored.", "article"),
+        ]
+    )
+
+    pull_real_market_evidence(db_path, providers=[provider])
+    finding = generate_findings(db_path)[0]
+    audit = audit_finding(db_path, finding["id"])
+
+    assert finding["signal_count"] == 3
+    assert "1 independent market events" in finding["confidence_reasoning"]
+    assert audit["decision"] == "Needs More Evidence"
+    assert "Minimum independent market events not met" in audit["missing_evidence_warnings"]
+    assert approve_audited_opportunities(db_path) == []
+
+
 def test_vendor_marketing_page_is_skipped_as_production_signal(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
@@ -1135,7 +1203,7 @@ def test_audit_cannot_approve_from_weak_generic_evidence(tmp_path):
     assert generate_findings(db_path) == []
 
 
-def test_audit_approves_after_accepted_complaint_threshold(tmp_path):
+def test_audit_requires_full_opportunity_qualification_threshold(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
     start_production_run(db_path)
@@ -1151,7 +1219,9 @@ def test_audit_approves_after_accepted_complaint_threshold(tmp_path):
 
     audit = audit_finding(db_path, finding["id"])
 
-    assert audit["decision"] == "Approve Opportunity"
+    assert audit["decision"] == "Needs More Evidence"
+    assert "Minimum independent sources not met" in audit["missing_evidence_warnings"]
+    assert "Minimum independent market events not met" in audit["missing_evidence_warnings"]
 
 
 def test_opportunity_cannot_exist_without_minimum_trust_score(tmp_path):
@@ -1171,7 +1241,8 @@ def test_opportunity_cannot_exist_without_minimum_trust_score(tmp_path):
     audit = audit_finding(db_path, finding["id"])
 
     assert audit["decision"] == "Needs More Evidence"
-    assert "Average source trust score must be at least 80" in audit["missing_evidence_warnings"]
+    assert "Evidence score below threshold" in audit["missing_evidence_warnings"]
+    assert "Minimum independent sources not met" in audit["missing_evidence_warnings"]
 
 
 def test_opportunity_cannot_exist_without_minimum_independent_domains(tmp_path):
@@ -1226,7 +1297,6 @@ def test_archive_current_production_run_preserves_records_and_starts_empty_run(t
     pull_real_market_evidence(db_path, providers=[provider])
     finding = generate_findings(db_path)[0]
     audit = audit_finding(db_path, finding["id"])
-    opportunity = approve_audited_opportunities(db_path)[0]
     run_before = study_progress(db_path)
 
     result = archive_current_production_run_and_start_fresh(db_path)
@@ -1241,9 +1311,9 @@ def test_archive_current_production_run_preserves_records_and_starts_empty_run(t
     assert run_after["audits_completed"] == 0
     assert len(archived_signals) == 3
     assert all(signal["status"] == "archived" for signal in archived_signals)
-    archived_chain = traceability_chain(db_path, opportunity["id"], include_archived=True)
-    assert archived_chain["audit"]["id"] == audit["id"]
-    assert archived_chain["signals"]
+    archived_evidence = finding_evidence(db_path, finding["id"], include_archived=True)
+    assert audit["decision"] == "Needs More Evidence"
+    assert archived_evidence["signals"]
 
 
 def test_production_pull_needs_no_manual_form_and_updates_mission_control_counts(tmp_path):
@@ -1579,6 +1649,6 @@ def test_production_action_feedback_can_proceed_normally(tmp_path):
     assert findings_message.endswith("findings generated")
     assert audit_level == "success"
     assert audit_message.endswith("audits completed")
-    assert approval_level == "success"
-    assert approval_message.endswith("opportunities approved")
-    assert opportunities
+    assert approval_level == "warning"
+    assert approval_message == "No approved opportunities available"
+    assert opportunities == []
