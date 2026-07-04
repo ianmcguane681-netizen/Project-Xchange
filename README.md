@@ -48,6 +48,15 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
+## Run The Foundry API
+
+```powershell
+python foundry_api.py
+```
+
+The read-only Lovable integration API serves Provena state from SQLite at `http://localhost:8000/api/foundry/*`.
+See `docs/foundry_api.md` for the JSON contract.
+
 ## Run Tests
 
 ```powershell
