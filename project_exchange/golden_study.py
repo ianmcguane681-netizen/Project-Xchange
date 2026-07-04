@@ -120,6 +120,163 @@ GS001_EVIDENCE_QUERY_GROUPS = {
     ],
 }
 
+EVIDENCE_CLASS_TIERS: dict[str, dict[str, object]] = {
+    "Government": {"tier": 1, "label": "Government source"},
+    "Regulator": {"tier": 1, "label": "Regulatory source"},
+    "Attorney General": {"tier": 1, "label": "Attorney General enforcement"},
+    "Housing Authority": {"tier": 1, "label": "Housing authority source"},
+    "Court": {"tier": 1, "label": "Court or legal record"},
+    "Ombudsman": {"tier": 1, "label": "Ombudsman decision"},
+    "Public Enforcement": {"tier": 1, "label": "Public enforcement action"},
+    "Official Investigation": {"tier": 1, "label": "Official investigation"},
+    "Consumer Protection": {"tier": 2, "label": "Consumer protection source"},
+    "Consumer Complaints": {"tier": 2, "label": "Consumer complaint body"},
+    "Tenant Advocacy": {"tier": 2, "label": "Tenant advocacy source"},
+    "Investigative Journalism": {"tier": 3, "label": "Investigative journalism"},
+    "Housing Trade Publication": {"tier": 3, "label": "Housing trade publication"},
+    "Community Evidence": {"tier": 4, "label": "Community evidence"},
+    "Search Provider": {"tier": 5, "label": "Search provider result"},
+    "Vendor": {"tier": 6, "label": "Vendor content"},
+    "Marketing": {"tier": 6, "label": "Marketing content"},
+    "Unknown": {"tier": 6, "label": "Unknown source class"},
+}
+
+GS_P001_EVIDENCE_STRATEGY: dict[str, object] = {
+    "id": "GS-P001",
+    "study_id": DEFAULT_STUDY_ID,
+    "principle": "Evidence quality before quantity",
+    "country": "United States",
+    "industry": "Residential Property Management",
+    "operational_focus": "maintenance communication failures",
+    "query_categories": [
+        {
+            "query_group": "government",
+            "query_category": "Regulatory Actions",
+            "evidence_class": "Regulator",
+            "queries": [
+                "site:.gov property management maintenance complaint enforcement",
+                "site:.gov landlord repair communication complaint",
+                "site:hud.gov tenant maintenance complaint repair communication",
+            ],
+        },
+        {
+            "query_group": "attorney_general",
+            "query_category": "Attorney General Enforcement",
+            "evidence_class": "Attorney General",
+            "queries": [
+                "attorney general landlord maintenance complaint enforcement",
+                "site:ag.* tenant maintenance complaint landlord repair",
+                "state attorney general property management maintenance complaint",
+            ],
+        },
+        {
+            "query_group": "government",
+            "query_category": "Housing Authority Complaints",
+            "evidence_class": "Housing Authority",
+            "queries": [
+                "housing authority maintenance complaint repair communication",
+                "public housing maintenance complaint no response repair",
+                "site:.gov housing maintenance work order complaint",
+            ],
+        },
+        {
+            "query_group": "court_cases",
+            "query_category": "Court Judgments",
+            "evidence_class": "Court",
+            "queries": [
+                "tenant maintenance lawsuit no response property management",
+                "habitability lawsuit landlord maintenance communication",
+                "court landlord repair complaint tenant maintenance delayed",
+            ],
+        },
+        {
+            "query_group": "housing_ombudsman",
+            "query_category": "Maintenance Enforcement",
+            "evidence_class": "Ombudsman",
+            "queries": [
+                "ombudsman repairs complaint landlord communication maintenance",
+                "housing ombudsman maintenance complaint no repair updates",
+                "resident complaint repairs not updated maintenance ombudsman",
+            ],
+        },
+        {
+            "query_group": "bbb",
+            "query_category": "Consumer Complaints",
+            "evidence_class": "Consumer Complaints",
+            "queries": [
+                "site:bbb.org property management maintenance complaints",
+                "site:bbb.org landlord maintenance complaint no response",
+                "site:bbb.org apartment maintenance repair complaint",
+            ],
+        },
+        {
+            "query_group": "consumer_affairs",
+            "query_category": "Consumer Complaints",
+            "evidence_class": "Consumer Protection",
+            "queries": [
+                "site:consumeraffairs.com property management maintenance complaint",
+                "site:consumeraffairs.com apartment maintenance complaints no response",
+                "site:consumeraffairs.com landlord repair complaint",
+            ],
+        },
+        {
+            "query_group": "consumer_complaint",
+            "query_category": "Resident Communication Failures",
+            "evidence_class": "Consumer Complaints",
+            "queries": [
+                "tenant complaint maintenance request no response property management",
+                "apartment resident complaints maintenance not fixed property manager",
+                "property manager maintenance request delayed tenant complaint",
+            ],
+        },
+        {
+            "query_group": "news",
+            "query_category": "Public Investigations",
+            "evidence_class": "Investigative Journalism",
+            "queries": [
+                "investigation landlord maintenance complaints no response",
+                "news property management maintenance complaints tenants",
+                "property management fined maintenance complaints investigation",
+            ],
+        },
+        {
+            "query_group": "consumer_complaint",
+            "query_category": "Repair Communication Failures",
+            "evidence_class": "Search Provider",
+            "queries": [
+                "rental property maintenance complaints poor communication",
+                "tenant maintenance request ignored property manager complaint",
+                "apartment maintenance no response resident complaint",
+            ],
+        },
+        {
+            "query_group": "consumer_complaint",
+            "query_category": "Maintenance Work Order Failures",
+            "evidence_class": "Search Provider",
+            "queries": [
+                "maintenance work order complaint tenant no update",
+                "property management work order delayed tenant complaint",
+                "resident complaint maintenance work order ignored",
+            ],
+        },
+        {
+            "query_group": "forums",
+            "query_category": "Community Evidence",
+            "evidence_class": "Community Evidence",
+            "queries": [
+                "reddit tenant maintenance ignored repair communication",
+                "tenant forum landlord maintenance no response complaint",
+            ],
+        },
+    ],
+}
+
+GS001_REAL_EVIDENCE_QUERIES = [
+    query
+    for category in GS_P001_EVIDENCE_STRATEGY["query_categories"]  # type: ignore[index]
+    for query in category["queries"]  # type: ignore[index]
+]
+
 VALID_COMPLAINT_RELEVANCE = {"complaint", "operational_pain", "workflow_inefficiency"}
 PRODUCTION_ELIGIBLE_CLASSIFICATIONS = {"verified_complaint", "operational_pain", "workflow_inefficiency"}
 MIN_PRODUCTION_AUTHORITY_SCORE = 70
@@ -2202,19 +2359,28 @@ def pull_real_market_evidence(
     sources_searched = 0
     urls_retrieved = 0
     urls_skipped = 0
-    query_runs = prioritized_query_runs(db_path, study_id)
+    query_runs = prioritized_evidence_query_runs(db_path, study_id)
     memory = discovery_domain_memory(db_path, study_id)
-    for query_group, query in query_runs:
+    for query_run in query_runs:
+        query_group = str(query_run["query_group"])
+        query = str(query_run["query"])
+        query_category = str(query_run["query_category"])
+        strategy_evidence_class = str(query_run["evidence_class"])
+        strategy_evidence_tier = int(query_run["evidence_tier"])
         sources_searched += 1
         command = {
             "study": study_id,
+            "acquisition_strategy": str(GS_P001_EVIDENCE_STRATEGY["id"]),
             "industry": "Residential Property Management",
             "market": "United States",
             "keyword": query,
             "query_group": query_group,
+            "query_category": query_category,
+            "evidence_class": strategy_evidence_class,
+            "evidence_tier": strategy_evidence_tier,
             "focus": "Maintenance Communication",
-            "objective": "collect real, source-backed evidence of recurring problems, complaints, inefficiencies, or unmet needs",
-            "preferred_sources": ["government", "regulators", "courts", "BBB", "Consumer Affairs", "ombudsman", "major news", "review platforms", "forums"],
+            "objective": "collect high-quality source-backed complaint evidence; prefer authoritative evidence over volume",
+            "preferred_sources": ["government", "regulators", "attorney general", "courts", "ombudsman", "public enforcement", "BBB", "Consumer Affairs", "tenant advocacy", "investigative journalism"],
             "avoid_sources": ["vendor websites", "pricing pages", "feature pages", "product landing pages", "software blogs"],
             "trusted_domains": memory["trusted_domains"][:10],
             "vendor_domains": memory["vendor_domains"][:10],
@@ -2237,6 +2403,9 @@ def pull_real_market_evidence(
             for result in results:
                 normalized = normalize_provider_result(result, query, retrieved_at)
                 normalized["query_group"] = query_group
+                normalized["query_category"] = query_category
+                normalized["strategy_evidence_class"] = strategy_evidence_class
+                normalized["strategy_evidence_tier"] = strategy_evidence_tier
                 candidates.append(normalized)
                 urls_retrieved += 1
 
@@ -2388,7 +2557,8 @@ def pull_real_market_evidence(
         "providers_used": provider_names,
         "active_run_id": str(active_run["id"]),
         "run_id": research_run_id,
-        "queries": [query for _, query in query_runs],
+        "queries": [str(query_run["query"]) for query_run in query_runs],
+        "query_runs": query_runs,
         "stored_signal_ids": [str(signal["id"]) for signal in stored],
         "skipped": skipped,
         "signals": stored,
@@ -2397,8 +2567,10 @@ def pull_real_market_evidence(
             "study_id": study_id,
             "study_run_id": active_run["id"],
             "run_id": research_run_id,
-            "queries": [query for _, query in query_runs],
+            "queries": [str(query_run["query"]) for query_run in query_runs],
+            "query_runs": query_runs,
             "query_groups": GS001_EVIDENCE_QUERY_GROUPS,
+            "acquisition_strategy": GS_P001_EVIDENCE_STRATEGY,
             "discovery_memory_used": memory,
             "retrieved_at": retrieved_at,
             "skipped": skipped,
@@ -2435,9 +2607,19 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
     raw_text = snippet if snippet else ""
     source_type = normalize_source_type(str(getattr(result, "source_type", "") or ""), url, title)
     quality = evidence_quality_profile(f"{title}\n{snippet}", query, url, title, source_type)
+    evidence_class = evidence_class_for_source(
+        str(quality.get("source_type_detected") or source_type),
+        url,
+        title,
+        provider_name,
+        "",
+    )
+    quality["evidence_class"] = evidence_class
+    quality["evidence_tier"] = evidence_tier_for_class(evidence_class)
     discovery_score = discovery_url_priority_score(url, title, snippet) + int(quality.get("source_trust_score") or 0)
     if quality.get("accepted_complaint_evidence"):
         discovery_score += 50
+    discovery_score += max(0, 7 - int(quality.get("evidence_tier") or 6)) * 10
     return {
         "provider_name": provider_name,
         "query": query,
@@ -2453,6 +2635,8 @@ def normalize_provider_result(result: ProviderResult | object, query: str, retri
         "summary": str((quality.get("operational_pain") or {}).get("what_pain") or summarize(snippet or title)),
         "source_confidence": rough_provider_evidence_strength(provider_name, url, snippet),
         "discovery_priority_score": discovery_score,
+        "evidence_class": evidence_class,
+        "evidence_tier": quality.get("evidence_tier"),
         **quality,
     }
 
@@ -2479,6 +2663,9 @@ def encode_provider_signal_metadata(
                 "classification": quality.get("classification"),
                 "production_eligible": quality.get("production_eligible"),
                 "source_type": quality.get("source_type_detected"),
+                "evidence_class": quality.get("evidence_class"),
+                "evidence_tier": quality.get("evidence_tier"),
+                "acquisition_strategy": quality.get("acquisition_strategy") or GS_P001_EVIDENCE_STRATEGY["id"],
                 "source_trust_score": quality.get("source_trust_score"),
                 "authority_score": quality.get("authority_score"),
                 "authority_threshold": quality.get("authority_threshold"),
@@ -2789,9 +2976,12 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
     else:
         why = "Rejected: missing complaint/pain language or property-maintenance context."
         skip_reason = "not_complaint_or_pain_evidence"
+    evidence_class = evidence_class_for_source(source_type, url, title, "", query)
     return {
         "classification": classification,
         "evidence_classification": classification,
+        "evidence_class": evidence_class,
+        "evidence_tier": evidence_tier_for_class(evidence_class),
         "production_eligible": production_eligible,
         "source_type_detected": source_type,
         "source_trust_score": trust_score,
@@ -2832,6 +3022,9 @@ def signal_quality_metadata(signal: dict[str, object]) -> dict[str, object]:
             "evidence_classification": classification,
             "production_eligible": production_eligible,
             "source_type_detected": metadata.get("source_type") or "unknown",
+            "evidence_class": metadata.get("evidence_class") or evidence_class_for_source(str(metadata.get("source_type") or ""), str(signal.get("source_url") or ""), str(metadata.get("original_title") or signal.get("source_name") or "")),
+            "evidence_tier": int(metadata.get("evidence_tier") or evidence_tier_for_class(str(metadata.get("evidence_class") or ""))),
+            "acquisition_strategy": metadata.get("acquisition_strategy") or "",
             "source_trust_score": int(metadata.get("source_trust_score") or 0),
             "authority_score": int(metadata.get("authority_score") or metadata.get("source_trust_score") or 0),
             "authority_threshold": int(metadata.get("authority_threshold") or MIN_PRODUCTION_AUTHORITY_SCORE),
@@ -2955,11 +3148,15 @@ def discovery_learning_dashboard(db_path: str | Path, study_id: str = DEFAULT_ST
     rejected_total = sum(int(row.get("rejected_count") or 0) for row in provider_rows)
     total = accepted_total + rejected_total
     trust_values = [float(row.get("average_trust_score") or 0) for row in rows if float(row.get("average_trust_score") or 0) > 0]
+    evidence_class_rows = [row for row in rows if row.get("memory_type") == "evidence_class"]
+    best_evidence_class = max(evidence_class_rows, key=lambda row: float(row.get("score") or 0), default={})
     return {
         "best_domains": [row for row in rows if row.get("memory_type") == "trusted_domain"][:5],
         "worst_domains": [row for row in rows if row.get("memory_type") in {"rejected_domain", "vendor_domain"}][:5],
         "best_queries": [row for row in rows if row.get("memory_type") == "high_yield_query"][:5],
         "worst_queries": [row for row in rows if row.get("memory_type") == "low_yield_query"][:5],
+        "evidence_classes": evidence_class_rows[:8],
+        "best_evidence_class": best_evidence_class,
         "best_provider": best_provider,
         "acceptance_rate": round((accepted_total / total) * 100, 1) if total else 0,
         "average_trust_score": round(sum(trust_values) / len(trust_values), 1) if trust_values else 0,
@@ -2969,20 +3166,97 @@ def discovery_learning_dashboard(db_path: str | Path, study_id: str = DEFAULT_ST
     }
 
 
-def prioritized_query_runs(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[tuple[str, str]]:
-    base = [(group, query) for group, queries in GS001_EVIDENCE_QUERY_GROUPS.items() for query in queries]
+def evidence_tier_for_class(evidence_class: str) -> int:
+    config = EVIDENCE_CLASS_TIERS.get(str(evidence_class or "").strip(), EVIDENCE_CLASS_TIERS["Unknown"])
+    return int(config.get("tier") or 6)
+
+
+def evidence_class_for_source(
+    source_type: str = "",
+    url: str = "",
+    title: str = "",
+    provider_name: str = "",
+    query_group: str = "",
+) -> str:
+    lower = " ".join([source_type, url, title, provider_name, query_group]).lower()
+    if "vendor" in lower:
+        return "Vendor"
+    if "marketing" in lower:
+        return "Marketing"
+    if "ombudsman" in lower:
+        return "Ombudsman"
+    if any(marker in lower for marker in ["court", "lawsuit", "docket", "judgment", "filing"]):
+        return "Court"
+    if any(marker in lower for marker in ["attorney general", "site:ag.", ".ag.", "/ag/", " ag "]):
+        return "Attorney General"
+    if any(marker in lower for marker in ["housing authority", "public housing"]):
+        return "Housing Authority"
+    if any(marker in lower for marker in [".gov", "hud.gov", "regulator", "enforcement", "government"]):
+        return "Regulator"
+    if any(marker in lower for marker in ["bbb.org", "better business bureau", "consumer affairs", "consumeraffairs"]):
+        return "Consumer Complaints"
+    if any(marker in lower for marker in ["tenant advocacy", "tenant union"]):
+        return "Tenant Advocacy"
+    if any(marker in lower for marker in ["reuters", "apnews", "guardian", "nytimes", "wsj", "investigation", "news"]):
+        return "Investigative Journalism"
+    if any(marker in lower for marker in ["housing trade", "property management trade"]):
+        return "Housing Trade Publication"
+    if any(marker in lower for marker in ["reddit", "forum", "community", "social_media", "facebook_group"]):
+        return "Community Evidence"
+    if any(marker in lower for marker in ["search_result", "tavily", "serpapi", "newsapi"]):
+        return "Search Provider"
+    return "Unknown"
+
+
+def gs_p001_query_runs() -> list[dict[str, object]]:
+    runs: list[dict[str, object]] = []
+    for index, category in enumerate(GS_P001_EVIDENCE_STRATEGY["query_categories"]):  # type: ignore[index]
+        evidence_class = str(category["evidence_class"])  # type: ignore[index]
+        evidence_tier = evidence_tier_for_class(evidence_class)
+        for query in category["queries"]:  # type: ignore[index]
+            runs.append(
+                {
+                    "query_group": str(category["query_group"]),  # type: ignore[index]
+                    "query_category": str(category["query_category"]),  # type: ignore[index]
+                    "query": str(query),
+                    "evidence_class": evidence_class,
+                    "evidence_tier": evidence_tier,
+                    "strategy": str(GS_P001_EVIDENCE_STRATEGY["id"]),
+                    "base_index": index,
+                }
+            )
+    return sorted(runs, key=lambda run: (int(run["evidence_tier"]), int(run["base_index"])))
+
+
+def prioritized_evidence_query_runs(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    base = gs_p001_query_runs()
     memory = discovery_memory_rows(db_path, study_id)
     scores = {str(row.get("memory_key")): float(row.get("score") or 0) for row in memory if row.get("memory_type") in {"high_yield_query", "low_yield_query"}}
+    vendor_domains = {str(row.get("memory_key")) for row in memory if row.get("memory_type") == "vendor_domain"}
     indexed = list(enumerate(base))
-    ranked = sorted(indexed, key=lambda item: (scores.get(item[1][1], 0), -item[0]), reverse=True)
-    # Keep a little exploration by appending any base query not already ordered exactly once.
+
+    def rank(item: tuple[int, dict[str, object]]) -> tuple[int, float, int]:
+        index, run = item
+        query = str(run.get("query") or "")
+        tier = int(run.get("evidence_tier") or 6)
+        score = scores.get(query, 0)
+        if any(domain and domain in query for domain in vendor_domains):
+            score -= 100
+        return (tier, -score, index)
+
+    ordered_runs = [run for _, run in sorted(indexed, key=rank)]
     seen: set[str] = set()
-    ordered: list[tuple[str, str]] = []
-    for _, query_run in ranked:
-        if query_run[1] not in seen:
-            ordered.append(query_run)
-            seen.add(query_run[1])
-    return ordered
+    unique: list[dict[str, object]] = []
+    for run in ordered_runs:
+        query = str(run.get("query") or "")
+        if query not in seen:
+            unique.append(run)
+            seen.add(query)
+    return unique
+
+
+def prioritized_query_runs(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[tuple[str, str]]:
+    return [(str(run["query_group"]), str(run["query"])) for run in prioritized_evidence_query_runs(db_path, study_id)]
 
 
 def discovery_domain_memory(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, list[str]]:
@@ -3098,6 +3372,12 @@ def record_discovery_learning(
             trust_values = [int(row.get("source_trust_score") or 0) for row in accepted if int(row.get("source_trust_score") or 0) > 0]
             avg_trust = round(sum(trust_values) / len(trust_values), 1) if trust_values else 0
             duplicates = 1 if (provider, query) in duplicate_keys else 0
+            evidence_classes = sorted(
+                {
+                    str(row.get("evidence_class") or evidence_class_for_source(str(row.get("source_type_detected") or ""), str(row.get("source_url") or ""), str(row.get("original_title") or ""), provider, query_group))
+                    for row in rows
+                }
+            )
             values = (
                 study_id,
                 study_run_id,
@@ -3143,6 +3423,7 @@ def record_discovery_learning(
                     "average_trust_score": avg_trust,
                     "accepted_domains": accepted_domains,
                     "rejected_domains": rejected_domains,
+                    "evidence_classes": evidence_classes,
                 }
             )
 
@@ -3162,6 +3443,36 @@ def record_discovery_learning(
             domain = _candidate_domain(candidate)
             if candidate.get("classification") == "vendor_content" and domain:
                 upsert_discovery_memory(db_path, study_id, "vendor_domain", domain, rejected=1, vendor=1, provider=provider, query=query)
+        for evidence_class in row.get("evidence_classes") or []:
+            class_candidates = [
+                candidate
+                for candidate in candidates
+                if _candidate_query_key(candidate)[:2] == (provider, query)
+                and str(candidate.get("evidence_class") or evidence_class_for_source(str(candidate.get("source_type_detected") or ""), str(candidate.get("source_url") or ""), str(candidate.get("original_title") or ""), provider, str(candidate.get("query_group") or ""))) == str(evidence_class)
+            ]
+            class_accepted = [
+                candidate
+                for candidate in class_candidates
+                if str(candidate.get("source_url") or "").strip().lower() in stored_urls
+            ]
+            class_rejected = len(class_candidates) - len(class_accepted)
+            class_trust_values = [int(candidate.get("source_trust_score") or 0) for candidate in class_accepted if int(candidate.get("source_trust_score") or 0) > 0]
+            class_avg_trust = round(sum(class_trust_values) / len(class_trust_values), 1) if class_trust_values else 0
+            upsert_discovery_memory(
+                db_path,
+                study_id,
+                "evidence_class",
+                str(evidence_class),
+                accepted=len(class_accepted),
+                rejected=class_rejected,
+                vendor=len([candidate for candidate in class_candidates if candidate.get("classification") == "vendor_content"]),
+                market_context=len([candidate for candidate in class_candidates if candidate.get("classification") == "market_context"]),
+                community=len([candidate for candidate in class_candidates if candidate.get("source_type_detected") in {"forum", "social_media", "facebook_group"}]),
+                duplicates=int(row["duplicates"]),
+                trust_score=class_avg_trust,
+                provider=provider,
+                query=query,
+            )
         if accepted_count:
             upsert_discovery_memory(db_path, study_id, "high_yield_query", query, accepted=accepted_count, rejected=rejected_count, trust_score=trust_score, provider=provider, query=query)
         elif rejected_count:

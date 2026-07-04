@@ -18,7 +18,9 @@ from project_exchange.golden_study import (
     create_study,
     discovery_learning_dashboard,
     discovery_memory_rows,
+    evidence_class_for_source,
     evidence_quality_profile,
+    evidence_tier_for_class,
     finding_evidence,
     generate_executive_brief,
     generate_findings,
@@ -33,6 +35,7 @@ from project_exchange.golden_study import (
     list_opportunities,
     mark_engineering_ready,
     production_pipeline_statuses,
+    prioritized_evidence_query_runs,
     prioritized_query_runs,
     pull_real_market_evidence,
     switch_study_run_mode,
@@ -792,6 +795,43 @@ def test_evidence_discovery_runs_focused_query_groups_and_prioritizes_trusted_so
     assert all("vendor.example.com" not in str(signal.get("source_url")) for signal in signals)
 
 
+def test_gsp001_query_strategy_prioritises_authoritative_evidence_tiers(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    query_runs = prioritized_evidence_query_runs(db_path)
+    tiers = [int(run["evidence_tier"]) for run in query_runs]
+
+    assert tiers == sorted(tiers)
+    assert query_runs[0]["evidence_class"] in {"Regulator", "Attorney General", "Housing Authority", "Court", "Ombudsman"}
+    assert all(run.get("query_category") for run in query_runs)
+    assert all("evidence_class" in run for run in query_runs)
+
+
+def test_evidence_class_mapping_uses_source_authority_not_provider_volume():
+    assert evidence_class_for_source("government", "https://www.hud.gov/maintenance-complaint", "Tenant repair complaint") == "Regulator"
+    assert evidence_class_for_source("search_result", "https://www.bbb.org/property-management-maintenance", "Complaint") == "Consumer Complaints"
+    assert evidence_class_for_source("vendor", "https://vendor.example.com/industries/property-management", "Book a demo") == "Vendor"
+    assert evidence_tier_for_class("Regulator") == 1
+    assert evidence_tier_for_class("Vendor") == 6
+
+
+def test_pull_real_market_evidence_sends_acquisition_strategy_to_providers(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = QueryAwareEvidenceProvider()
+
+    result = pull_real_market_evidence(db_path, providers=[provider], max_sources=1)
+
+    assert result["query_runs"]
+    assert all(command.get("acquisition_strategy") == "GS-P001" for command in provider.commands)
+    assert all(command.get("evidence_class") for command in provider.commands)
+    assert all(command.get("evidence_tier") for command in provider.commands)
+    assert all(command.get("query_category") for command in provider.commands)
+    assert min(int(command["evidence_tier"]) for command in provider.commands[:5]) == 1
+
+
 def test_discovery_learning_stores_successful_domains_as_trusted(tmp_path):
     db_path = tmp_path / "px.db"
     init_db(db_path)
@@ -806,6 +846,47 @@ def test_discovery_learning_stores_successful_domains_as_trusted(tmp_path):
     assert any("bbb.org" in str(row["memory_key"]) for row in trusted)
     assert dashboard["runs_analysed"] == 1
     assert dashboard["acceptance_rate"] > 0
+
+
+def test_provider_signals_store_evidence_class_and_tier_metadata(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "HUD tenant maintenance complaint",
+                "https://www.hud.gov/tenant-maintenance-complaint",
+                "Tenant complaint says apartment maintenance request had no response and repair communication was ignored.",
+                "search_result",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider], max_sources=1)
+    signal = list_signals(db_path)[0]
+    metadata = json.loads(signal["source_name"])
+
+    assert result["signals_stored"] == 1
+    assert metadata["evidence_class"] == "Regulator"
+    assert metadata["evidence_tier"] == 1
+    assert metadata["acquisition_strategy"] == "GS-P001"
+
+
+def test_discovery_learning_tracks_evidence_class_performance(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+
+    pull_real_market_evidence(db_path, providers=[QueryAwareEvidenceProvider()], max_sources=2)
+    memory = discovery_memory_rows(db_path)
+    dashboard = discovery_learning_dashboard(db_path)
+
+    class_rows = [row for row in memory if row["memory_type"] == "evidence_class"]
+    assert class_rows
+    assert dashboard["evidence_classes"]
+    assert any(int(row["accepted_count"] or 0) > 0 for row in class_rows)
 
 
 def test_discovery_learning_stores_vendor_domains(tmp_path):

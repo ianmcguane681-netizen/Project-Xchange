@@ -1382,11 +1382,29 @@ with tabs[23]:
         best_domains = dashboard.get("best_domains") or []
         worst_domains = dashboard.get("worst_domains") or []
         best_queries = dashboard.get("best_queries") or []
+        evidence_classes = dashboard.get("evidence_classes") or []
+        best_evidence_class = dashboard.get("best_evidence_class") or {}
         if best_domains or worst_domains or best_queries:
             next_domains = ", ".join(str(row.get("memory_key")) for row in best_domains[:2]) or "trusted complaint sources"
             avoid_domains = ", ".join(str(row.get("memory_key")) for row in worst_domains[:2]) or "known weak/vendor domains"
             next_query = str((best_queries[0] or {}).get("memory_key") or "high-yield complaint queries") if best_queries else "high-yield complaint queries"
-            st.info(f"Recommended next run: prioritise {next_domains}, lead with '{next_query}', and deprioritise {avoid_domains}.")
+            class_hint = str(best_evidence_class.get("memory_key") or "higher-authority evidence classes")
+            st.info(f"Recommended next run: prioritise {next_domains}, lead with '{next_query}', favour {class_hint}, and deprioritise {avoid_domains}.")
+
+        with st.container(border=True):
+            st.markdown("**Evidence classes**")
+            if evidence_classes:
+                class_cols = st.columns(3)
+                for index, row in enumerate(evidence_classes[:6]):
+                    accepted = int(row.get("accepted_count") or 0)
+                    rejected = int(row.get("rejected_count") or 0)
+                    total = accepted + rejected
+                    rate = round((accepted / total) * 100, 1) if total else 0
+                    with class_cols[index % 3]:
+                        st.metric(str(row.get("memory_key") or "Unknown"), f"{rate}%", f"{accepted} accepted")
+                        st.caption(f"Trust {row.get('average_trust_score') or 0} | Vendor rejects {row.get('vendor_count') or 0}")
+            else:
+                st.caption("No evidence-class learning yet. Run production evidence acquisition to start learning which source classes perform best.")
 
         card_cols = st.columns(2)
         with card_cols[0]:
