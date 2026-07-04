@@ -60,7 +60,6 @@ from project_exchange.golden_study import (
     audit_finding,
     build_evidence_clusters,
     create_signal,
-    data_source_health_dashboard,
     demo_warning_active,
     delete_archived_demo_data,
     discovery_learning_dashboard,
@@ -79,7 +78,6 @@ from project_exchange.golden_study import (
     list_studies,
     list_study_runs,
     list_study_briefs,
-    list_evidence_sources,
     mark_engineering_ready,
     production_pipeline_statuses,
     pull_real_market_evidence,
@@ -91,6 +89,7 @@ from project_exchange.golden_study import (
     traceability_chain,
     validate_golden_study_integrity,
 )
+from project_exchange import golden_study as golden_study_module
 from project_exchange.head_of_functions import (
     create_objective,
     create_operating_schedule,
@@ -130,6 +129,37 @@ EXPORT_DIR = Path("data/exports")
 
 st.set_page_config(page_title="PX-EOS", layout="wide")
 init_db(DB_PATH)
+
+
+def data_source_health_dashboard(db_path, study_id=DEFAULT_STUDY_ID):
+    if hasattr(golden_study_module, "data_source_health_dashboard"):
+        return golden_study_module.data_source_health_dashboard(db_path, study_id)
+    return {
+        "sources": [],
+        "source_runs_today": [],
+        "tier_1_sources_configured": 0,
+        "tier_2_sources_configured": 0,
+        "working_apis": 0,
+        "working_crawlers": 0,
+        "working_rss_feeds": 0,
+        "working_search_providers": 0,
+        "failed_sources": 0,
+        "collection_errors": 0,
+        "daily_documents_collected": 0,
+        "accepted_production_evidence": 0,
+        "rejected_evidence": 0,
+        "coverage_by_industry": [],
+        "coverage_by_country": [],
+        "coverage_by_study": [],
+        "coverage_confidence": 0,
+        "overall_health": "Not configured",
+    }
+
+
+def list_evidence_sources(db_path, study_id=DEFAULT_STUDY_ID):
+    if hasattr(golden_study_module, "list_evidence_sources"):
+        return golden_study_module.list_evidence_sources(db_path, study_id)
+    return []
 
 
 def get_research_record(research_id: str) -> dict[str, object] | None:
