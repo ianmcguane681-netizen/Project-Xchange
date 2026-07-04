@@ -1847,6 +1847,9 @@ def test_signal_trace_card_view_model_uses_source_url_when_source_name_missing()
     assert view["query"] == "maintenance communication"
     assert view["retrieved"] == "2026-07-01T20:00:00Z"
     assert view["raw_text"].startswith("Tenants complain")
+    assert view["decision_question"] == "Can we trust it?"
+    assert view["traceability_decision"] == "PASS"
+    assert view["current_recommendation"]
 
 
 def test_signal_trace_card_view_model_handles_none_source_name():
@@ -1864,6 +1867,8 @@ def test_signal_trace_card_view_model_handles_none_source_name():
     assert view["query"] == "Not recorded"
     assert view["retrieved"] == "Not recorded"
     assert view["raw_text"] == "Provider signal summary"
+    assert view["authority_decision"] == "NEEDS EVIDENCE"
+    assert view["traceability_decision"] == "NEEDS EVIDENCE"
 
 
 def test_signals_page_card_model_handles_provider_signal_after_pull(tmp_path):
@@ -1892,6 +1897,11 @@ def test_signals_page_card_model_handles_provider_signal_after_pull(tmp_path):
     assert view["source_url"] == "https://example.com/maintenance-source"
     assert view["verification_status"] == "pending_verification"
     assert view["retrieved"] != "Not recorded"
+    assert view["production_eligible"] == "YES"
+    assert view["authority_decision"] == "PASS"
+    assert view["commercial_relevance_decision"] == "PASS"
+    assert view["traceability_decision"] == "PASS"
+    assert "accepted production evidence" in view["current_recommendation"].lower()
 
 
 def test_provider_signal_view_model_hides_raw_source_name_json(tmp_path):
@@ -1916,6 +1926,7 @@ def test_provider_signal_view_model_hides_raw_source_name_json(tmp_path):
 
     assert str(signal["source_name"]).startswith("{")
     assert view["source_name"] == "Readable complaint title"
+    assert view["executive_summary"].startswith("Production evidence:")
 
 
 def test_demo_rehearsal_can_reach_demo_engineering_ready(tmp_path):

@@ -4156,6 +4156,44 @@ def provider_signal_metadata(signal: dict[str, object]) -> dict[str, object]:
     return {}
 
 
+def _score_as_int(value: object) -> int:
+    try:
+        return int(float(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _decision_pass(value: object, threshold: int = 70) -> str:
+    return "PASS" if _score_as_int(value) >= threshold else "NEEDS EVIDENCE"
+
+
+def _decision_count(value: bool) -> str:
+    return "1 / 2" if value else "0 / 2"
+
+
+def _evidence_decision_recommendation(
+    signal: dict[str, object],
+    quality: dict[str, object],
+    source_name: object,
+) -> str:
+    if quality.get("production_eligible"):
+        return "Use as accepted production evidence, then collect independent corroboration."
+    classification = str(quality.get("classification") or quality.get("evidence_classification") or "unknown")
+    if classification == "vendor_content":
+        return "Reject for qualification; vendor content cannot support a build decision."
+    if classification == "market_context":
+        return "Keep as context only; collect complaint or operational pain evidence."
+    if classification == "community_signal":
+        return "Verify with an authoritative source before using in qualification."
+    if not (signal.get("source_url") or source_name):
+        return "Collect a traceable source URL or named source."
+    if _score_as_int(quality.get("source_trust_score")) < 70:
+        return "Find a more authoritative independent source."
+    if _score_as_int(quality.get("operational_relevance_score")) < 70:
+        return "Collect evidence that directly shows maintenance communication pain."
+    return "Collect additional independent evidence before qualification."
+
+
 def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
     metadata = provider_signal_metadata(signal)
     source_name = (
@@ -4171,6 +4209,23 @@ def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
     retrieved = metadata.get("retrieved_at") or signal.get("retrieved_at") or signal.get("source_date") or "Not recorded"
     raw_text = signal.get("raw_text") or signal.get("summary") or "No evidence quote recorded."
     quality = signal_quality_metadata(signal)
+    authority_score = quality.get("authority_score") or quality.get("source_trust_score") or 0
+    relevance_score = quality.get("operational_relevance_score") or 0
+    raw_source_name = signal.get("source_name")
+    traceable = bool(signal.get("source_url") or (raw_source_name and str(raw_source_name).strip() and str(raw_source_name).strip() != "Unknown source"))
+    domain = source_domain_or_identity(signal)
+    has_event = bool(signal.get("market_event_id") or quality.get("market_event_id"))
+    accepted = bool(quality.get("production_eligible"))
+    confidence = min(_score_as_int(authority_score), _score_as_int(relevance_score))
+    if accepted and confidence <= 0:
+        confidence = _score_as_int(quality.get("source_trust_score"))
+    executive_label = "Production evidence" if accepted else "Evidence review"
+    executive_summary = (
+        f"{executive_label}: {source_name} has {confidence}% decision confidence."
+        if confidence
+        else f"{executive_label}: {source_name} needs more qualification."
+    )
+    recommendation = _evidence_decision_recommendation(signal, quality, source_name)
     return {
         "source_name": str(source_name),
         "provider": str(provider),
@@ -4188,8 +4243,8 @@ def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
         "evidence_class": str(quality.get("evidence_class") or "Unknown"),
         "source_type": str(quality.get("source_type_detected") or "unknown"),
         "source_trust_score": str(quality.get("source_trust_score") or 0),
-        "authority_score": str(quality.get("authority_score") or quality.get("source_trust_score") or 0),
-        "operational_relevance_score": str(quality.get("operational_relevance_score") or 0),
+        "authority_score": str(authority_score),
+        "operational_relevance_score": str(relevance_score),
         "production_eligible": "YES" if quality.get("production_eligible") else "NO",
         "evidence_relevance": str(quality.get("evidence_relevance") or "unknown"),
         "executive_explanation": str(quality.get("executive_explanation") or quality.get("why_accepted") or "Not recorded"),
@@ -4197,6 +4252,16 @@ def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
         "why_accepted": str(quality.get("why_accepted") or "Not recorded"),
         "pain_keywords_matched": ", ".join(str(item) for item in quality.get("pain_keywords_matched", []) or []) or "None",
         "context_keywords_matched": ", ".join(str(item) for item in quality.get("context_keywords_matched", []) or []) or "None",
+        "decision_question": "Can we trust it?",
+        "executive_summary": executive_summary,
+        "confidence": str(confidence),
+        "authority_decision": _decision_pass(authority_score),
+        "commercial_relevance_decision": _decision_pass(relevance_score),
+        "traceability_decision": "PASS" if traceable else "NEEDS EVIDENCE",
+        "independent_sources": _decision_count(bool(domain and domain != "unknown")),
+        "independent_events": _decision_count(has_event),
+        "organisations": _decision_count(bool(domain and domain != "unknown")),
+        "current_recommendation": recommendation,
     }
 
 

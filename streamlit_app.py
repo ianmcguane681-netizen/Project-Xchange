@@ -295,8 +295,8 @@ with st.container(border=True):
     st.info(f"Executive Recommendation: {front_recommendation}")
     action_cols = st.columns(6)
     action_cols[0].button("Pull Evidence", key="front_pull_evidence_hint")
-    action_cols[1].button("Review Signals", key="front_review_signals_hint")
-    action_cols[2].button("Generate Findings", key="front_generate_findings_hint")
+    action_cols[1].button("Verification", key="front_review_signals_hint")
+    action_cols[2].button("Intelligence", key="front_generate_findings_hint")
     action_cols[3].button("Executive Due Diligence", key="front_due_diligence_hint")
     action_cols[4].button("Review Opportunity", key="front_review_opportunity_hint")
     action_cols[5].button("Archive Run", key="front_archive_run_hint")
@@ -1366,24 +1366,47 @@ with tabs[23]:
             with st.container(border=True):
                 render_business_card(
                     clean_signal_source_title(signal),
-                    view["verification_status"],
-                    view["raw_text"],
+                    f"Confidence {view.get('confidence', '0')}%",
+                    view["executive_summary"],
                     [
-                        ("Provider", view["provider"]),
                         ("Evidence Tier", view["executive_evidence_tier"]),
-                        ("Country", view["country"]),
-                        ("Stakeholder", view["stakeholder"]),
-                        ("Authority", view["authority_score"]),
-                        ("Relevance", view["operational_relevance_score"]),
+                        ("Classification", view["evidence_classification"].replace("_", " ").title()),
+                        ("Provider", view["provider"]),
                         ("Production Eligible", view["production_eligible"]),
                     ],
                 )
-                st.caption(f"Why accepted: {view['executive_explanation']}")
-                st.caption(f"Pain keywords: {view['pain_keywords_matched']}")
-                st.caption(f"Context keywords: {view['context_keywords_matched']}")
-                if signal.get("source_url"):
-                    st.markdown(f"[Open source]({signal['source_url']})")
+                st.caption(view["decision_question"])
+                render_decision_summary(view)
                 with st.expander("Technical Details"):
+                    st.markdown("**Raw Evidence**")
+                    st.write(view["raw_text"])
+                    st.markdown("**Source URL**")
+                    st.write(view["source_url"])
+                    st.markdown("**Entity Mapping**")
+                    st.json(
+                        {
+                            "country": view["country"],
+                            "stakeholder": view["stakeholder"],
+                            "provider": view["provider"],
+                            "query": view["query"],
+                            "retrieved": view["retrieved"],
+                        }
+                    )
+                    st.markdown("**Classification**")
+                    st.json(
+                        {
+                            "evidence_classification": view["evidence_classification"],
+                            "evidence_relevance": view["evidence_relevance"],
+                            "source_type": view["source_type"],
+                            "authority_score": view["authority_score"],
+                            "operational_relevance_score": view["operational_relevance_score"],
+                        }
+                    )
+                    st.markdown("**Reasoning**")
+                    st.write(view["executive_explanation"])
+                    st.write(f"Pain keywords: {view['pain_keywords_matched']}")
+                    st.write(f"Context keywords: {view['context_keywords_matched']}")
+                    st.markdown("**Raw Database Record**")
                     st.json(signal)
         except Exception as exc:
             st.warning("This signal could not be rendered as a card, but the record is preserved.")
@@ -1397,20 +1420,38 @@ with tabs[23]:
             if view["production_eligible"] != "YES":
                 badge = f"{badge} / Not Production Eligible"
             with st.container(border=True):
-                st.caption(f"{view['executive_evidence_tier']} | {badge}")
-                st.markdown(f"**{clean_signal_source_title(signal)}**")
-                st.write(view["executive_explanation"])
-                if view["rejection_reason"]:
-                    st.caption(f"Primary rejection reason: {view['rejection_reason']}")
-                cols = st.columns(5)
-                cols[0].metric("Classification", view["evidence_classification"].replace("_", " ").title())
-                cols[1].metric("Source Type", view["source_type"].replace("_", " ").title())
-                cols[2].metric("Authority", view["authority_score"])
-                cols[3].metric("Relevance", view["operational_relevance_score"])
-                cols[4].metric("Provider", view["provider"])
-                if signal.get("source_url"):
-                    st.markdown(f"[Open source]({signal['source_url']})")
+                render_business_card(
+                    clean_signal_source_title(signal),
+                    badge,
+                    view["executive_summary"],
+                    [
+                        ("Source Type", view["source_type"].replace("_", " ").title()),
+                        ("Trust", view["source_trust_score"]),
+                        ("Provider", view["provider"]),
+                        ("Production Eligible", view["production_eligible"]),
+                    ],
+                )
+                st.caption(view["decision_question"])
+                render_decision_summary(view)
                 with st.expander("Technical Details"):
+                    st.markdown("**Reason Rejected**")
+                    st.write(view["rejection_reason"] or view["executive_explanation"])
+                    st.markdown("**Raw Evidence**")
+                    st.write(view["raw_text"])
+                    st.markdown("**Source URL**")
+                    st.write(view["source_url"])
+                    st.markdown("**Metadata / Classification**")
+                    st.json(
+                        {
+                            "provider": view["provider"],
+                            "query": view["query"],
+                            "retrieved": view["retrieved"],
+                            "classification": view["evidence_classification"],
+                            "source_type": view["source_type"],
+                            "evidence_relevance": view["evidence_relevance"],
+                        }
+                    )
+                    st.markdown("**Raw Database Record**")
                     st.json(signal)
         except Exception as exc:
             st.warning("This context record could not be rendered as a card, but the record is preserved.")
@@ -1694,6 +1735,20 @@ with tabs[23]:
                 for index, (label, value) in enumerate(kpis):
                     cols[index % len(cols)].metric(str(label), value)
 
+    def render_decision_summary(view: dict[str, str]) -> None:
+        decision_rows = [
+            ("Authority", view.get("authority_decision", "NEEDS EVIDENCE")),
+            ("Commercial Relevance", view.get("commercial_relevance_decision", "NEEDS EVIDENCE")),
+            ("Traceability", view.get("traceability_decision", "NEEDS EVIDENCE")),
+            ("Independent Sources", view.get("independent_sources", "0 / 2")),
+            ("Independent Events", view.get("independent_events", "0 / 2")),
+            ("Organisations", view.get("organisations", "0 / 2")),
+        ]
+        cols = st.columns(3)
+        for index, (label, value) in enumerate(decision_rows):
+            cols[index % 3].metric(label, value)
+        st.info(str(view.get("current_recommendation") or "Collect additional independent evidence."))
+
     def empty_state(tab_name: str, production_text: str, demo_text: str | None = None) -> None:
         if is_production_run:
             message = production_text
@@ -1836,12 +1891,12 @@ with tabs[23]:
 
     workflow_tabs = st.tabs([
         "Mission Control",
-        "Collect Market Evidence",
-        "Signals",
-        "Findings",
+        "Discovery",
+        "Verification",
+        "Intelligence",
         "Executive Due Diligence",
-        "Opportunities",
-        "Engineering Specs",
+        "Opportunity Qualification",
+        "Blueprint Studio",
         "Evidence Chain",
         "Executive Brief",
         "Integrity Check",
@@ -1866,7 +1921,7 @@ with tabs[23]:
             "Commercial Ready",
         ]
         progress_percent = pipeline_progress_percent(workflow_stages)
-        section_header("Mission Control", "GS-001 command centre for market evidence, audit, and opportunity readiness.", mode_label)
+        section_header("Mission Control", "What decision should we make next?", mode_label)
         control_cols = st.columns(3)
         with control_cols[0]:
             render_status_card("Current Study", "GS-001", "Global Property Management", "Active")
@@ -1881,7 +1936,7 @@ with tabs[23]:
             action_cols = st.columns(2)
             if action_cols[0].button("+ Add First Verified Evidence", key="gs001_overview_add_first_verified", type="primary"):
                 st.session_state["gs001_focus_add_evidence"] = True
-                st.info("Open Collect Market Evidence to enter the first verified source.")
+                st.info("Open Discovery to enter the first verified source.")
             if action_cols[1].button("View Demo History", key="gs001_overview_view_demo_history"):
                 st.info("Open Archive / Demo History to view preserved demo records.")
             st.caption("0% - Awaiting first verified evidence")
@@ -2043,8 +2098,8 @@ with tabs[23]:
 
     with workflow_tabs[1]:
         section_header(
-            "Collect Market Evidence",
-            "Production collects verified market evidence. Demo mode loads rehearsal evidence.",
+            "Discovery",
+            "What did we find?",
             "Production Mode Active" if is_production_run else "Demo Mode Active" if is_demo_run else "Waiting",
         )
         if is_production_run:
@@ -2136,7 +2191,7 @@ with tabs[23]:
             st.info("No active run is available.")
 
     with workflow_tabs[2]:
-        section_header("Signals", "Evidence cards for the current active run. Technical IDs stay inside each expander.", workflow_stage_status("Signals"))
+        section_header("Verification", "Can we trust it?", workflow_stage_status("Signals"))
         accepted_signals = []
         rejected_signals = []
         for signal in signals:
@@ -2174,7 +2229,7 @@ with tabs[23]:
             st.dataframe(signals, use_container_width=True)
 
     with workflow_tabs[3]:
-        section_header("Findings", "Problems generated from repeated supporting signals in the active run.", workflow_stage_status("Findings"))
+        section_header("Intelligence", "What pattern exists?", workflow_stage_status("Findings"))
         if st.button("Generate Findings", key="gs001_generate_findings"):
             generated = generate_findings(DB_PATH, DEFAULT_STUDY_ID)
             level, message = findings_feedback(generated)
@@ -2319,7 +2374,7 @@ with tabs[23]:
                     st.json(audit)
 
     with workflow_tabs[5]:
-        section_header("Opportunities", "Current-run opportunity cards with commercial and engineering readiness context.", workflow_stage_status("Opportunities"))
+        section_header("Opportunity Qualification", "What commercial opportunity exists?", workflow_stage_status("Opportunities"))
         if not opportunities:
             empty_state(
                 "Opportunities",
@@ -2353,7 +2408,7 @@ with tabs[23]:
                     st.json(opportunity)
 
     with workflow_tabs[6]:
-        section_header("Engineering Specs", "Professional engineering briefs for opportunities that are ready for specification.", workflow_stage_status("Engineering Specs"))
+        section_header("Blueprint Studio", "What are we building?", workflow_stage_status("Engineering Specs"))
         spec_opportunities = [row for row in opportunities if row.get("engineering_status") in {"Engineering Specification Required", "Engineering Ready", "Demo Opportunity", "Demo Engineering Ready"}]
         if not spec_opportunities:
             empty_state(

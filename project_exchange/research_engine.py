@@ -202,14 +202,25 @@ def confidence_score(results: list[ProviderResult], signals: dict[str, object]) 
     return min(score, 100)
 
 
+def manual_provider_results(command: dict[str, object]) -> list[ProviderResult]:
+    source_text = str(command.get("source_text") or command.get("raw_text") or "").strip()
+    if not source_text:
+        return []
+    source_url = str(command.get("source_url") or command.get("website") or "").strip()
+    title = str(command.get("source_name") or command.get("company") or command.get("market") or "Manual evidence").strip()
+    source_type = str(command.get("source_type") or "manual").strip() or "manual"
+    return [ProviderResult("Manual Evidence", title, source_url, source_text, source_type)]
+
+
 def run_internet_research(
     db_path: str | Path,
     command: dict[str, object],
     providers: list[ResearchProvider] | None = None,
 ) -> dict[str, object]:
+    manual_results = manual_provider_results(command)
     if providers is None:
         readiness = provider_ready_for_research()
-        if not readiness["ready"]:
+        if not readiness["ready"] and not manual_results:
             message = str(readiness["message"])
             add_log(db_path, "warning", message, "PX-R001", status="provider_not_configured")
             raise ValueError(message)
@@ -228,6 +239,7 @@ def run_internet_research(
             safe_error = f"{provider.name} request failed"
             record_provider_finish(db_path, provider_id, "failed", 0, safe_error)
             add_log(db_path, "warning", safe_error, "PX-R001", status="provider_failed")
+    all_results.extend(manual_results)
     evidence_results = [
         result for result in all_results
         if str(result.snippet or "").strip()
