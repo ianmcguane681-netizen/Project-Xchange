@@ -133,7 +133,10 @@ init_db(DB_PATH)
 
 def data_source_health_dashboard(db_path, study_id=DEFAULT_STUDY_ID):
     if hasattr(golden_study_module, "data_source_health_dashboard"):
-        return golden_study_module.data_source_health_dashboard(db_path, study_id)
+        try:
+            return golden_study_module.data_source_health_dashboard(db_path, study_id)
+        except Exception:
+            pass
     return {
         "sources": [],
         "source_runs_today": [],
@@ -158,8 +161,19 @@ def data_source_health_dashboard(db_path, study_id=DEFAULT_STUDY_ID):
 
 def list_evidence_sources(db_path, study_id=DEFAULT_STUDY_ID):
     if hasattr(golden_study_module, "list_evidence_sources"):
-        return golden_study_module.list_evidence_sources(db_path, study_id)
+        try:
+            return golden_study_module.list_evidence_sources(db_path, study_id)
+        except Exception:
+            pass
     return []
+
+
+def safe_fetch_all(table_name: str) -> list[dict[str, object]]:
+    try:
+        init_db(DB_PATH)
+        return fetch_all(DB_PATH, table_name)
+    except Exception as exc:
+        return [{"table": table_name, "status": "unavailable", "error": str(exc)}]
 
 
 def get_research_record(research_id: str) -> dict[str, object] | None:
@@ -2582,7 +2596,7 @@ with tabs[23]:
             with st.expander("Technical Details"):
                 st.json(run)
         for table_name in ["study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs"]:
-            rows = [row for row in fetch_all(DB_PATH, table_name) if row.get("study_id") == DEFAULT_STUDY_ID and row.get("is_demo") and row.get("status") == "archived"]
+            rows = [row for row in safe_fetch_all(table_name) if row.get("study_id") == DEFAULT_STUDY_ID and row.get("is_demo") and row.get("status") == "archived"]
             st.subheader(table_name.replace("_", " ").title())
             render_business_card(
                 table_name.replace("_", " ").title(),
@@ -2611,7 +2625,10 @@ with tabs[23]:
         section_header("Raw Database View - technical audit only", "Full ID-heavy tables are intentionally kept here for inspection.", "Technical")
         for table_name in ["studies", "study_runs", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs", "discovery_runs", "discovery_memory", "evidence_sources", "source_collection_runs"]:
             st.subheader(table_name)
-            st.dataframe(fetch_all(DB_PATH, table_name), use_container_width=True)
+            rows = safe_fetch_all(table_name)
+            if rows and rows[0].get("status") == "unavailable":
+                st.warning(f"{table_name} is unavailable in this deployment. The app will continue running.")
+            st.dataframe(rows, use_container_width=True)
 
     with workflow_tabs[12]:
         section_header("Discovery Learning", "GS-001 memory for evidence queries, source domains, and provider performance.", "Learning")
