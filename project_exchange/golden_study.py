@@ -290,8 +290,8 @@ MIN_OPPORTUNITY_GEOGRAPHIC_DIVERSITY = 3
 MIN_OPPORTUNITY_STAKEHOLDER_DIVERSITY = 2
 MIN_OPPORTUNITY_ORGANISATION_DIVERSITY = 4
 SOURCE_TRUST_SCORES = {
-    "government": 100,
-    "court": 100,
+    "government": 92,
+    "court": 98,
     "ombudsman": 98,
     "consumer_review": 95,
     "verified_review_platform": 90,
@@ -373,6 +373,57 @@ GS001_REQUIRED_MAINTENANCE_CONTEXT_KEYWORDS = [
     "repairs",
     "work order",
     "habitability",
+]
+GS001_OPERATIONAL_RELEVANCE_KEYWORDS = [
+    "repair communication",
+    "status update",
+    "status updates",
+    "resident communication",
+    "maintenance request handling",
+    "repair follow-up",
+    "follow up",
+    "maintenance updates",
+    "maintenance update",
+    "maintenance communication",
+    "maintenance coordination",
+    "maintenance status",
+    "communicate maintenance",
+    "failed to communicate",
+    "communication failure",
+    "communication failures",
+    "tenant communication",
+    "property manager communication",
+    "no response",
+    "not updated",
+    "ignored",
+    "maintenance request",
+    "work order",
+    "repair updates",
+]
+GS001_CONTEXT_ONLY_PATTERNS = [
+    "procurement",
+    "agenda",
+    "paving",
+    "road maintenance",
+    "infrastructure",
+    "bid opening",
+    "request for proposal",
+    "rfp",
+    "city council",
+    "minutes",
+    "capital improvement",
+    "contract award",
+    "public works",
+    "street repair",
+]
+GS001_ADVICE_PAGE_PATTERNS = [
+    "how to",
+    "tips",
+    "guide",
+    "best practices",
+    "advice",
+    "overview",
+    "what is",
 ]
 
 CATEGORY_KEYWORDS = {
@@ -2141,18 +2192,25 @@ def evidence_quality_dashboard(signals: list[dict[str, object]], skipped: list[d
     qualities = [signal_quality_metadata(signal) for signal in signals]
     eligible = [quality for quality in qualities if quality.get("production_eligible")]
     trust_scores = [int(quality.get("source_trust_score") or 0) for quality in eligible]
+    relevance_scores = [int(quality.get("operational_relevance_score") or 0) for quality in eligible]
     domains = {source_domain_or_identity(signal) for signal, quality in zip(signals, qualities) if quality.get("production_eligible")}
     classifications = [str(quality.get("classification") or "unknown") for quality in qualities]
+    executive_tiers = [str(quality.get("executive_evidence_tier") or "") for quality in qualities]
     skipped = skipped or []
     return {
         "total_pulled": len(signals) + len(skipped),
         "accepted_production_signals": len(eligible),
+        "tier_a_production_evidence": len([tier for tier in executive_tiers if tier.startswith("Tier A")]),
+        "tier_b_supporting_evidence": len([tier for tier in executive_tiers if tier.startswith("Tier B")]),
+        "tier_c_market_context": len([tier for tier in executive_tiers if tier.startswith("Tier C")]),
+        "tier_d_rejected": len([tier for tier in executive_tiers if tier.startswith("Tier D")]) + len(skipped),
         "market_context": classifications.count("market_context"),
         "vendor_content": classifications.count("vendor_content"),
         "community_signals": classifications.count("community_signal"),
         "rejected": len([quality for quality in qualities if not quality.get("production_eligible")]) + len(skipped),
         "duplicates": len([item for item in skipped if item.get("reason") == "duplicate"]),
         "average_trust_score": round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 0,
+        "average_operational_relevance_score": round(sum(relevance_scores) / len(relevance_scores), 1) if relevance_scores else 0,
         "independent_domains": len(domains),
         "production_readiness": "Ready for finding generation" if len(eligible) >= 3 and len(domains) >= 2 and (round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 0) >= 80 else "Needs stronger evidence",
     }
@@ -2665,13 +2723,17 @@ def encode_provider_signal_metadata(
                 "source_type": quality.get("source_type_detected"),
                 "evidence_class": quality.get("evidence_class"),
                 "evidence_tier": quality.get("evidence_tier"),
+                "executive_evidence_tier": quality.get("executive_evidence_tier"),
                 "acquisition_strategy": quality.get("acquisition_strategy") or GS_P001_EVIDENCE_STRATEGY["id"],
                 "source_trust_score": quality.get("source_trust_score"),
                 "authority_score": quality.get("authority_score"),
+                "operational_relevance_score": quality.get("operational_relevance_score"),
                 "authority_threshold": quality.get("authority_threshold"),
                 "authority_passed": quality.get("authority_passed"),
+                "operational_relevance_passed": quality.get("operational_relevance_passed"),
                 "classification_code": quality.get("classification_code"),
                 "rejection_reason": quality.get("rejection_reason"),
+                "executive_explanation": quality.get("executive_explanation"),
                 "market_event_id": quality.get("market_event_id"),
                 "underlying_event_id": quality.get("underlying_event_id"),
                 "operational_pain": quality.get("operational_pain"),
@@ -2686,6 +2748,69 @@ def encode_provider_signal_metadata(
 def keyword_matches(text: str, keywords: list[str]) -> list[str]:
     lower = text.lower()
     return [keyword for keyword in keywords if keyword in lower]
+
+
+def operational_relevance_score(text: str, query: str = "", url: str = "", title: str = "") -> int:
+    lower = " ".join([query, url, title, text]).lower()
+    score = 0
+    if "united states" in lower or ".gov" in lower or "bbb.org" in lower or "consumeraffairs" in lower:
+        score += 5
+    if any(keyword in lower for keyword in ["tenant", "resident", "apartment", "landlord", "property manager", "property management", "rental", "multifamily"]):
+        score += 20
+    if any(keyword in lower for keyword in GS001_REQUIRED_MAINTENANCE_CONTEXT_KEYWORDS):
+        score += 20
+    if any(keyword in lower for keyword in GS001_OPERATIONAL_RELEVANCE_KEYWORDS):
+        score += 35
+    if "maintenance" in lower and "communication" in lower:
+        score += 25
+    if "repair" in lower and ("update" in lower or "communication" in lower):
+        score += 25
+    if any(keyword in lower for keyword in PAIN_KEYWORDS):
+        score += 20
+    if any(pattern in lower for pattern in GS001_CONTEXT_ONLY_PATTERNS):
+        score -= 45
+    if any(pattern in lower for pattern in GS001_ADVICE_PAGE_PATTERNS):
+        score -= 20
+    return max(0, min(100, score))
+
+
+def evidence_tier_label(classification: str, production_eligible: bool, authority_score: int, relevance_score: int, source_type: str) -> str:
+    if production_eligible:
+        return "Tier A - Production Evidence"
+    if classification in {"market_context", "news_report", "research_report"}:
+        return "Tier C - Market Context"
+    if classification in {"vendor_content", "marketing_content", "unknown"}:
+        return "Tier D - Rejected"
+    if source_type in {"vendor", "marketing"}:
+        return "Tier D - Rejected"
+    if authority_score >= 55 and relevance_score >= 45:
+        return "Tier B - Supporting Evidence"
+    if relevance_score >= 70 and authority_score < MIN_PRODUCTION_AUTHORITY_SCORE:
+        return "Tier B - Supporting Evidence"
+    return "Tier D - Rejected"
+
+
+def plain_evidence_explanation(
+    accepted: bool,
+    classification: str,
+    authority_score: int,
+    relevance_score: int,
+    source_type: str,
+    reason: str,
+) -> str:
+    if accepted:
+        if source_type in {"government", "court", "ombudsman", "consumer_review", "verified_review_platform", "news"}:
+            return "Accepted because an independent, high-authority source describes residential maintenance communication pain with traceable source metadata."
+        return "Accepted because the source describes repeated residential maintenance communication pain and passes the production evidence thresholds."
+    if classification in {"market_context", "news_report", "research_report"}:
+        return "Rejected for qualification because it provides market or background context rather than direct operational pain evidence."
+    if classification in {"vendor_content", "marketing_content"}:
+        return "Rejected because vendor, SEO, marketing or promotional content cannot support production qualification."
+    if authority_score < MIN_PRODUCTION_AUTHORITY_SCORE and relevance_score >= 70:
+        return "Rejected for production because operational pain is visible but the source authority is too low."
+    if relevance_score < 70 and authority_score >= MIN_PRODUCTION_AUTHORITY_SCORE:
+        return "Rejected for production because the source is authoritative but does not demonstrate maintenance communication failure."
+    return reason or "Rejected because it does not meet production evidence authority and operational relevance thresholds."
 
 
 def has_required_gs001_maintenance_context(text: str) -> bool:
@@ -2822,6 +2947,11 @@ def extract_operational_pain(text: str, title: str = "") -> dict[str, object]:
 
 def detect_source_type(url: str = "", title: str = "", text: str = "", source_type_hint: str = "") -> str:
     lower = " ".join([source_type_hint, url, title, text]).lower()
+    advice_like = any(pattern in lower for pattern in GS001_ADVICE_PAGE_PATTERNS)
+    if advice_like and not any(word in lower for word in ["complaint", "enforcement", "case decision", "judgment", "lawsuit filed", "settlement"]):
+        return "article"
+    if any(word in lower for word in ["311", "service request", "housing complaint portal"]):
+        return "government"
     if any(word in lower for word in ["court", "filing", "lawsuit", "docket"]):
         return "court"
     if any(word in lower for word in ["gov", "regulator", "government", "attorney general"]):
@@ -2874,6 +3004,7 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
     marketing_detected = is_marketing_content(all_text)
     source_type = detect_source_type(url, title, combined, source_type_hint)
     trust_score = source_trust_score(source_type, url, title, combined)
+    relevance_score = operational_relevance_score(combined, query, url, title)
     pain_matches = keyword_matches(combined, PAIN_KEYWORDS)
     context_matches = keyword_matches(combined, PROPERTY_MAINTENANCE_CONTEXT_KEYWORDS)
     required_maintenance_context = has_required_gs001_maintenance_context(all_text)
@@ -2904,6 +3035,9 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
         ]
     )
 
+    context_only_detected = any(pattern in all_text.lower() for pattern in GS001_CONTEXT_ONLY_PATTERNS)
+    advice_page_detected = any(pattern in all_text.lower() for pattern in GS001_ADVICE_PAGE_PATTERNS)
+
     if marketing_detected:
         source_type = "marketing"
         trust_score = 40
@@ -2920,6 +3054,14 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
         classification = "community_signal"
         relevance = "unknown"
         reason = "Community discussion. Requires independent verification."
+    elif context_only_detected:
+        classification = "market_context"
+        relevance = "market_size_only"
+        reason = "Government or public context only; not residential maintenance communication pain evidence."
+    elif advice_page_detected:
+        classification = "market_context"
+        relevance = "generic_article"
+        reason = "Advice or guidance page; useful context but not direct complaint evidence."
     elif any(word in lower for word in ["market size", "market report", "forecast", "cagr", "industry revenue", "statistics", "funding", "investment", "industry trends", "software trends"]):
         classification = "market_context"
         relevance = "market_size_only"
@@ -2932,7 +3074,7 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
         classification = "news_report"
         relevance = "generic_article"
         reason = "News report without direct complaint evidence."
-    elif any(word in lower for word in ["article", "guide", "overview", "best practices", "tips"]) and not strong_pain_language:
+    elif (advice_page_detected or any(word in lower for word in ["article", "guide", "overview", "best practices", "tips"])) and not strong_pain_language:
         classification = "market_context"
         relevance = "generic_article"
         reason = "Generic article; useful context but not independent complaint evidence."
@@ -2954,40 +3096,58 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
         reason = "Unknown evidence class; not production eligible."
 
     authority_passed = trust_score >= MIN_PRODUCTION_AUTHORITY_SCORE
-    production_eligible = classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS and bool(pain_matches) and bool(context_matches) and required_maintenance_context and authority_passed
+    relevance_passed = relevance_score >= 70
+    production_eligible = (
+        classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS
+        and bool(pain_matches)
+        and bool(context_matches)
+        and required_maintenance_context
+        and authority_passed
+        and relevance_passed
+        and not context_only_detected
+        and not advice_page_detected
+    )
     if production_eligible:
         why = f"{reason} Matched pain keywords and property-maintenance context."
         skip_reason = ""
     elif classification == "marketing_content":
         why = f"Rejected: {MARKETING_REJECTION_REASON}."
         skip_reason = "marketing_content"
+    elif not required_maintenance_context and classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS:
+        why = "Rejected: No Operational Pain. Evidence does not mention maintenance, repairs, work orders, or habitability."
+        skip_reason = "not_complaint_or_pain_evidence"
     elif not authority_passed and classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS:
         why = f"Rejected: Low Authority Source. Authority score {trust_score} is below {MIN_PRODUCTION_AUTHORITY_SCORE}."
         skip_reason = "low_authority_source"
+    elif not relevance_passed and classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS:
+        why = f"Rejected: Low Operational Relevance. Operational relevance score {relevance_score} is below 70."
+        skip_reason = "not_complaint_or_pain_evidence"
     elif classification in {"market_context", "vendor_content", "news_report", "research_report"}:
         why = reason
         skip_reason = "market_size_generic_or_marketing"
     elif classification == "community_signal":
         why = reason
         skip_reason = "not_complaint_or_pain_evidence"
-    elif not required_maintenance_context and classification in PRODUCTION_ELIGIBLE_CLASSIFICATIONS:
-        why = "Rejected: No Operational Pain. Evidence does not mention maintenance, repairs, work orders, or habitability."
-        skip_reason = "not_complaint_or_pain_evidence"
     else:
         why = "Rejected: missing complaint/pain language or property-maintenance context."
         skip_reason = "not_complaint_or_pain_evidence"
     evidence_class = evidence_class_for_source(source_type, url, title, "", query)
+    tier_label = evidence_tier_label(classification, production_eligible, trust_score, relevance_score, source_type)
+    explanation = plain_evidence_explanation(production_eligible, classification, trust_score, relevance_score, source_type, why)
     return {
         "classification": classification,
         "evidence_classification": classification,
         "evidence_class": evidence_class,
         "evidence_tier": evidence_tier_for_class(evidence_class),
+        "executive_evidence_tier": tier_label,
         "production_eligible": production_eligible,
         "source_type_detected": source_type,
         "source_trust_score": trust_score,
         "authority_score": trust_score,
+        "operational_relevance_score": relevance_score,
         "authority_threshold": MIN_PRODUCTION_AUTHORITY_SCORE,
         "authority_passed": authority_passed,
+        "operational_relevance_passed": relevance_passed,
         "required_maintenance_context": required_maintenance_context,
         "evidence_relevance": relevance,
         "classification_code": str(classification).upper(),
@@ -2998,6 +3158,7 @@ def evidence_quality_profile(text: str, query: str = "", url: str = "", title: s
         "pain_keywords_matched": pain_matches,
         "context_keywords_matched": context_matches,
         "why_accepted": why,
+        "executive_explanation": explanation,
         "accepted_complaint_evidence": production_eligible,
         "skip_reason": skip_reason,
     }
@@ -3024,14 +3185,18 @@ def signal_quality_metadata(signal: dict[str, object]) -> dict[str, object]:
             "source_type_detected": metadata.get("source_type") or "unknown",
             "evidence_class": metadata.get("evidence_class") or evidence_class_for_source(str(metadata.get("source_type") or ""), str(signal.get("source_url") or ""), str(metadata.get("original_title") or signal.get("source_name") or "")),
             "evidence_tier": int(metadata.get("evidence_tier") or evidence_tier_for_class(str(metadata.get("evidence_class") or ""))),
+            "executive_evidence_tier": metadata.get("executive_evidence_tier") or evidence_tier_label(str(classification), production_eligible, int(metadata.get("authority_score") or metadata.get("source_trust_score") or 0), int(metadata.get("operational_relevance_score") or 0), str(metadata.get("source_type") or "unknown")),
             "acquisition_strategy": metadata.get("acquisition_strategy") or "",
             "source_trust_score": int(metadata.get("source_trust_score") or 0),
             "authority_score": int(metadata.get("authority_score") or metadata.get("source_trust_score") or 0),
+            "operational_relevance_score": int(metadata.get("operational_relevance_score") or 0),
             "authority_threshold": int(metadata.get("authority_threshold") or MIN_PRODUCTION_AUTHORITY_SCORE),
             "authority_passed": bool(metadata.get("authority_passed")) if "authority_passed" in metadata else int(metadata.get("source_trust_score") or 0) >= MIN_PRODUCTION_AUTHORITY_SCORE,
+            "operational_relevance_passed": bool(metadata.get("operational_relevance_passed")) if "operational_relevance_passed" in metadata else int(metadata.get("operational_relevance_score") or 0) >= 70,
             "evidence_relevance": metadata.get("evidence_relevance"),
             "classification_code": metadata.get("classification_code") or str(classification).upper(),
             "rejection_reason": metadata.get("rejection_reason") or "",
+            "executive_explanation": metadata.get("executive_explanation") or metadata.get("why_accepted") or "",
             "market_event_id": metadata.get("market_event_id") or metadata.get("underlying_event_id") or "",
             "underlying_event_id": metadata.get("underlying_event_id") or metadata.get("market_event_id") or "",
             "operational_pain": metadata.get("operational_pain") or {},
@@ -3190,6 +3355,8 @@ def evidence_class_for_source(
     if any(marker in lower for marker in ["attorney general", "site:ag.", ".ag.", "/ag/", " ag "]):
         return "Attorney General"
     if any(marker in lower for marker in ["housing authority", "public housing"]):
+        return "Housing Authority"
+    if any(marker in lower for marker in ["311", "service request", "housing complaint portal"]):
         return "Housing Authority"
     if any(marker in lower for marker in [".gov", "hud.gov", "regulator", "enforcement", "government"]):
         return "Regulator"
@@ -3558,10 +3725,16 @@ def signal_trace_card_view_model(signal: dict[str, object]) -> dict[str, str]:
         "evidence_strength": str(signal.get("evidence_strength") or 0),
         "classification": str(quality.get("classification") or "unknown"),
         "evidence_classification": str(quality.get("evidence_classification") or quality.get("classification") or "unknown"),
+        "executive_evidence_tier": str(quality.get("executive_evidence_tier") or "Tier D - Rejected"),
+        "evidence_class": str(quality.get("evidence_class") or "Unknown"),
         "source_type": str(quality.get("source_type_detected") or "unknown"),
         "source_trust_score": str(quality.get("source_trust_score") or 0),
+        "authority_score": str(quality.get("authority_score") or quality.get("source_trust_score") or 0),
+        "operational_relevance_score": str(quality.get("operational_relevance_score") or 0),
         "production_eligible": "YES" if quality.get("production_eligible") else "NO",
         "evidence_relevance": str(quality.get("evidence_relevance") or "unknown"),
+        "executive_explanation": str(quality.get("executive_explanation") or quality.get("why_accepted") or "Not recorded"),
+        "rejection_reason": str(quality.get("rejection_reason") or ""),
         "why_accepted": str(quality.get("why_accepted") or "Not recorded"),
         "pain_keywords_matched": ", ".join(str(item) for item in quality.get("pain_keywords_matched", []) or []) or "None",
         "context_keywords_matched": ", ".join(str(item) for item in quality.get("context_keywords_matched", []) or []) or "None",

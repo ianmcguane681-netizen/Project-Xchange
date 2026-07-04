@@ -199,6 +199,56 @@ def store_selected_audit(audit_id: str) -> dict[str, object]:
 st.title("PROJECT EXCHANGE OS")
 st.caption("Build Within. Use Within. Verify Within. Monetise Outside.")
 
+front_run = get_active_study_run(DB_PATH, DEFAULT_STUDY_ID)
+front_run_id = str((front_run or {}).get("id") or "")
+front_include_demo = bool(front_run and front_run.get("study_mode") == "demo")
+front_progress = study_progress(DB_PATH, DEFAULT_STUDY_ID)
+front_signals = list_signals(DB_PATH, DEFAULT_STUDY_ID, front_run_id, include_demo=front_include_demo) if front_run_id else []
+front_quality = evidence_quality_dashboard(front_signals)
+front_stage = (
+    "Evidence Collection"
+    if not front_progress["signals_collected"]
+    else "Finding Generation"
+    if not front_progress["findings_created"]
+    else "Executive Due Diligence"
+    if not front_progress["audits_completed"]
+    else "Opportunity Qualification"
+    if not front_progress["opportunities_approved"]
+    else "Reusable Component Specification"
+)
+front_recommendation = (
+    "Pull production evidence from configured providers."
+    if not front_progress["signals_collected"] and front_run and front_run.get("study_mode") == "production"
+    else "Start a production run before real evidence collection."
+    if front_run and front_run.get("study_mode") == "demo"
+    else "Generate findings from accepted evidence."
+    if front_progress["signals_collected"] and not front_progress["findings_created"]
+    else "Run Executive Due Diligence."
+    if front_progress["findings_created"] and not front_progress["audits_completed"]
+    else "Review opportunity qualification."
+    if front_progress["audits_completed"] and not front_progress["opportunities_approved"]
+    else "Prepare reusable component specification."
+)
+with st.container(border=True):
+    st.caption("Mission Control -> GS-P001")
+    st.markdown("### GS-P001 Executive Market Intelligence")
+    top_cols = st.columns(6)
+    top_cols[0].metric("Current Study", "GS-P001")
+    top_cols[1].metric("Current Run", front_run_id or "No active run")
+    top_cols[2].metric("Current Stage", front_stage)
+    top_cols[3].metric("Evidence Health", front_quality["production_readiness"])
+    top_cols[4].metric("Production Evidence", front_quality["tier_a_production_evidence"])
+    top_cols[5].metric("Qualification", "Ready" if front_progress["opportunities_approved"] else "In progress")
+    st.info(f"Executive Recommendation: {front_recommendation}")
+    action_cols = st.columns(6)
+    action_cols[0].button("Pull Evidence", key="front_pull_evidence_hint")
+    action_cols[1].button("Review Signals", key="front_review_signals_hint")
+    action_cols[2].button("Generate Findings", key="front_generate_findings_hint")
+    action_cols[3].button("Executive Due Diligence", key="front_due_diligence_hint")
+    action_cols[4].button("Review Opportunity", key="front_review_opportunity_hint")
+    action_cols[5].button("Archive Run", key="front_archive_run_hint")
+    st.caption("Open the Golden Study 001 tab below for the full workflow. Technical IDs remain inside Technical Details.")
+
 tabs = st.tabs(
     [
         "Home",
@@ -1267,18 +1317,15 @@ with tabs[23]:
                     view["raw_text"],
                     [
                         ("Provider", view["provider"]),
-                        ("Source URL", view["source_url"]),
+                        ("Evidence Tier", view["executive_evidence_tier"]),
                         ("Country", view["country"]),
                         ("Stakeholder", view["stakeholder"]),
-                        ("Retrieved", view["retrieved"]),
-                        ("Evidence Classification", view["evidence_classification"]),
-                        ("Source Type", view["source_type"]),
-                        ("Trust", view["source_trust_score"]),
+                        ("Authority", view["authority_score"]),
+                        ("Relevance", view["operational_relevance_score"]),
                         ("Production Eligible", view["production_eligible"]),
                     ],
                 )
-                st.caption(f"Original query: {view['query']}")
-                st.caption(f"Reason: {view['why_accepted']}")
+                st.caption(f"Why accepted: {view['executive_explanation']}")
                 st.caption(f"Pain keywords: {view['pain_keywords_matched']}")
                 st.caption(f"Context keywords: {view['context_keywords_matched']}")
                 if signal.get("source_url"):
@@ -1297,14 +1344,17 @@ with tabs[23]:
             if view["production_eligible"] != "YES":
                 badge = f"{badge} / Not Production Eligible"
             with st.container(border=True):
-                st.caption(badge)
+                st.caption(f"{view['executive_evidence_tier']} | {badge}")
                 st.markdown(f"**{clean_signal_source_title(signal)}**")
-                st.write(view["why_accepted"])
-                cols = st.columns(4)
+                st.write(view["executive_explanation"])
+                if view["rejection_reason"]:
+                    st.caption(f"Primary rejection reason: {view['rejection_reason']}")
+                cols = st.columns(5)
                 cols[0].metric("Classification", view["evidence_classification"].replace("_", " ").title())
                 cols[1].metric("Source Type", view["source_type"].replace("_", " ").title())
-                cols[2].metric("Trust", view["source_trust_score"])
-                cols[3].metric("Provider", view["provider"])
+                cols[2].metric("Authority", view["authority_score"])
+                cols[3].metric("Relevance", view["operational_relevance_score"])
+                cols[4].metric("Provider", view["provider"])
                 if signal.get("source_url"):
                     st.markdown(f"[Open source]({signal['source_url']})")
                 with st.expander("Technical Details"):
@@ -1321,21 +1371,31 @@ with tabs[23]:
             st.warning(str(result.get("message") or "Research run blocked"))
         else:
             st.warning(str(result.get("message") or "Research run finished with no stored signals"))
+        analysed = int(result.get("urls_retrieved") or result.get("candidate_results_found") or 0)
+        production_records = int(result.get("accepted_signals") or result.get("signals_stored") or 0)
+        rejected = int(result.get("rejected_signals") or 0)
+        duplicates = int(result.get("skipped_duplicates") or 0)
+        st.markdown("**Research Run Summary**")
+        st.write(f"{analysed} sources analysed.")
+        st.write(f"{production_records} production-grade evidence records identified.")
+        st.write(f"{rejected} rejected following verification.")
+        st.write(f"{duplicates} duplicate records removed.")
+        if production_records < 3:
+            st.info("Executive Recommendation: Continue evidence collection. Independent evidence threshold not yet achieved.")
+        elif int(result.get("market_events") or 0) < 5:
+            st.info("Executive Recommendation: Continue due diligence. More independent market events are needed before opportunity qualification.")
+        else:
+            st.success("Executive Recommendation: Review accepted evidence and generate findings for Executive Due Diligence.")
         summary_cols = st.columns(4)
-        summary_cols[0].metric("Queries Executed", result.get("queries_executed", result.get("sources_searched", 0)))
-        summary_cols[1].metric("URLs Retrieved", result.get("urls_retrieved", result.get("candidate_results_found", 0)))
-        summary_cols[2].metric("Accepted Signals", result.get("accepted_signals", result.get("signals_stored", 0)))
-        summary_cols[3].metric("Rejected Signals", result.get("rejected_signals", 0))
+        summary_cols[0].metric("Sources Analysed", analysed)
+        summary_cols[1].metric("Production Evidence", production_records)
+        summary_cols[2].metric("Rejected", rejected)
+        summary_cols[3].metric("Duplicates Removed", duplicates)
         detail_cols = st.columns(4)
-        detail_cols[0].metric("URLs Skipped", result.get("urls_skipped", 0))
-        detail_cols[1].metric("Vendor URLs", result.get("vendor_urls", 0))
-        detail_cols[2].metric("Government URLs", result.get("government_urls", 0))
-        detail_cols[3].metric("Complaint URLs", result.get("complaint_urls", 0))
-        skip_cols = st.columns(4)
-        skip_cols[0].metric("Duplicates skipped", result.get("skipped_duplicates", 0))
-        skip_cols[1].metric("Invalid sources skipped", result.get("skipped_missing_source_or_text", 0))
-        skip_cols[2].metric("Skipped not pain evidence", result.get("skipped_not_complaint_or_pain_evidence", 0))
-        skip_cols[3].metric("Skipped market/generic/marketing", result.get("skipped_market_size_generic_or_marketing", 0))
+        detail_cols[0].metric("Queries", result.get("queries_executed", result.get("sources_searched", 0)))
+        detail_cols[1].metric("Invalid Sources", result.get("skipped_missing_source_or_text", 0))
+        detail_cols[2].metric("Not Pain Evidence", result.get("skipped_not_complaint_or_pain_evidence", 0))
+        detail_cols[3].metric("Context / Marketing", result.get("skipped_market_size_generic_or_marketing", 0))
         quality_cols = st.columns(4)
         quality_cols[0].metric("Marketing rejected", result.get("marketing_pages_rejected", 0))
         quality_cols[1].metric("Low authority rejected", result.get("low_authority_sources", 0))
@@ -1633,7 +1693,7 @@ with tabs[23]:
         if not progress["findings_created"]:
             return "Generate findings"
         if not progress["audits_completed"]:
-            return "Run audit batch"
+            return "Run Executive Due Diligence"
         if not progress["opportunities_approved"]:
             blocked_audits = [audit for audit in audits if audit.get("decision") == "Needs More Evidence"]
             if blocked_audits:
@@ -1668,6 +1728,13 @@ with tabs[23]:
         cols[2].metric(metric_label, metric_value)
         if summary:
             st.write(str(summary))
+
+    def score_rating(raw: object) -> str:
+        try:
+            score = int(float(raw or 0))
+        except (TypeError, ValueError):
+            score = 0
+        return f"{min(5, max(0, round(score / 20)))}/5"
 
     def set_golden_flash(level: str, message: str, details: object | None = None) -> None:
         st.session_state["golden_flash"] = {"level": level, "message": message, "details": details}
@@ -1719,7 +1786,7 @@ with tabs[23]:
         "Collect Market Evidence",
         "Signals",
         "Findings",
-        "Audits",
+        "Executive Due Diligence",
         "Opportunities",
         "Engineering Specs",
         "Evidence Chain",
@@ -1736,7 +1803,7 @@ with tabs[23]:
             "Evidence Collection",
             "Signal Detection",
             "Finding Generation",
-            "Audit",
+            "Executive Due Diligence",
             "Opportunity",
             "Engineering Spec",
             "Prototype",
@@ -1771,7 +1838,7 @@ with tabs[23]:
             with empty_cols[1]:
                 render_status_card("Findings", "Waiting for evidence", "Findings unlock after repeated signals.", "Locked")
             with empty_cols[2]:
-                render_status_card("Audits", "Locked until findings exist", "Audit requires auditable findings.", "Locked")
+                render_status_card("Executive Due Diligence", "Locked until findings exist", "Due diligence requires qualified findings.", "Locked")
             empty_cols = st.columns(3)
             with empty_cols[0]:
                 render_status_card("Opportunities", "Locked until audit approval", "Production opportunities require approved audits.", "Locked")
@@ -1841,7 +1908,7 @@ with tabs[23]:
             if progress["opportunities_approved"] == 0 and progress["audits_completed"]:
                 st.write("Approve demo opportunities to continue rehearsal.")
             elif progress["audits_completed"] == 0 and progress["findings_created"]:
-                st.write("Run demo audit batch to rehearse audit flow.")
+                st.write("Run demo Executive Due Diligence to rehearse qualification flow.")
             elif progress["findings_created"] == 0:
                 st.write("Generate demo findings from sample signals.")
             else:
@@ -1897,7 +1964,7 @@ with tabs[23]:
             elif progress["findings_created"] == 0:
                 st.write("Generate findings once repeated signals exist.")
             elif progress["audits_completed"] == 0:
-                st.write("Run audit batch for auditable findings.")
+                st.write("Run Executive Due Diligence for qualified findings.")
             else:
                 st.write("Approve evidence-backed opportunities and complete engineering specs.")
         else:
@@ -2104,10 +2171,10 @@ with tabs[23]:
                     ],
                 )
                 cols = st.columns(3)
-                if cols[0].button("Audit Finding", key=f"audit_finding_{finding['id']}"):
+                if cols[0].button("Executive Due Diligence", key=f"audit_finding_{finding['id']}"):
                     try:
                         result = audit_finding(DB_PATH, str(finding["id"]))
-                        set_golden_flash("success", "1 audit completed", result)
+                        set_golden_flash("success", "1 Executive Due Diligence review completed", result)
                         st.rerun()
                     except ValueError as exc:
                         message = str(exc)
@@ -2123,10 +2190,10 @@ with tabs[23]:
                     st.json(finding)
 
     with workflow_tabs[4]:
-        section_header("Audits", "Audit decisions, evidence scoring, reasoning and opportunity approval controls.", workflow_stage_status("Audits"))
+        section_header("Executive Due Diligence", "Should Provena Foundry build a reusable software component for this operational pain?", workflow_stage_status("Audits"))
         audit_actions = st.columns(2)
         with audit_actions[0]:
-            if st.button("Run Audit Batch", key="gs001_run_audit_batch"):
+            if st.button("Run Executive Due Diligence", key="gs001_run_audit_batch"):
                 try:
                     completed = run_audit_batch(DB_PATH, DEFAULT_STUDY_ID)
                     refreshed_findings = list_findings(DB_PATH, DEFAULT_STUDY_ID, active_run_id, include_demo=include_demo_view)
@@ -2149,8 +2216,8 @@ with tabs[23]:
         if not audits:
             empty_state(
                 "Audits",
-                "No audits yet. Generate findings before running audit.",
-                "No demo audits yet. Generate demo findings, then run the demo audit batch.",
+                "No due diligence reviews yet. Generate findings before running qualification review.",
+                "No demo due diligence reviews yet. Generate demo findings, then run the demo qualification flow.",
             )
         for audit in audits:
             finding_label = next((str(finding.get("theme")) for finding in findings if finding.get("id") == audit.get("finding_id")), "Audited finding")
@@ -2166,6 +2233,17 @@ with tabs[23]:
                         ("Demo OCI" if bool(audit.get("is_demo")) else "OCI", demo_oci(audit) if bool(audit.get("is_demo")) else audit.get("opportunity_confidence_index") or 0),
                     ],
                 )
+                st.caption("Executive Scorecard")
+                score_cols = st.columns(4)
+                score_cols[0].metric("Evidence", score_rating(audit.get("evidence_score")))
+                score_cols[1].metric("Authority", score_rating(audit.get("evidence_score")))
+                score_cols[2].metric("Commercial Reach", score_rating(audit.get("market_size_score")))
+                score_cols[3].metric("Traceability", score_rating(audit.get("traceability_score")))
+                score_cols_2 = st.columns(4)
+                score_cols_2[0].metric("Engineering Complexity", score_rating(100 - int(audit.get("build_complexity_score") or 0)))
+                score_cols_2[1].metric("Stakeholder Diversity", "See details")
+                score_cols_2[2].metric("Portfolio Diversity", "See details")
+                score_cols_2[3].metric("Geographic Diversity", "See details")
                 cols = st.columns(2)
                 can_approve_audit = str(audit.get("decision") or "") in {"Approve Opportunity", "Demo Audited"}
                 if audit.get("missing_evidence_warnings") and not can_approve_audit:

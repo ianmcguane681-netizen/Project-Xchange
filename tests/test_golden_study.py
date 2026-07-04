@@ -19,6 +19,7 @@ from project_exchange.golden_study import (
     discovery_learning_dashboard,
     discovery_memory_rows,
     evidence_class_for_source,
+    evidence_quality_dashboard,
     evidence_quality_profile,
     evidence_tier_for_class,
     finding_evidence,
@@ -1084,7 +1085,7 @@ def test_v2_consumer_affairs_bbb_and_government_are_verified_complaints():
     examples = [
         ("https://www.consumeraffairs.com/property-management", "Consumer Affairs complaint", 95),
         ("https://www.bbb.org/us/example/property-management", "BBB complaint", 95),
-        ("https://www.gov.example/tenant-complaints", "Government complaint portal", 100),
+        ("https://www.gov.example/tenant-complaints", "Government complaint portal", 92),
     ]
 
     for url, title, trust in examples:
@@ -1145,10 +1146,65 @@ def test_px017_government_investigation_gets_high_authority_and_structured_pain(
     metadata = json.loads(signal["source_name"])
 
     assert result["signals_stored"] == 1
-    assert metadata["authority_score"] == 100
+    assert metadata["authority_score"] == 92
     assert metadata["operational_pain"]["what_pain"]
     assert metadata["operational_pain"]["business_impact"]
     assert metadata["operational_pain"]["root_cause"]
+
+
+def test_px023_government_procurement_is_market_context_not_production_evidence():
+    quality = evidence_quality_profile(
+        "City council agenda approves a paving and public works maintenance contract award for road repair infrastructure.",
+        url="https://www.gov.example/city-council-agenda-paving-contract",
+        title="Government procurement agenda for public works maintenance",
+    )
+
+    assert quality["classification"] == "market_context"
+    assert quality["executive_evidence_tier"] == "Tier C - Market Context"
+    assert quality["production_eligible"] is False
+    assert quality["operational_relevance_score"] < 70
+    assert "Market Context" in quality["executive_evidence_tier"]
+
+
+def test_px023_advice_page_is_not_classified_as_court_or_production_evidence():
+    quality = evidence_quality_profile(
+        "This guide explains how to handle maintenance issues and general landlord tenant court procedures.",
+        url="https://example.com/how-to-handle-landlord-court-maintenance",
+        title="How to handle landlord court maintenance issues",
+    )
+
+    assert quality["source_type_detected"] == "article"
+    assert quality["classification"] == "market_context"
+    assert quality["executive_evidence_tier"] == "Tier C - Market Context"
+    assert quality["production_eligible"] is False
+
+
+def test_px023_accepted_signal_has_executive_tier_and_plain_english_explanation(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "Housing complaint portal maintenance no response",
+                "https://www.gov.example/311-housing-complaint-maintenance",
+                "311 housing complaint portal records show tenants report apartment maintenance requests get no response and repair status updates are ignored.",
+                "search_result",
+            )
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider], max_sources=1)
+    signal = list_signals(db_path)[0]
+    metadata = json.loads(signal["source_name"])
+    dashboard = evidence_quality_dashboard([signal])
+
+    assert result["signals_stored"] == 1
+    assert metadata["executive_evidence_tier"] == "Tier A - Production Evidence"
+    assert metadata["operational_relevance_score"] >= 70
+    assert "Accepted because" in metadata["executive_explanation"]
+    assert dashboard["tier_a_production_evidence"] == 1
 
 
 def test_px017_multiple_articles_about_same_event_do_not_approve_opportunity(tmp_path):

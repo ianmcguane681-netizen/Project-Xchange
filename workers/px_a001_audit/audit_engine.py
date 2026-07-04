@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from enum import StrEnum
+try:
+    from enum import StrEnum
+except ImportError:  # Python 3.10 Streamlit Cloud compatibility.
+    from enum import Enum
+
+    class StrEnum(str, Enum):
+        pass
 from pathlib import Path
 from difflib import SequenceMatcher
 import json

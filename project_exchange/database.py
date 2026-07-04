@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
+UTC = timezone.utc
 DEFAULT_DB_PATH = Path("data/project_exchange.db")
 
 
