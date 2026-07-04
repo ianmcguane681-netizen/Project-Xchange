@@ -729,6 +729,52 @@ CREATE TABLE IF NOT EXISTS discovery_memory (
     last_seen_at TEXT NOT NULL,
     UNIQUE(study_id, memory_type, memory_key)
 );
+
+CREATE TABLE IF NOT EXISTS evidence_sources (
+    id TEXT PRIMARY KEY,
+    source_name TEXT NOT NULL,
+    organisation TEXT NOT NULL,
+    evidence_class TEXT NOT NULL,
+    evidence_tier INTEGER NOT NULL DEFAULT 6,
+    country TEXT NOT NULL DEFAULT 'United States',
+    industry TEXT NOT NULL DEFAULT 'Residential Property Management',
+    authority_level TEXT NOT NULL DEFAULT 'Unknown',
+    trust_default INTEGER NOT NULL DEFAULT 0,
+    collection_method TEXT NOT NULL DEFAULT 'Search Provider',
+    authentication_required INTEGER NOT NULL DEFAULT 0,
+    rate_limits TEXT,
+    update_frequency TEXT,
+    average_documents INTEGER NOT NULL DEFAULT 0,
+    production_ready TEXT NOT NULL DEFAULT 'Unknown',
+    legal_terms_notes TEXT,
+    supported_golden_studies TEXT,
+    current_status TEXT NOT NULL DEFAULT 'Not evaluated',
+    accessible TEXT NOT NULL DEFAULT 'Unknown',
+    structured TEXT NOT NULL DEFAULT 'Unknown',
+    automatable TEXT NOT NULL DEFAULT 'Unknown',
+    readiness_score INTEGER NOT NULL DEFAULT 0,
+    readiness_label TEXT NOT NULL DEFAULT 'Not evaluated',
+    created_at TEXT NOT NULL,
+    last_evaluated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS source_collection_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id TEXT NOT NULL,
+    study_id TEXT NOT NULL,
+    run_id TEXT,
+    provider TEXT,
+    documents_collected INTEGER NOT NULL DEFAULT 0,
+    accepted_evidence INTEGER NOT NULL DEFAULT 0,
+    rejected_evidence INTEGER NOT NULL DEFAULT 0,
+    duplicates INTEGER NOT NULL DEFAULT 0,
+    marketing_rejected INTEGER NOT NULL DEFAULT 0,
+    average_trust_score REAL NOT NULL DEFAULT 0,
+    average_commercial_relevance REAL NOT NULL DEFAULT 0,
+    average_operational_pain REAL NOT NULL DEFAULT 0,
+    collection_error TEXT,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -911,6 +957,16 @@ MIGRATIONS = {
         "archived_at": "TEXT",
         "archived_by": "TEXT",
         "previous_status": "TEXT",
+    },
+    "evidence_sources": {
+        "readiness_score": "INTEGER NOT NULL DEFAULT 0",
+        "readiness_label": "TEXT NOT NULL DEFAULT 'Not evaluated'",
+        "last_evaluated_at": "TEXT",
+    },
+    "source_collection_runs": {
+        "average_commercial_relevance": "REAL NOT NULL DEFAULT 0",
+        "average_operational_pain": "REAL NOT NULL DEFAULT 0",
+        "collection_error": "TEXT",
     },
 }
 
@@ -1191,6 +1247,8 @@ def fetch_all(db_path: str | Path, table_name: str) -> list[dict[str, Any]]:
         "demo_archive",
         "discovery_runs",
         "discovery_memory",
+        "evidence_sources",
+        "source_collection_runs",
     }:
         raise ValueError(f"Unsupported table: {table_name}")
     with connect(db_path) as connection:

@@ -60,6 +60,7 @@ from project_exchange.golden_study import (
     audit_finding,
     build_evidence_clusters,
     create_signal,
+    data_source_health_dashboard,
     demo_warning_active,
     delete_archived_demo_data,
     discovery_learning_dashboard,
@@ -78,6 +79,7 @@ from project_exchange.golden_study import (
     list_studies,
     list_study_runs,
     list_study_briefs,
+    list_evidence_sources,
     mark_engineering_ready,
     production_pipeline_statuses,
     pull_real_market_evidence,
@@ -205,6 +207,7 @@ front_include_demo = bool(front_run and front_run.get("study_mode") == "demo")
 front_progress = study_progress(DB_PATH, DEFAULT_STUDY_ID)
 front_signals = list_signals(DB_PATH, DEFAULT_STUDY_ID, front_run_id, include_demo=front_include_demo) if front_run_id else []
 front_quality = evidence_quality_dashboard(front_signals)
+front_supply = data_source_health_dashboard(DB_PATH, DEFAULT_STUDY_ID)
 front_stage = (
     "Evidence Collection"
     if not front_progress["signals_collected"]
@@ -239,6 +242,12 @@ with st.container(border=True):
     top_cols[3].metric("Evidence Health", front_quality["production_readiness"])
     top_cols[4].metric("Production Evidence", front_quality["tier_a_production_evidence"])
     top_cols[5].metric("Qualification", "Ready" if front_progress["opportunities_approved"] else "In progress")
+    supply_cols = st.columns(5)
+    supply_cols[0].metric("Supply Chain", front_supply["overall_health"])
+    supply_cols[1].metric("Tier 1 Sources", front_supply["tier_1_sources_configured"])
+    supply_cols[2].metric("Working APIs", front_supply["working_apis"])
+    supply_cols[3].metric("Documents Today", front_supply["daily_documents_collected"])
+    supply_cols[4].metric("Coverage Confidence", f"{front_supply['coverage_confidence']}%")
     st.info(f"Executive Recommendation: {front_recommendation}")
     action_cols = st.columns(6)
     action_cols[0].button("Pull Evidence", key="front_pull_evidence_hint")
@@ -1795,6 +1804,7 @@ with tabs[23]:
         "Archive / Demo History",
         "Raw Database View",
         "Discovery Learning",
+        "Evidence Supply Chain",
     ])
 
     with workflow_tabs[0]:
@@ -2569,10 +2579,52 @@ with tabs[23]:
 
     with workflow_tabs[11]:
         section_header("Raw Database View - technical audit only", "Full ID-heavy tables are intentionally kept here for inspection.", "Technical")
-        for table_name in ["studies", "study_runs", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs", "discovery_runs", "discovery_memory"]:
+        for table_name in ["studies", "study_runs", "study_signals", "study_findings", "finding_audits", "opportunity_records", "study_briefs", "discovery_runs", "discovery_memory", "evidence_sources", "source_collection_runs"]:
             st.subheader(table_name)
             st.dataframe(fetch_all(DB_PATH, table_name), use_container_width=True)
 
     with workflow_tabs[12]:
         section_header("Discovery Learning", "GS-001 memory for evidence queries, source domains, and provider performance.", "Learning")
         render_discovery_learning_dashboard()
+
+    with workflow_tabs[13]:
+        section_header("Evidence Supply Chain", "Source registry, readiness scoring, and collection health for GS-P001.", "Discovery Engine")
+        supply = data_source_health_dashboard(DB_PATH, DEFAULT_STUDY_ID)
+        supply_cols = st.columns(4)
+        supply_cols[0].metric("Overall Health", supply["overall_health"])
+        supply_cols[1].metric("Tier 1 Sources", supply["tier_1_sources_configured"])
+        supply_cols[2].metric("Tier 2 Sources", supply["tier_2_sources_configured"])
+        supply_cols[3].metric("Coverage Confidence", f"{supply['coverage_confidence']}%")
+        method_cols = st.columns(4)
+        method_cols[0].metric("Working APIs", supply["working_apis"])
+        method_cols[1].metric("Working Crawlers", supply["working_crawlers"])
+        method_cols[2].metric("Working RSS Feeds", supply["working_rss_feeds"])
+        method_cols[3].metric("Search Providers", supply["working_search_providers"])
+        evidence_cols = st.columns(4)
+        evidence_cols[0].metric("Documents Today", supply["daily_documents_collected"])
+        evidence_cols[1].metric("Accepted Evidence", supply["accepted_production_evidence"])
+        evidence_cols[2].metric("Rejected Evidence", supply["rejected_evidence"])
+        evidence_cols[3].metric("Collection Errors", supply["collection_errors"])
+        st.info(
+            "Supply chain objective: continuously acquire high-quality, traceable, commercially relevant operational evidence. "
+            "Search APIs remain supplemental providers."
+        )
+        source_rows = list_evidence_sources(DB_PATH, DEFAULT_STUDY_ID)
+        source_cols = st.columns(2)
+        for index, source in enumerate(source_rows):
+            with source_cols[index % 2]:
+                render_business_card(
+                    str(source.get("source_name") or "Evidence source"),
+                    source.get("readiness_label"),
+                    f"{source.get('organisation')} | {source.get('collection_method')}",
+                    [
+                        ("Class", source.get("evidence_class")),
+                        ("Tier", source.get("evidence_tier")),
+                        ("Readiness", source.get("readiness_score")),
+                        ("Production", source.get("production_ready")),
+                    ],
+                )
+                st.caption(f"Accessible: {source.get('accessible')} | Structured: {source.get('structured')} | Automatable: {source.get('automatable')}")
+                st.caption(f"Legal / terms: {source.get('legal_terms_notes') or 'Not recorded'}")
+        with st.expander("Technical Details"):
+            st.json(supply)

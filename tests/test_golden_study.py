@@ -16,6 +16,7 @@ from project_exchange.golden_study import (
     calculate_oci,
     create_signal,
     create_study,
+    data_source_health_dashboard,
     discovery_learning_dashboard,
     discovery_memory_rows,
     evidence_class_for_source,
@@ -31,6 +32,7 @@ from project_exchange.golden_study import (
     get_or_create_default_study,
     is_signal_in_gs001_scope,
     list_findings,
+    list_evidence_sources,
     list_signals,
     list_study_runs,
     list_opportunities,
@@ -43,6 +45,7 @@ from project_exchange.golden_study import (
     run_audit_batch,
     run_research_batch,
     signal_trace_card_view_model,
+    source_readiness_assessment,
     study_progress,
     traceability_chain,
     validate_golden_study_integrity,
@@ -888,6 +891,95 @@ def test_discovery_learning_tracks_evidence_class_performance(tmp_path):
     assert class_rows
     assert dashboard["evidence_classes"]
     assert any(int(row["accepted_count"] or 0) > 0 for row in class_rows)
+
+
+def test_px024_source_registry_seeds_priority_sources_with_readiness(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+
+    sources = list_evidence_sources(db_path)
+    source_names = {str(source["source_name"]) for source in sources}
+
+    assert "HUD" in source_names
+    assert "Better Business Bureau" in source_names
+    assert "311 Complaint Systems" in source_names
+    assert any(source["readiness_label"] == "Production Ready" for source in sources)
+    assert any(source["production_ready"] == "Supporting Evidence Only" for source in sources)
+
+
+def test_px024_source_readiness_scores_accessible_structured_automatable_sources():
+    ready = source_readiness_assessment(
+        {
+            "accessible": "YES",
+            "structured": "YES",
+            "automatable": "YES",
+            "production_ready": "Production Ready",
+            "collection_method": "API",
+            "authentication_required": False,
+        }
+    )
+    limited = source_readiness_assessment(
+        {
+            "accessible": "Limited",
+            "structured": "Low",
+            "automatable": "Limited",
+            "production_ready": "Supporting Evidence Only",
+            "collection_method": "HTML",
+            "authentication_required": False,
+        }
+    )
+
+    assert ready["readiness_label"] == "Production Ready"
+    assert ready["readiness_score"] > limited["readiness_score"]
+    assert limited["readiness_label"] in {"Supporting Only", "Needs Review"}
+
+
+def test_px024_data_source_health_dashboard_reports_supply_chain(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+
+    dashboard = data_source_health_dashboard(db_path)
+
+    assert dashboard["tier_1_sources_configured"] >= 5
+    assert dashboard["tier_2_sources_configured"] >= 2
+    assert dashboard["working_apis"] >= 1
+    assert dashboard["overall_health"] in {"Healthy", "Developing"}
+    assert "GS-P001" in dashboard["coverage_by_study"]
+
+
+def test_px024_pull_records_source_collection_performance(tmp_path):
+    db_path = tmp_path / "px.db"
+    init_db(db_path)
+    start_production_run(db_path)
+    provider = StaticEvidenceProvider(
+        [
+            ProviderResult(
+                "Tavily",
+                "HUD tenant maintenance complaint",
+                "https://www.hud.gov/tenant-maintenance-complaint",
+                "Tenant complaint says apartment maintenance request had no response and repair communication was ignored.",
+                "search_result",
+            ),
+            ProviderResult(
+                "Tavily",
+                "Vendor maintenance platform",
+                "https://vendor.example.com/property-management",
+                "Our platform automates maintenance work orders and request demo today.",
+                "search_result",
+            ),
+        ]
+    )
+
+    result = pull_real_market_evidence(db_path, providers=[provider], max_sources=1)
+    dashboard = data_source_health_dashboard(db_path)
+    collection_rows = fetch_all(db_path, "source_collection_runs")
+
+    assert result["signals_stored"] == 1
+    assert collection_rows
+    assert dashboard["daily_documents_collected"] >= 2
+    assert dashboard["accepted_production_evidence"] == 1
+    assert any(row["accepted_evidence"] for row in collection_rows)
 
 
 def test_discovery_learning_stores_vendor_domains(tmp_path):

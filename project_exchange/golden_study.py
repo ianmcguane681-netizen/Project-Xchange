@@ -66,6 +66,230 @@ GS001_REAL_EVIDENCE_QUERIES = [
     "reddit landlord repair complaint",
 ]
 
+GS_P001_PRIORITY_EVIDENCE_SOURCES: list[dict[str, object]] = [
+    {
+        "id": "EDS-HUD",
+        "source_name": "HUD",
+        "organisation": "U.S. Department of Housing and Urban Development",
+        "evidence_class": "Government",
+        "country": "United States",
+        "authority_level": "High",
+        "trust_default": 92,
+        "collection_method": "API / HTML / PDF",
+        "authentication_required": False,
+        "rate_limits": "Public endpoints vary by dataset",
+        "update_frequency": "Daily / periodic",
+        "average_documents": 25,
+        "production_ready": "Production Ready",
+        "legal_terms_notes": "Use public records and respect endpoint terms.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "YES",
+        "structured": "YES",
+        "automatable": "YES",
+    },
+    {
+        "id": "EDS-HOUSING-AUTH",
+        "source_name": "Housing Authorities",
+        "organisation": "Local and state housing authorities",
+        "evidence_class": "Housing Authority",
+        "authority_level": "High",
+        "trust_default": 90,
+        "collection_method": "HTML / PDF / Open Dataset",
+        "authentication_required": False,
+        "rate_limits": "Varies by authority",
+        "update_frequency": "Weekly / monthly",
+        "average_documents": 15,
+        "production_ready": "Production Ready",
+        "legal_terms_notes": "Source-specific crawl policies required.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "YES",
+        "structured": "Medium",
+        "automatable": "YES",
+    },
+    {
+        "id": "EDS-AG",
+        "source_name": "Attorney General Offices",
+        "organisation": "State Attorneys General",
+        "evidence_class": "Attorney General",
+        "authority_level": "High",
+        "trust_default": 92,
+        "collection_method": "RSS / HTML / PDF",
+        "authentication_required": False,
+        "rate_limits": "Varies by state",
+        "update_frequency": "Weekly",
+        "average_documents": 10,
+        "production_ready": "Production Ready",
+        "legal_terms_notes": "Use official press releases and public enforcement records.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "YES",
+        "structured": "Medium",
+        "automatable": "YES",
+    },
+    {
+        "id": "EDS-BBB",
+        "source_name": "Better Business Bureau",
+        "organisation": "BBB",
+        "evidence_class": "Consumer Complaints",
+        "authority_level": "Medium",
+        "trust_default": 95,
+        "collection_method": "Search Provider / HTML",
+        "authentication_required": False,
+        "rate_limits": "Limited; respect terms",
+        "update_frequency": "Daily",
+        "average_documents": 30,
+        "production_ready": "Supporting Evidence Only",
+        "legal_terms_notes": "Use excerpts and links; avoid bulk scraping without permission.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "Limited",
+        "structured": "Medium",
+        "automatable": "Limited",
+    },
+    {
+        "id": "EDS-CONSUMER-AFFAIRS",
+        "source_name": "Consumer Affairs",
+        "organisation": "ConsumerAffairs",
+        "evidence_class": "Consumer Protection",
+        "authority_level": "Medium",
+        "trust_default": 95,
+        "collection_method": "Search Provider / HTML",
+        "authentication_required": False,
+        "rate_limits": "Limited; respect terms",
+        "update_frequency": "Daily",
+        "average_documents": 25,
+        "production_ready": "Supporting Evidence Only",
+        "legal_terms_notes": "Use source URLs and snippets; verify terms before automated collection.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "Limited",
+        "structured": "Medium",
+        "automatable": "Limited",
+    },
+    {
+        "id": "EDS-COURTS",
+        "source_name": "Court Records",
+        "organisation": "CourtListener and public court portals",
+        "evidence_class": "Court",
+        "authority_level": "High",
+        "trust_default": 98,
+        "collection_method": "API / HTML / PDF",
+        "authentication_required": False,
+        "rate_limits": "API dependent",
+        "update_frequency": "Daily",
+        "average_documents": 12,
+        "production_ready": "Production Ready",
+        "legal_terms_notes": "Use public legal records with citations.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "YES",
+        "structured": "Medium",
+        "automatable": "YES",
+    },
+    {
+        "id": "EDS-311",
+        "source_name": "311 Complaint Systems",
+        "organisation": "Municipal 311 open data portals",
+        "evidence_class": "Housing Authority",
+        "authority_level": "High",
+        "trust_default": 90,
+        "collection_method": "Open Dataset / API",
+        "authentication_required": False,
+        "rate_limits": "Portal dependent",
+        "update_frequency": "Daily",
+        "average_documents": 100,
+        "production_ready": "Production Ready",
+        "legal_terms_notes": "Use public open-data terms and preserve dataset references.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "YES",
+        "structured": "YES",
+        "automatable": "YES",
+    },
+    {
+        "id": "EDS-INVESTIGATIVE-NEWS",
+        "source_name": "Investigative Journalism",
+        "organisation": "Major and regional investigative publishers",
+        "evidence_class": "Investigative Journalism",
+        "authority_level": "Medium",
+        "trust_default": 85,
+        "collection_method": "RSS / Search Provider",
+        "authentication_required": False,
+        "rate_limits": "Publisher dependent",
+        "update_frequency": "Daily",
+        "average_documents": 10,
+        "production_ready": "Supporting Evidence Only",
+        "legal_terms_notes": "Cite source links; avoid reproducing article text.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "YES",
+        "structured": "Medium",
+        "automatable": "YES",
+    },
+    {
+        "id": "EDS-FEDERAL-REGISTER",
+        "source_name": "Federal Register",
+        "organisation": "Office of the Federal Register",
+        "evidence_class": "Government",
+        "authority_level": "High",
+        "trust_default": 88,
+        "collection_method": "API",
+        "authentication_required": False,
+        "rate_limits": "Public API limits",
+        "update_frequency": "Daily",
+        "average_documents": 40,
+        "production_ready": "Market Context",
+        "legal_terms_notes": "Public federal records; usually context until operational pain is explicit.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "YES",
+        "structured": "YES",
+        "automatable": "YES",
+    },
+    {
+        "id": "EDS-TENANT-ADVOCACY",
+        "source_name": "Tenant Advocacy Organisations",
+        "organisation": "Tenant unions and advocacy groups",
+        "evidence_class": "Tenant Advocacy",
+        "authority_level": "Medium",
+        "trust_default": 78,
+        "collection_method": "RSS / HTML",
+        "authentication_required": False,
+        "rate_limits": "Source dependent",
+        "update_frequency": "Weekly",
+        "average_documents": 8,
+        "production_ready": "Supporting Evidence Only",
+        "legal_terms_notes": "Verify claims against independent sources.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "YES",
+        "structured": "Low",
+        "automatable": "Limited",
+    },
+    {
+        "id": "EDS-SEARCH-PROVIDERS",
+        "source_name": "Search Providers",
+        "organisation": "Tavily / SerpAPI / NewsAPI",
+        "evidence_class": "Search Provider",
+        "authority_level": "Supplemental",
+        "trust_default": 70,
+        "collection_method": "API",
+        "authentication_required": True,
+        "rate_limits": "Provider plan dependent",
+        "update_frequency": "On demand",
+        "average_documents": 50,
+        "production_ready": "Supplemental Provider",
+        "legal_terms_notes": "Use to discover sources, not as proof by itself.",
+        "supported_golden_studies": "GS-001,GS-P001",
+        "current_status": "Configured",
+        "accessible": "Limited",
+        "structured": "YES",
+        "automatable": "YES",
+    },
+]
+
 GS001_EVIDENCE_QUERY_GROUPS = {
     "consumer_complaint": [
         "tenant maintenance complaint property management",
@@ -2216,6 +2440,204 @@ def evidence_quality_dashboard(signals: list[dict[str, object]], skipped: list[d
     }
 
 
+def source_readiness_assessment(source: dict[str, object]) -> dict[str, object]:
+    score = 0
+    accessible = str(source.get("accessible") or "Unknown")
+    structured = str(source.get("structured") or "Unknown")
+    automatable = str(source.get("automatable") or "Unknown")
+    production_ready = str(source.get("production_ready") or "Unknown")
+    method = str(source.get("collection_method") or "")
+    if accessible == "YES":
+        score += 25
+    elif accessible == "Limited":
+        score += 12
+    if structured == "YES":
+        score += 20
+    elif structured == "Medium":
+        score += 12
+    elif structured == "Low":
+        score += 5
+    if automatable == "YES":
+        score += 20
+    elif automatable == "Limited":
+        score += 10
+    if "Production Ready" in production_ready:
+        score += 25
+    elif "Supporting" in production_ready or "Supplemental" in production_ready:
+        score += 12
+    elif "Market Context" in production_ready:
+        score += 8
+    if any(item in method for item in ["API", "Open Dataset", "RSS"]):
+        score += 10
+    if bool(source.get("authentication_required")) and "Search Provider" not in str(source.get("evidence_class") or ""):
+        score -= 10
+    score = max(0, min(100, score))
+    label = "Production Ready" if score >= 80 else "Automatable Candidate" if score >= 65 else "Supporting Only" if score >= 45 else "Needs Review"
+    return {"readiness_score": score, "readiness_label": label}
+
+
+def ensure_data_source_registry(db_path: str | Path) -> None:
+    now = utc_now()
+    with connect(db_path) as connection:
+        for source in GS_P001_PRIORITY_EVIDENCE_SOURCES:
+            assessment = source_readiness_assessment(source)
+            values = {
+                **source,
+                "evidence_tier": evidence_tier_for_class(str(source.get("evidence_class") or "Unknown")),
+                "readiness_score": assessment["readiness_score"],
+                "readiness_label": assessment["readiness_label"],
+            }
+            connection.execute(
+                """
+                INSERT INTO evidence_sources
+                (id, source_name, organisation, evidence_class, evidence_tier, country, industry, authority_level,
+                 trust_default, collection_method, authentication_required, rate_limits, update_frequency,
+                 average_documents, production_ready, legal_terms_notes, supported_golden_studies, current_status,
+                 accessible, structured, automatable, readiness_score, readiness_label, created_at, last_evaluated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    source_name = excluded.source_name,
+                    organisation = excluded.organisation,
+                    evidence_class = excluded.evidence_class,
+                    evidence_tier = excluded.evidence_tier,
+                    authority_level = excluded.authority_level,
+                    trust_default = excluded.trust_default,
+                    collection_method = excluded.collection_method,
+                    authentication_required = excluded.authentication_required,
+                    rate_limits = excluded.rate_limits,
+                    update_frequency = excluded.update_frequency,
+                    average_documents = excluded.average_documents,
+                    production_ready = excluded.production_ready,
+                    legal_terms_notes = excluded.legal_terms_notes,
+                    supported_golden_studies = excluded.supported_golden_studies,
+                    current_status = excluded.current_status,
+                    accessible = excluded.accessible,
+                    structured = excluded.structured,
+                    automatable = excluded.automatable,
+                    readiness_score = excluded.readiness_score,
+                    readiness_label = excluded.readiness_label,
+                    last_evaluated_at = excluded.last_evaluated_at
+                """,
+                (
+                    values["id"],
+                    values["source_name"],
+                    values["organisation"],
+                    values["evidence_class"],
+                    values["evidence_tier"],
+                    values.get("country", "United States"),
+                    values.get("industry", "Residential Property Management"),
+                    values["authority_level"],
+                    values["trust_default"],
+                    values["collection_method"],
+                    1 if values.get("authentication_required") else 0,
+                    values.get("rate_limits", ""),
+                    values.get("update_frequency", ""),
+                    values.get("average_documents", 0),
+                    values["production_ready"],
+                    values.get("legal_terms_notes", ""),
+                    values.get("supported_golden_studies", DEFAULT_STUDY_ID),
+                    values["current_status"],
+                    values["accessible"],
+                    values["structured"],
+                    values["automatable"],
+                    values["readiness_score"],
+                    values["readiness_label"],
+                    now,
+                    now,
+                ),
+            )
+
+
+def list_evidence_sources(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> list[dict[str, object]]:
+    ensure_data_source_registry(db_path)
+    with connect(db_path) as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM evidence_sources
+            WHERE supported_golden_studies LIKE ?
+            ORDER BY evidence_tier ASC, readiness_score DESC, source_name ASC
+            """,
+            (f"%{study_id}%",),
+        ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def evidence_source_for_candidate(candidate: dict[str, object]) -> str:
+    url = str(candidate.get("source_url") or "").lower()
+    title = str(candidate.get("original_title") or "").lower()
+    source_class = str(candidate.get("evidence_class") or "")
+    combined = f"{url} {title}"
+    if "hud.gov" in combined:
+        return "EDS-HUD"
+    if "housing-ombudsman" in combined or "ombudsman" in combined:
+        return "EDS-HOUSING-AUTH"
+    if "bbb.org" in combined:
+        return "EDS-BBB"
+    if "consumeraffairs" in combined or "consumer affairs" in combined:
+        return "EDS-CONSUMER-AFFAIRS"
+    if "court" in combined or source_class == "Court":
+        return "EDS-COURTS"
+    if "311" in combined:
+        return "EDS-311"
+    if "federalregister.gov" in combined:
+        return "EDS-FEDERAL-REGISTER"
+    if "attorney general" in combined or source_class == "Attorney General":
+        return "EDS-AG"
+    if source_class in {"Government", "Regulator", "Housing Authority"}:
+        return "EDS-HOUSING-AUTH"
+    if source_class == "Investigative Journalism":
+        return "EDS-INVESTIGATIVE-NEWS"
+    if source_class == "Tenant Advocacy":
+        return "EDS-TENANT-ADVOCACY"
+    return "EDS-SEARCH-PROVIDERS"
+
+
+def data_source_health_dashboard(db_path: str | Path, study_id: str = DEFAULT_STUDY_ID) -> dict[str, object]:
+    sources = list_evidence_sources(db_path, study_id)
+    active_run = get_active_study_run(db_path, study_id)
+    run_id = str((active_run or {}).get("id") or "")
+    signals = list_signals(db_path, study_id, run_id, include_demo=bool(active_run and active_run.get("study_mode") == "demo")) if run_id else []
+    quality = evidence_quality_dashboard(signals)
+    today = utc_now()[:10]
+    with connect(db_path) as connection:
+        run_rows = connection.execute(
+            """
+            SELECT * FROM source_collection_runs
+            WHERE study_id = ? AND created_at LIKE ?
+            ORDER BY created_at DESC
+            """,
+            (study_id, f"{today}%"),
+        ).fetchall()
+    runs = [row_to_dict(row) for row in run_rows]
+    working_methods = {str(source.get("collection_method") or "") for source in sources if str(source.get("readiness_label") or "") in {"Production Ready", "Automatable Candidate"}}
+    failed = [source for source in sources if str(source.get("current_status") or "").lower() in {"failed", "error"}]
+    coverage_by_industry = sorted({str(source.get("industry") or "Unknown") for source in sources})
+    coverage_by_country = sorted({str(source.get("country") or "Unknown") for source in sources})
+    coverage_by_study = sorted({item.strip() for source in sources for item in str(source.get("supported_golden_studies") or "").split(",") if item.strip()})
+    production_ready_sources = [source for source in sources if source.get("readiness_label") == "Production Ready"]
+    coverage_confidence = round((len(production_ready_sources) / len(sources)) * 100, 1) if sources else 0
+    return {
+        "sources": sources,
+        "source_runs_today": runs,
+        "tier_1_sources_configured": len([source for source in sources if int(source.get("evidence_tier") or 6) == 1]),
+        "tier_2_sources_configured": len([source for source in sources if int(source.get("evidence_tier") or 6) == 2]),
+        "working_apis": len([method for method in working_methods if "API" in method]),
+        "working_crawlers": len([method for method in working_methods if "HTML" in method or "PDF" in method]),
+        "working_rss_feeds": len([method for method in working_methods if "RSS" in method]),
+        "working_search_providers": len([source for source in sources if source.get("evidence_class") == "Search Provider" and source.get("readiness_label") in {"Production Ready", "Automatable Candidate"}]),
+        "failed_sources": len(failed),
+        "collection_errors": len([run for run in runs if run.get("collection_error")]),
+        "daily_documents_collected": sum(int(run.get("documents_collected") or 0) for run in runs),
+        "accepted_production_evidence": quality["accepted_production_signals"],
+        "rejected_evidence": quality["rejected"],
+        "coverage_by_industry": coverage_by_industry,
+        "coverage_by_country": coverage_by_country,
+        "coverage_by_study": coverage_by_study,
+        "coverage_confidence": coverage_confidence,
+        "overall_health": "Healthy" if coverage_confidence >= 50 and not failed else "Developing" if sources else "Not configured",
+    }
+
+
 def archived_count(db_path: str | Path, study_id: str, study_run_id: str | None = None) -> int:
     run_id = study_run_id or str((get_active_study_run(db_path, study_id) or {}).get("id") or "")
     total = 0
@@ -2464,6 +2886,7 @@ def pull_real_market_evidence(
                 normalized["query_category"] = query_category
                 normalized["strategy_evidence_class"] = strategy_evidence_class
                 normalized["strategy_evidence_tier"] = strategy_evidence_tier
+                normalized["source_registry_id"] = evidence_source_for_candidate(normalized)
                 candidates.append(normalized)
                 urls_retrieved += 1
 
@@ -3511,6 +3934,7 @@ def record_discovery_learning(
     skipped: list[dict[str, object]],
     stored_signals: list[dict[str, object]],
 ) -> dict[str, object]:
+    ensure_data_source_registry(db_path)
     stored_urls = {str(signal.get("source_url") or "").strip().lower() for signal in stored_signals if signal.get("source_url")}
     duplicate_keys = {
         (
@@ -3575,6 +3999,41 @@ def record_discovery_learning(
                 """,
                 values,
             )
+            source_groups: dict[str, list[dict[str, object]]] = {}
+            for row in rows:
+                source_groups.setdefault(str(row.get("source_registry_id") or evidence_source_for_candidate(row)), []).append(row)
+            for source_id, source_rows in source_groups.items():
+                source_accepted = [row for row in source_rows if str(row.get("source_url") or "").strip().lower() in stored_urls]
+                source_rejected = [row for row in source_rows if row not in source_accepted]
+                source_duplicates = 1 if duplicates else 0
+                source_marketing = [row for row in source_rejected if row.get("classification") in {"vendor_content", "marketing_content"}]
+                source_trust = [int(row.get("source_trust_score") or 0) for row in source_accepted if int(row.get("source_trust_score") or 0) > 0]
+                source_relevance = [int(row.get("operational_relevance_score") or 0) for row in source_accepted if int(row.get("operational_relevance_score") or 0) > 0]
+                connection.execute(
+                    """
+                    INSERT INTO source_collection_runs
+                    (source_id, study_id, run_id, provider, documents_collected, accepted_evidence, rejected_evidence,
+                     duplicates, marketing_rejected, average_trust_score, average_commercial_relevance,
+                     average_operational_pain, collection_error, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        source_id,
+                        study_id,
+                        run_id,
+                        provider,
+                        len(source_rows),
+                        len(source_accepted),
+                        len(source_rejected),
+                        source_duplicates,
+                        len(source_marketing),
+                        round(sum(source_trust) / len(source_trust), 1) if source_trust else 0,
+                        round(sum(source_relevance) / len(source_relevance), 1) if source_relevance else 0,
+                        round(sum(source_relevance) / len(source_relevance), 1) if source_relevance else 0,
+                        "",
+                        now,
+                    ),
+                )
             inserted_rows.append(
                 {
                     "provider": provider,
