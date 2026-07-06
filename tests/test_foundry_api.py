@@ -44,6 +44,8 @@ def test_foundry_mission_control_payload(tmp_path):
     assert payload["current_run"]["study_mode"] == "production"
     assert payload["stage"] in {"Verification", "Intelligence", "Executive Due Diligence", "Blueprint Studio", "Component Warehouse"}
     assert payload["production_evidence_count"] >= 1
+    assert payload["provena_operators"]
+    assert all(operator["contract_status"] == "pass" for operator in payload["provena_operators"])
     assert payload["read_only"] is True
 
 

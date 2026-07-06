@@ -1010,10 +1010,10 @@ def seed_registries(connection: sqlite3.Connection) -> None:
         ("COMP-001", "Prompt Engine", "Store, version, approve, test, and roll back prompts", "v3.0", "pytest prompt engine", "SQLite", "Prototype", "Active", "PX-A001,PX-L001,PX-R001,PX-H001", now, now),
     ]
     workers = [
-        ("PX-H001", "Head of Functions", "Orchestrate commands, jobs, worker routing, memory, and recommendations", "Prototype", "Active", "v1.0", "PX-E002", "Coordinate PX-EOS execution without replacing specialist workers", "Healthy", "Job Engine,SQLite,Event Bus", "Job Engine,COMP-001", "v1.0.0", 95, 90, now),
-        ("PX-A001", "Audit & Verification Worker", "Verify research before Library entry", "Prototype", "Active", "v2.0", "PX-E002", "Protect Library quality through evidence and duplicate checks", "Healthy", "COMP-001,SQLite", "COMP-001", "v1.0.0", 90, 80, now),
-        ("PX-L001", "Library Manager", "Maintain canonical Library records", "Prototype", "Active", "v2.0", "PX-E002", "Maintain Library records, versions, tags, and changelog", "Healthy", "COMP-001,SQLite", "COMP-001", "v1.0.0", 85, 75, now),
-        ("PX-R001", "Market Research Scanner", "Scan markets and create research packs", "Prototype", "Active", "v2.0", "PX-E002", "Extract structured research from local source material", "Healthy", "COMP-001,SQLite", "COMP-001", "v1.0.0", 80, 85, now),
+        ("PX-H001", "Head of Functions Operator", "Orchestrate commands, jobs, operator routing, memory, and recommendations", "Prototype", "Active", "v1.0", "PX-E002", "Coordinate PX-EOS execution through testable system functions", "Healthy", "Job Engine,SQLite,Event Bus", "Job Engine,COMP-001", "v1.0.0", 95, 90, now),
+        ("PX-A001", "Evidence Verification Operator", "Verify research before Library entry", "Prototype", "Active", "v2.0", "PX-E002", "Protect Library quality through evidence and duplicate checks", "Healthy", "COMP-001,SQLite", "COMP-001", "v1.0.0", 90, 80, now),
+        ("PX-L001", "Library Steward Operator", "Maintain canonical Library records", "Prototype", "Active", "v2.0", "PX-E002", "Maintain Library records, versions, tags, and changelog", "Healthy", "COMP-001,SQLite", "COMP-001", "v1.0.0", 85, 75, now),
+        ("PX-R001", "Research Acquisition Operator", "Scan markets and create research packs", "Prototype", "Active", "v2.0", "PX-E002", "Extract structured research from local source material", "Healthy", "COMP-001,SQLite", "COMP-001", "v1.0.0", 80, 85, now),
     ]
     connection.executemany(
         """
@@ -1051,7 +1051,7 @@ def refresh_registry_metadata(connection: sqlite3.Connection, now: str) -> None:
         ("Store, version, approve, test, and roll back prompts", "v3.0", "pytest prompt engine", "SQLite", now),
     )
     worker_defaults = [
-        ("PX-H001", "v1.0", "PX-E002", "Coordinate PX-EOS execution without replacing specialist workers", "Healthy", "Job Engine,SQLite,Event Bus", "Job Engine,COMP-001", "v1.0.0"),
+        ("PX-H001", "v1.0", "PX-E002", "Coordinate PX-EOS execution through testable system functions", "Healthy", "Job Engine,SQLite,Event Bus", "Job Engine,COMP-001", "v1.0.0"),
         ("PX-A001", "v2.0", "PX-E002", "Protect Library quality through evidence and duplicate checks", "Healthy", "COMP-001,SQLite", "COMP-001", "v1.0.0"),
         ("PX-L001", "v2.0", "PX-E002", "Maintain Library records, versions, tags, and changelog", "Healthy", "COMP-001,SQLite", "COMP-001", "v1.0.0"),
         ("PX-R001", "v2.0", "PX-E002", "Extract structured research from local source material", "Healthy", "COMP-001,SQLite", "COMP-001", "v1.0.0"),

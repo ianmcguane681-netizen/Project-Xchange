@@ -1,1 +1,1 @@
-"""PX-A001 Audit & Verification Worker."""
+"""PX-A001 Evidence Verification Operator backend."""

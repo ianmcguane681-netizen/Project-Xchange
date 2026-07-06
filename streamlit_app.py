@@ -46,7 +46,6 @@ from project_exchange.eos import (
     restart_worker,
     retry_job,
     resume_job,
-    worker_registry,
 )
 from project_exchange.json_io import read_json, write_json
 from project_exchange.golden_study import (
@@ -118,6 +117,7 @@ from project_exchange.os_services import (
     send_worker_message,
     set_setting,
 )
+from project_exchange.operators import provena_operator_registry, validate_operator_contracts
 from project_exchange.provider_status import provider_connection_rows
 from workers.px_a001_audit.audit_engine import AuditDecision, list_audit_records, run_audit, update_audit_decision
 from workers.px_l001_library.library_manager import approved_audit_queue, list_library_records, search_library_records, store_approved_record
@@ -312,7 +312,7 @@ tabs = st.tabs(
         "Jobs",
         "Logs",
         "Errors",
-        "Worker Registry",
+        "Operator Registry",
         "Component Registry",
         "Milestones",
         "Engineering Journal",
@@ -321,7 +321,7 @@ tabs = st.tabs(
         "Library",
         "Prompts",
         "Knowledge Graph",
-        "Worker Chat",
+        "Operator Messages",
         "Settings",
         "Provider Settings",
         "History",
@@ -341,13 +341,13 @@ with tabs[0]:
     top[3].metric("Uptime", metrics["uptime"])
 
     cols = st.columns(8)
-    cols[0].metric("Workers Online", metrics["workers_online"])
+    cols[0].metric("Operators Online", metrics["workers_online"])
     cols[1].metric("Research Queue", metrics["research_queue"])
     cols[2].metric("Audit Queue", metrics["audit_queue"])
     cols[3].metric("Library Records", metrics["library_records"])
     cols[4].metric("Prompt Count", metrics["prompt_count"])
     cols[5].metric("Component Count", metrics["component_count"])
-    cols[6].metric("Worker Count", metrics["worker_count"])
+    cols[6].metric("Operator Count", metrics["worker_count"])
     cols[7].metric("Database Status", metrics["database_status"])
 
     analytics = metrics["analytics"]
@@ -363,7 +363,7 @@ with tabs[0]:
     analytics_cols_2[0].metric("Research Processed", analytics["research_processed"])
     analytics_cols_2[1].metric("Library Growth", analytics["library_growth"])
     analytics_cols_2[2].metric("Prompt Success %", analytics["prompt_success_percent"])
-    analytics_cols_2[3].metric("Worker Utilisation", f"{analytics['worker_utilisation']}%")
+    analytics_cols_2[3].metric("Operator Utilisation", f"{analytics['worker_utilisation']}%")
     analytics_cols_2[4].metric("System Load", analytics["system_load"])
 
     st.subheader("Job Queues")
@@ -373,8 +373,8 @@ with tabs[0]:
 
     col_a, col_b = st.columns(2)
     with col_a:
-        st.subheader("Worker Status")
-        st.dataframe(worker_registry(DB_PATH), use_container_width=True)
+        st.subheader("Operator Status")
+        st.dataframe(provena_operator_registry(DB_PATH), use_container_width=True)
     with col_b:
         st.subheader("Recent Notifications")
         st.dataframe(list_notifications(DB_PATH), use_container_width=True)
@@ -393,7 +393,7 @@ with tabs[0]:
 with tabs[1]:
     st.header("Event Timeline")
     event_type = st.text_input("Event type filter", key="timeline_event_type")
-    worker_filter = st.selectbox("Worker filter", ["", "PX-H001", "PX-R001", "PX-A001", "PX-L001"], key="timeline_worker_filter")
+    worker_filter = st.selectbox("Operator filter", ["", "PX-H001", "PX-R001", "PX-A001", "PX-L001"], key="timeline_worker_filter")
     success_filter = st.selectbox("Success filter", ["", "Success", "Failed"], key="timeline_success_filter")
     st.dataframe(list_events(DB_PATH, event_type, worker_filter, success_filter), use_container_width=True)
 
@@ -405,7 +405,7 @@ with tabs[2]:
             st.json(run_command(DB_PATH, command))
         except Exception as exc:
             st.error(str(exc))
-    st.caption("PX-H001 turns commands into execution plans, jobs, worker messages, memory updates, and recommendations.")
+    st.caption("PX-H001 is the Head of Functions Operator: it turns commands into execution plans, jobs, operator messages, memory updates, and recommendations.")
     st.subheader("Recent Execution Plans")
     st.dataframe(list_execution_plans(DB_PATH, 20), use_container_width=True)
 
@@ -438,7 +438,7 @@ with tabs[3]:
 
 with tabs[4]:
     st.header("Pipeline View")
-    st.caption("Research -> Audit -> Library -> Components -> Workers -> Deployment")
+    st.caption("Research -> Audit -> Library -> Components -> Operators -> Deployment")
     st.dataframe(pipeline_snapshot(DB_PATH), use_container_width=True)
 
     queue_col, approved_col, library_col = st.columns(3)
@@ -483,7 +483,7 @@ with tabs[4]:
 with tabs[5]:
     st.header("PX Job Engine")
     status_filter = st.selectbox("Job status filter", ["", "Pending", "Running", "Waiting", "Completed", "Failed", "Cancelled"])
-    worker_job_filter = st.selectbox("Assigned worker filter", ["", "PX-H001", "PX-R001", "PX-A001", "PX-L001"])
+    worker_job_filter = st.selectbox("Assigned operator filter", ["", "PX-H001", "PX-R001", "PX-A001", "PX-L001"])
     jobs = list_jobs(DB_PATH, status_filter, worker_job_filter)
     st.dataframe(jobs, use_container_width=True)
     job_ids = [job["id"] for job in jobs]
@@ -507,7 +507,7 @@ with tabs[5]:
 
     with st.form("manual_job_form"):
         job_type = st.selectbox("Job type", [item.value for item in JobType])
-        assigned_worker = st.selectbox("Assigned worker", ["", "PX-H001", "PX-R001", "PX-A001", "PX-L001"])
+        assigned_worker = st.selectbox("Assigned operator", ["", "PX-H001", "PX-R001", "PX-A001", "PX-L001"])
         priority = st.number_input("Priority", min_value=1, max_value=9, value=3, key="manual_job_priority")
         payload_json = st.text_area("Payload JSON", value='{"market": "Property Management", "source_text": "Tenants repeatedly complain about maintenance updates.", "company": "PropertyMe"}', key="manual_job_payload")
         if st.form_submit_button("Create Job"):
@@ -520,7 +520,7 @@ with tabs[5]:
 with tabs[6]:
     st.header("Structured Logs")
     severity = st.selectbox("Severity", ["", "info", "warning", "error"])
-    log_worker = st.selectbox("Log worker", ["", "PX-H001", "PX-R001", "PX-A001", "PX-L001"])
+    log_worker = st.selectbox("Log operator", ["", "PX-H001", "PX-R001", "PX-A001", "PX-L001"])
     log_job = st.text_input("Log job ID")
     logs = list_system_logs(DB_PATH, severity, log_worker, log_job)
     st.dataframe(logs, use_container_width=True)
@@ -542,8 +542,8 @@ with tabs[7]:
             except ValueError as exc:
                 st.error(str(exc))
     with error_cols[1]:
-        worker_restart = st.selectbox("Restart worker", ["PX-H001", "PX-R001", "PX-A001", "PX-L001"])
-        if st.button("Restart Worker"):
+        worker_restart = st.selectbox("Restart operator", ["PX-H001", "PX-R001", "PX-A001", "PX-L001"])
+        if st.button("Restart Operator"):
             restart_worker(DB_PATH, worker_restart)
             st.success(f"Restarted {worker_restart}")
     with error_cols[2]:
@@ -553,8 +553,11 @@ with tabs[7]:
     st.dataframe(list_failure_history(DB_PATH), use_container_width=True)
 
 with tabs[8]:
-    st.header("Worker Registry")
-    st.dataframe(worker_registry(DB_PATH), use_container_width=True)
+    st.header("Provena Operator Registry")
+    st.caption("Every visible Operator maps to a backend module, a callable function, runtime status, input/output contract, and traceable activity.")
+    st.dataframe(provena_operator_registry(DB_PATH), use_container_width=True)
+    with st.expander("Operator Contract Checks"):
+        st.dataframe(validate_operator_contracts(), use_container_width=True)
 
 with tabs[9]:
     st.header("Component Registry")
@@ -669,7 +672,7 @@ with tabs[14]:
     category = st.text_input("Category filter", key="library_category_filter")
     tag = st.text_input("Tag filter", key="library_tag_filter")
     filter_cols = st.columns(5)
-    worker_filter = filter_cols[0].text_input("Worker", key="library_worker_filter")
+    worker_filter = filter_cols[0].text_input("Operator", key="library_worker_filter")
     company_filter = filter_cols[1].text_input("Company", key="library_company_filter")
     market_filter = filter_cols[2].text_input("Market", key="library_market_filter")
     source_filter = filter_cols[3].text_input("Source", key="library_source_filter")
@@ -694,7 +697,7 @@ with tabs[14]:
 with tabs[15]:
     st.header("COMP-001 Prompt Engine v3")
     with st.form("prompt_form"):
-        worker_id = st.selectbox("Worker assignment", ["PX-H001", "PX-A001", "PX-L001", "PX-R001"], key="prompt_worker_assignment")
+        worker_id = st.selectbox("Operator assignment", ["PX-H001", "PX-A001", "PX-L001", "PX-R001"], key="prompt_worker_assignment")
         prompt_type = st.selectbox("Prompt type", ["System prompt", "Task prompt", "Validation prompt", "Scoring prompt", "Fallback prompt", "Report prompt"], key="prompt_type")
         prompt_text = st.text_area("Prompt text", height=140, key="prompt_text")
         if st.form_submit_button("Create Prompt"):
@@ -704,7 +707,7 @@ with tabs[15]:
                 st.error(str(exc))
 
     prompt_query = st.text_input("Prompt search")
-    prompt_worker = st.selectbox("Prompt worker filter", ["", "PX-H001", "PX-A001", "PX-L001", "PX-R001"])
+    prompt_worker = st.selectbox("Prompt operator filter", ["", "PX-H001", "PX-A001", "PX-L001", "PX-R001"])
     prompt_status = st.selectbox("Status filter", ["", "Draft", "Approved", "Retired"], key="prompt_status_filter")
     prompts = search_prompts(DB_PATH, prompt_query, prompt_worker, prompt_status)
     st.dataframe(prompts, use_container_width=True)
@@ -762,13 +765,13 @@ with tabs[16]:
     st.dataframe(list_knowledge_edges(DB_PATH, entity_id), use_container_width=True)
 
 with tabs[17]:
-    st.header("Worker Chat")
+    st.header("Operator Messages")
     msg_cols = st.columns(2)
     sender = msg_cols[0].selectbox("Sender", ["PX-H001", "PX-R001", "PX-A001", "PX-L001", "COMP-001", "Notification"])
     receiver = msg_cols[1].selectbox("Receiver", ["PX-H001", "PX-R001", "PX-A001", "PX-L001", "COMP-001", "Notification"])
     message_priority = st.number_input("Priority", min_value=1, max_value=9, value=3, key="worker_message_priority")
     message = st.text_area("Message")
-    if st.button("Send Worker Message"):
+    if st.button("Send Operator Message"):
         if sender != "PX-H001" and receiver != "PX-H001":
             st.json(route_worker_message(DB_PATH, sender, receiver, message, priority=int(message_priority)))
         else:
@@ -779,7 +782,7 @@ with tabs[18]:
     st.header("Settings")
     st.caption("Store provider selections and local configuration. API key values are accepted but should stay local.")
     with st.form("settings_form"):
-        category = st.selectbox("Category", ["API Keys", "Providers", "LLM", "Database", "Workers", "Notifications", "Debug"])
+        category = st.selectbox("Category", ["API Keys", "Providers", "LLM", "Database", "Operators", "Notifications", "Debug"])
         key = st.text_input("Key")
         value = st.text_input("Value", type="password" if category == "API Keys" else "default")
         if st.form_submit_button("Save Setting"):
@@ -868,10 +871,10 @@ with tabs[21]:
 
 with tabs[22]:
     st.header("PX-H001 Head of Functions")
-    st.caption("Operating executive for objectives, schedules, worker load, performance, briefs, recovery, and recommendations.")
+    st.caption("Operating executive for objectives, schedules, operator load, performance, briefs, recovery, and recommendations.")
     action_cols = st.columns(5)
     with action_cols[0]:
-        if st.button("Refresh Worker Memory", type="primary"):
+        if st.button("Refresh Operator Memory", type="primary"):
             st.json(refresh_worker_memory(DB_PATH))
     with action_cols[1]:
         if st.button("Monitor and Recover"):
@@ -907,7 +910,7 @@ with tabs[22]:
     with st.form("schedule_form"):
         schedule_name = st.text_input("Schedule name", value="Daily market research")
         schedule_cadence = st.selectbox("Schedule cadence", ["daily", "weekly", "manual"])
-        schedule_worker = st.selectbox("Schedule worker", ["PX-R001", "PX-A001", "PX-L001", "PX-H001"])
+        schedule_worker = st.selectbox("Schedule operator", ["PX-R001", "PX-A001", "PX-L001", "PX-H001"])
         schedule_job_type = st.selectbox("Schedule job type", [item.value for item in JobType])
         schedule_objective = st.selectbox("Linked objective", objective_ids)
         schedule_priority = st.number_input("Schedule priority", min_value=1, max_value=9, value=2)
@@ -942,16 +945,16 @@ with tabs[22]:
 
     st.subheader("Execution Plans")
     st.dataframe(list_execution_plans(DB_PATH), use_container_width=True)
-    st.subheader("Worker Load Monitor")
+    st.subheader("Operator Load Monitor")
     st.dataframe(worker_load_monitor(DB_PATH), use_container_width=True)
     st.subheader("Priority Manager")
     st.json(operating_summary(DB_PATH)["priorities"])
-    st.subheader("Worker Memory")
+    st.subheader("Operator Memory")
     memory = list_worker_memory(DB_PATH)
     if memory:
         st.dataframe(memory, use_container_width=True)
     else:
-        st.info("No worker memory yet. Run Refresh Worker Memory.")
+        st.info("No operator memory yet. Run Refresh Operator Memory.")
     st.subheader("Operating Briefs")
     st.dataframe(list_operating_briefs(DB_PATH), use_container_width=True)
     st.subheader("Performance Snapshots")

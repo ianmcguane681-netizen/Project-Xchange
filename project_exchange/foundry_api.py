@@ -24,6 +24,7 @@ from project_exchange.golden_study import (
     signal_trace_card_view_model,
     study_progress,
 )
+from project_exchange.operators import provena_operator_registry
 
 SECRET_FIELD_MARKERS = ("api_key", "apikey", "secret", "token", "password", "authorization")
 
@@ -196,6 +197,7 @@ def mission_control_payload(db_path: str | Path = DEFAULT_DB_PATH, study_id: str
             "failed_sources": ctx["supply"].get("failed_sources"),
             "working_apis": ctx["supply"].get("working_apis"),
         },
+        "provena_operators": provena_operator_registry(db_path),
         "pipeline": ctx["pipeline"],
         "read_only": True,
     }

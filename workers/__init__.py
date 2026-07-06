@@ -1,1 +1,1 @@
-"""Project Exchange Workers."""
+"""Project Exchange operator backend modules."""

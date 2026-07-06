@@ -49,7 +49,7 @@ class JobType(StrEnum):
     PROMPT_TEST = "Prompt Test"
     PROMPT_APPROVAL = "Prompt Approval"
     COMPONENT_BUILD = "Component Build"
-    WORKER_UPDATE = "Worker Update"
+    WORKER_UPDATE = "Operator Update"
     SYSTEM_SCAN = "System Scan"
 
 
