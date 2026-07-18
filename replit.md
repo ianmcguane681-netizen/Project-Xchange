@@ -1,6 +1,6 @@
-# [Project name]
+# Provena Foundry
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Provena Foundry is a professional software product governed by a formal Review Board methodology that gates all protected-branch merges, milestone completions, and production deployments.
 
 ## Run & Operate
 
@@ -22,15 +22,21 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `docs/review-board/` — Review Board methodology package (governing doc + 8 reviewer specs)
+- `docs/review-board/REVIEW-BOARD-METHODOLOGY.md` — Master governing methodology (RBM-001)
+- `docs/review-board/specs/` — Individual reviewer specifications (RBS-001 through RBS-008)
+- `docs/review-board/README.md` — Package index, execution sequence, and orchestration contracts
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Review Board methodology is kept entirely separate from GS-P001 governance — no shared documents.
+- All Board decisions are deterministic from the finding set; no override by schedule or commercial pressure is permitted.
+- Reviewer specifications each include a `Reviewer Prompt Conversion Notes` section as the contract for converting specs into AI reviewer prompts.
+- The Sceptical Reviewer (RBS-008) is sequenced in Phase 2 (after all specialist reviews) by design — it reviews the reviews, not the artefact directly.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Provena Foundry. Application functionality to be defined as the product is built.
 
 ## User preferences
 
