@@ -174,6 +174,19 @@ def write_outputs(result: EngineResult, output_dir: str | Path) -> tuple[EngineR
     record = result.record
     payloads: dict[str, Any] = {
         "evidence_register": [item.to_dict() for item in record.evidence_items],
+        "buyer_map": record.buyer_map.to_dict(),
+        "willingness_to_pay_evidence": [
+            item.to_dict()
+            for item in record.evidence_items
+            if item.evidence_class.value == "E2_DIRECT_BUYER"
+            and "C7_CUSTOMER_ECONOMICS" in item.linked_categories
+        ],
+        "competitive_alternatives": [item.to_dict() for item in record.competitors],
+        "technical_feasibility_assessment": next(
+            item.to_dict()
+            for item in record.category_assessments
+            if item.category_id == "C4_TECHNICAL_FEASIBILITY"
+        ),
         "category_scorecard": [item.to_dict() for item in record.category_assessments],
         "gate_register": [item.to_dict() for item in record.gate_assessments],
         "missing_evidence_register": [item.to_dict() for item in record.missing_evidence],
@@ -187,6 +200,7 @@ def write_outputs(result: EngineResult, output_dir: str | Path) -> tuple[EngineR
             "sensitivity": [item.to_dict() for item in record.sensitivity_results],
         },
         "ranked_validation_plan": [item.to_dict() for item in record.validation_actions],
+        "deterministic_verdict": record.verdict.to_dict(),
     }
     paths: dict[str, Path] = {}
     hashes: dict[str, str] = dict(result.manifest.artifact_hashes)
@@ -208,4 +222,3 @@ def write_outputs(result: EngineResult, output_dir: str | Path) -> tuple[EngineR
     _write_json(result_path, final_result.to_dict())
     paths["sv_result"] = result_path
     return final_result, paths
-

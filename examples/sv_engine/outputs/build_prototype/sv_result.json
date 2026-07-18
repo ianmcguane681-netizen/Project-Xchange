@@ -1,0 +1,1069 @@
+{
+  "record": {
+    "buyer_map": {
+      "budget_source": "Operations transformation budget",
+      "compliance_approver": "Consumer compliance officer",
+      "consequences_of_inaction": [
+        "Continuing rework",
+        "Weak evidence trace"
+      ],
+      "economic_buyer": "Head of consumer dispute operations",
+      "end_users": [
+        "Intake analyst",
+        "Investigator"
+      ],
+      "evidence_ids": [
+        "EV-002",
+        "EV-008"
+      ],
+      "operational_owner": "Dispute operations manager",
+      "procurement_path": "Bounded pilot purchase",
+      "purchase_authority": "Named economic buyer has pilot authority",
+      "schema_version": "1.0",
+      "technical_approver": "Enterprise architecture lead",
+      "urgency": "Current rework budget is material"
+    },
+    "category_assessments": [
+      {
+        "adjusted_score": 3.44,
+        "category_id": "C1_PROBLEM_INHERITANCE",
+        "category_name": "Problem inheritance",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.86,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-001",
+          "EV-004"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 3.52,
+        "category_id": "C2_CURRENT_WORKFLOW_BASELINE",
+        "category_name": "Current workflow baseline",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.88,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-001",
+          "EV-003"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 3.5468,
+        "category_id": "C3_WORKFLOW_IMPROVEMENT",
+        "category_name": "Workflow improvement potential",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.8867,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-001",
+          "EV-003",
+          "EV-007"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 2.76,
+        "category_id": "C4_TECHNICAL_FEASIBILITY",
+        "category_name": "Technical feasibility",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.69,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-004",
+          "EV-006",
+          "EV-007"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 2.5,
+        "category_id": "C5_INTERNAL_OPERATIONAL_COMPLEXITY",
+        "category_name": "Internal operational complexity",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.625,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-006",
+          "EV-007"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 2.7,
+        "category_id": "C6_BUYER_DEFINITION",
+        "category_name": "Buyer definition and ownership",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.9,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-002",
+          "EV-008"
+        ],
+        "raw_score": 3,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "PARTIALLY_SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 3.6,
+        "category_id": "C7_CUSTOMER_ECONOMICS",
+        "category_name": "Willingness to pay and customer economics",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.9,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-002",
+          "EV-007",
+          "EV-008"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 3.2,
+        "category_id": "C8_MARKET_COMPETITION",
+        "category_name": "Market and competitive position",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.8,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-004",
+          "EV-005"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 2.8932,
+        "category_id": "C9_PROVENA_UNIT_ECONOMICS",
+        "category_name": "Provena unit economics",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.7233,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-006",
+          "EV-007",
+          "EV-008"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 3.54,
+        "category_id": "C10_ADOPTION_RISK",
+        "category_name": "Adoption and implementation risk",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.885,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-001",
+          "EV-002",
+          "EV-003",
+          "EV-007"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 3.44,
+        "category_id": "C11_COMPONENT_REUSABILITY",
+        "category_name": "Component reusability",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.86,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-001",
+          "EV-003",
+          "EV-005",
+          "EV-007"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      },
+      {
+        "adjusted_score": 3.36,
+        "category_id": "C12_STRATEGIC_FIT",
+        "category_name": "Strategic fit",
+        "conclusion": "Score derives only from approved linked evidence and supported structured claims.",
+        "confidence": 0.84,
+        "contradiction_ids": [],
+        "evidence_ids": [
+          "EV-004",
+          "EV-005",
+          "EV-008"
+        ],
+        "raw_score": 4,
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "sufficiency": "SUPPORTED",
+        "unresolved_questions": []
+      }
+    ],
+    "competitors": [
+      {
+        "alternative_type": "internal alternative",
+        "competitor_id": "COMP-FIXTURE-001",
+        "differentiation": "Traceable evidence routing without replacing adjudication",
+        "evidence_ids": [
+          "EV-005"
+        ],
+        "name": "Manual case-system configuration",
+        "pricing": "Internal labour",
+        "schema_version": "1.0",
+        "strengths": [
+          "Already deployed"
+        ],
+        "switching_cost": "Moderate",
+        "weaknesses": [
+          "Manual evidence matching"
+        ]
+      }
+    ],
+    "contradictions": [],
+    "current_workflow": {
+      "metrics": [
+        {
+          "assumptions": [],
+          "evidence_ids": [
+            "EV-001"
+          ],
+          "lower_bound": null,
+          "metric_id": "CM-1",
+          "name": "Manual handoffs per case",
+          "schema_version": "1.0",
+          "unit": "handoffs",
+          "upper_bound": null,
+          "value": 3,
+          "value_kind": "OBSERVED"
+        },
+        {
+          "assumptions": [],
+          "evidence_ids": [
+            "EV-001"
+          ],
+          "lower_bound": null,
+          "metric_id": "CM-2",
+          "name": "Handling time",
+          "schema_version": "1.0",
+          "unit": "minutes",
+          "upper_bound": null,
+          "value": 42,
+          "value_kind": "OBSERVED"
+        }
+      ],
+      "schema_version": "1.0",
+      "state": "current",
+      "steps": [
+        {
+          "actor": "Intake analyst",
+          "compliance_risk": "missed evidence",
+          "customer_impact": "delay",
+          "duplicated_work": true,
+          "errors": [
+            "document mismatch"
+          ],
+          "exceptions": [
+            "unsupported file"
+          ],
+          "handoffs": 1,
+          "inputs": [
+            "dispute",
+            "documents"
+          ],
+          "manual_entries": 2,
+          "name": "Receive dispute",
+          "outputs": [
+            "case"
+          ],
+          "rework": [
+            "re-key case"
+          ],
+          "schema_version": "1.0",
+          "step_id": "CW-1",
+          "systems": [
+            "case system"
+          ]
+        },
+        {
+          "actor": "Queue analyst",
+          "compliance_risk": "incomplete investigation",
+          "customer_impact": "repeated submission",
+          "duplicated_work": true,
+          "errors": [
+            "wrong queue"
+          ],
+          "exceptions": [
+            "missing identifier"
+          ],
+          "handoffs": 2,
+          "inputs": [
+            "case"
+          ],
+          "manual_entries": 1,
+          "name": "Route evidence",
+          "outputs": [
+            "investigation package"
+          ],
+          "rework": [
+            "reroute"
+          ],
+          "schema_version": "1.0",
+          "step_id": "CW-2",
+          "systems": [
+            "shared mailbox",
+            "case system"
+          ]
+        }
+      ],
+      "workflow_id": "WF-CURRENT-001"
+    },
+    "customer_economics": {
+      "annual_value": 180000.0,
+      "assumptions": [
+        "Observed fixture volume remains stable"
+      ],
+      "evidence_ids": [
+        "EV-001",
+        "EV-002",
+        "EV-007"
+      ],
+      "formulae": [
+        "annual_value = observed_rework_hours * loaded_hourly_cost"
+      ],
+      "payback_months": 3.2,
+      "price_assumption": 48000.0,
+      "schema_version": "1.0"
+    },
+    "evidence_items": [
+      {
+        "assumptions": [],
+        "confidence_contribution": 0.9,
+        "content_hash": "fixture-hash-EV-001",
+        "contradiction_flag": false,
+        "date_observed_or_published": "2026-07-01",
+        "description": "Synthetic test evidence for observed dispute workflow baseline.",
+        "evidence_class": "E1_DIRECT_OPERATIONAL",
+        "evidence_id": "EV-001",
+        "limitations": [
+          "Synthetic fixture; not real market or customer evidence."
+        ],
+        "linked_categories": [
+          "C1_PROBLEM_INHERITANCE",
+          "C2_CURRENT_WORKFLOW_BASELINE",
+          "C3_WORKFLOW_IMPROVEMENT",
+          "C10_ADOPTION_RISK",
+          "C11_COMPONENT_REUSABILITY"
+        ],
+        "linked_gates": [
+          "G1_VERIFIED_PROBLEM_LINKAGE",
+          "G2_BASELINE_SUFFICIENCY",
+          "G5_VALUE_PLAUSIBILITY"
+        ],
+        "provenance": "Generated solely for deterministic automated testing.",
+        "relevant_claim": "Observed dispute workflow baseline",
+        "retrieval_timestamp": "2026-07-01T12:00:00+00:00",
+        "review_state": "APPROVED",
+        "reviewed_at": "2026-07-01T12:30:00+00:00",
+        "reviewed_by": "SV-FIXTURE-REVIEWER",
+        "schema_version": "1.0",
+        "source_locator": "fixture://EV-001",
+        "source_organisation": "SV Engine Test Fixture",
+        "source_type": "synthetic_test_fixture",
+        "title": "Observed dispute workflow baseline"
+      },
+      {
+        "assumptions": [],
+        "confidence_contribution": 0.88,
+        "content_hash": "fixture-hash-EV-002",
+        "contradiction_flag": false,
+        "date_observed_or_published": "2026-07-01",
+        "description": "Synthetic test evidence for budget owner interview and pilot authority.",
+        "evidence_class": "E2_DIRECT_BUYER",
+        "evidence_id": "EV-002",
+        "limitations": [
+          "Synthetic fixture; not real market or customer evidence."
+        ],
+        "linked_categories": [
+          "C6_BUYER_DEFINITION",
+          "C7_CUSTOMER_ECONOMICS",
+          "C10_ADOPTION_RISK"
+        ],
+        "linked_gates": [
+          "G4_BUYER_CREDIBILITY",
+          "G5_VALUE_PLAUSIBILITY"
+        ],
+        "provenance": "Generated solely for deterministic automated testing.",
+        "relevant_claim": "Budget owner interview and pilot authority",
+        "retrieval_timestamp": "2026-07-01T12:00:00+00:00",
+        "review_state": "APPROVED",
+        "reviewed_at": "2026-07-01T12:30:00+00:00",
+        "reviewed_by": "SV-FIXTURE-REVIEWER",
+        "schema_version": "1.0",
+        "source_locator": "fixture://EV-002",
+        "source_organisation": "SV Engine Test Fixture",
+        "source_type": "synthetic_test_fixture",
+        "title": "Budget owner interview and pilot authority"
+      },
+      {
+        "assumptions": [],
+        "confidence_contribution": 0.86,
+        "content_hash": "fixture-hash-EV-003",
+        "contradiction_flag": false,
+        "date_observed_or_published": "2026-07-01",
+        "description": "Synthetic test evidence for operator workflow observation.",
+        "evidence_class": "E3_DIRECT_USER",
+        "evidence_id": "EV-003",
+        "limitations": [
+          "Synthetic fixture; not real market or customer evidence."
+        ],
+        "linked_categories": [
+          "C2_CURRENT_WORKFLOW_BASELINE",
+          "C3_WORKFLOW_IMPROVEMENT",
+          "C10_ADOPTION_RISK",
+          "C11_COMPONENT_REUSABILITY"
+        ],
+        "linked_gates": [
+          "G2_BASELINE_SUFFICIENCY",
+          "G5_VALUE_PLAUSIBILITY"
+        ],
+        "provenance": "Generated solely for deterministic automated testing.",
+        "relevant_claim": "Operator workflow observation",
+        "retrieval_timestamp": "2026-07-01T12:00:00+00:00",
+        "review_state": "APPROVED",
+        "reviewed_at": "2026-07-01T12:30:00+00:00",
+        "reviewed_by": "SV-FIXTURE-REVIEWER",
+        "schema_version": "1.0",
+        "source_locator": "fixture://EV-003",
+        "source_organisation": "SV Engine Test Fixture",
+        "source_type": "synthetic_test_fixture",
+        "title": "Operator workflow observation"
+      },
+      {
+        "assumptions": [],
+        "confidence_contribution": 0.82,
+        "content_hash": "fixture-hash-EV-004",
+        "contradiction_flag": false,
+        "date_observed_or_published": "2026-07-01",
+        "description": "Synthetic test evidence for applicable dispute-handling requirements.",
+        "evidence_class": "E4_AUTHORITATIVE_EXTERNAL",
+        "evidence_id": "EV-004",
+        "limitations": [
+          "Synthetic fixture; not real market or customer evidence."
+        ],
+        "linked_categories": [
+          "C1_PROBLEM_INHERITANCE",
+          "C4_TECHNICAL_FEASIBILITY",
+          "C8_MARKET_COMPETITION",
+          "C12_STRATEGIC_FIT"
+        ],
+        "linked_gates": [
+          "G1_VERIFIED_PROBLEM_LINKAGE",
+          "G3_TECHNICAL_PLAUSIBILITY",
+          "G8_ETHICAL_LEGAL_REGULATORY_ACCEPTABILITY"
+        ],
+        "provenance": "Generated solely for deterministic automated testing.",
+        "relevant_claim": "Applicable dispute-handling requirements",
+        "retrieval_timestamp": "2026-07-01T12:00:00+00:00",
+        "review_state": "APPROVED",
+        "reviewed_at": "2026-07-01T12:30:00+00:00",
+        "reviewed_by": "SV-FIXTURE-REVIEWER",
+        "schema_version": "1.0",
+        "source_locator": "fixture://EV-004",
+        "source_organisation": "SV Engine Test Fixture",
+        "source_type": "synthetic_test_fixture",
+        "title": "Applicable dispute-handling requirements"
+      },
+      {
+        "assumptions": [],
+        "confidence_contribution": 0.78,
+        "content_hash": "fixture-hash-EV-005",
+        "contradiction_flag": false,
+        "date_observed_or_published": "2026-07-01",
+        "description": "Synthetic test evidence for documented competitive gap.",
+        "evidence_class": "E5_COMPETITIVE_MARKET",
+        "evidence_id": "EV-005",
+        "limitations": [
+          "Synthetic fixture; not real market or customer evidence."
+        ],
+        "linked_categories": [
+          "C8_MARKET_COMPETITION",
+          "C11_COMPONENT_REUSABILITY",
+          "C12_STRATEGIC_FIT"
+        ],
+        "linked_gates": [
+          "G7_COMPETITIVE_VIABILITY"
+        ],
+        "provenance": "Generated solely for deterministic automated testing.",
+        "relevant_claim": "Documented competitive gap",
+        "retrieval_timestamp": "2026-07-01T12:00:00+00:00",
+        "review_state": "APPROVED",
+        "reviewed_at": "2026-07-01T12:30:00+00:00",
+        "reviewed_by": "SV-FIXTURE-REVIEWER",
+        "schema_version": "1.0",
+        "source_locator": "fixture://EV-005",
+        "source_organisation": "SV Engine Test Fixture",
+        "source_type": "synthetic_test_fixture",
+        "title": "Documented competitive gap"
+      },
+      {
+        "assumptions": [
+          "Three-month bounded prototype",
+          "No customer-specific fork"
+        ],
+        "confidence_contribution": 0.7,
+        "content_hash": "fixture-hash-EV-006",
+        "contradiction_flag": false,
+        "date_observed_or_published": "2026-07-01",
+        "description": "Synthetic test evidence for engineering and service cost estimate.",
+        "evidence_class": "E6_INTERNAL_ESTIMATE",
+        "evidence_id": "EV-006",
+        "limitations": [
+          "Synthetic fixture; not real market or customer evidence."
+        ],
+        "linked_categories": [
+          "C4_TECHNICAL_FEASIBILITY",
+          "C5_INTERNAL_OPERATIONAL_COMPLEXITY",
+          "C9_PROVENA_UNIT_ECONOMICS"
+        ],
+        "linked_gates": [
+          "G3_TECHNICAL_PLAUSIBILITY",
+          "G6_INTERNAL_OPERABILITY"
+        ],
+        "provenance": "Generated solely for deterministic automated testing.",
+        "relevant_claim": "Engineering and service cost estimate",
+        "retrieval_timestamp": "2026-07-01T12:00:00+00:00",
+        "review_state": "APPROVED",
+        "reviewed_at": "2026-07-01T12:30:00+00:00",
+        "reviewed_by": "SV-FIXTURE-REVIEWER",
+        "schema_version": "1.0",
+        "source_locator": "fixture://EV-006",
+        "source_organisation": "SV Engine Test Fixture",
+        "source_type": "synthetic_test_fixture",
+        "title": "Engineering and service cost estimate"
+      },
+      {
+        "assumptions": [],
+        "confidence_contribution": 0.9,
+        "content_hash": "fixture-hash-EV-007",
+        "contradiction_flag": false,
+        "date_observed_or_published": "2026-07-01",
+        "description": "Synthetic test evidence for controlled workflow simulation.",
+        "evidence_class": "E7_PROTOTYPE",
+        "evidence_id": "EV-007",
+        "limitations": [
+          "Synthetic fixture; not real market or customer evidence."
+        ],
+        "linked_categories": [
+          "C3_WORKFLOW_IMPROVEMENT",
+          "C4_TECHNICAL_FEASIBILITY",
+          "C5_INTERNAL_OPERATIONAL_COMPLEXITY",
+          "C7_CUSTOMER_ECONOMICS",
+          "C9_PROVENA_UNIT_ECONOMICS",
+          "C10_ADOPTION_RISK",
+          "C11_COMPONENT_REUSABILITY"
+        ],
+        "linked_gates": [
+          "G3_TECHNICAL_PLAUSIBILITY",
+          "G5_VALUE_PLAUSIBILITY",
+          "G6_INTERNAL_OPERABILITY"
+        ],
+        "provenance": "Generated solely for deterministic automated testing.",
+        "relevant_claim": "Controlled workflow simulation",
+        "retrieval_timestamp": "2026-07-01T12:00:00+00:00",
+        "review_state": "APPROVED",
+        "reviewed_at": "2026-07-01T12:30:00+00:00",
+        "reviewed_by": "SV-FIXTURE-REVIEWER",
+        "schema_version": "1.0",
+        "source_locator": "fixture://EV-007",
+        "source_organisation": "SV Engine Test Fixture",
+        "source_type": "synthetic_test_fixture",
+        "title": "Controlled workflow simulation"
+      },
+      {
+        "assumptions": [],
+        "confidence_contribution": 0.92,
+        "content_hash": "fixture-hash-EV-008",
+        "contradiction_flag": false,
+        "date_observed_or_published": "2026-07-01",
+        "description": "Synthetic test evidence for written budget and procurement path.",
+        "evidence_class": "E2_DIRECT_BUYER",
+        "evidence_id": "EV-008",
+        "limitations": [
+          "Synthetic fixture; not real market or customer evidence."
+        ],
+        "linked_categories": [
+          "C6_BUYER_DEFINITION",
+          "C7_CUSTOMER_ECONOMICS",
+          "C9_PROVENA_UNIT_ECONOMICS",
+          "C12_STRATEGIC_FIT"
+        ],
+        "linked_gates": [
+          "G4_BUYER_CREDIBILITY",
+          "G5_VALUE_PLAUSIBILITY"
+        ],
+        "provenance": "Generated solely for deterministic automated testing.",
+        "relevant_claim": "Written budget and procurement path",
+        "retrieval_timestamp": "2026-07-01T12:00:00+00:00",
+        "review_state": "APPROVED",
+        "reviewed_at": "2026-07-01T12:30:00+00:00",
+        "reviewed_by": "SV-FIXTURE-REVIEWER",
+        "schema_version": "1.0",
+        "source_locator": "fixture://EV-008",
+        "source_organisation": "SV Engine Test Fixture",
+        "source_type": "synthetic_test_fixture",
+        "title": "Written budget and procurement path"
+      }
+    ],
+    "gate_assessments": [
+      {
+        "evidence_ids": [
+          "EV-001",
+          "EV-004"
+        ],
+        "explanation": "Every configured condition is supported by approved traceable evidence.",
+        "failure_reason": "",
+        "gate_id": "G1_VERIFIED_PROBLEM_LINKAGE",
+        "gate_name": "Verified problem linkage",
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "status": "PASS",
+        "unresolved_questions": []
+      },
+      {
+        "evidence_ids": [
+          "EV-001",
+          "EV-003"
+        ],
+        "explanation": "Every configured condition is supported by approved traceable evidence.",
+        "failure_reason": "",
+        "gate_id": "G2_BASELINE_SUFFICIENCY",
+        "gate_name": "Baseline sufficiency",
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "status": "PASS",
+        "unresolved_questions": []
+      },
+      {
+        "evidence_ids": [
+          "EV-004",
+          "EV-007"
+        ],
+        "explanation": "Every configured condition is supported by approved traceable evidence.",
+        "failure_reason": "",
+        "gate_id": "G3_TECHNICAL_PLAUSIBILITY",
+        "gate_name": "Technical plausibility",
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "status": "PASS",
+        "unresolved_questions": []
+      },
+      {
+        "evidence_ids": [
+          "EV-002",
+          "EV-008"
+        ],
+        "explanation": "Every configured condition is supported by approved traceable evidence.",
+        "failure_reason": "",
+        "gate_id": "G4_BUYER_CREDIBILITY",
+        "gate_name": "Buyer credibility",
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "status": "PASS",
+        "unresolved_questions": []
+      },
+      {
+        "evidence_ids": [
+          "EV-001",
+          "EV-002",
+          "EV-003",
+          "EV-007"
+        ],
+        "explanation": "Every configured condition is supported by approved traceable evidence.",
+        "failure_reason": "",
+        "gate_id": "G5_VALUE_PLAUSIBILITY",
+        "gate_name": "Value plausibility",
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "status": "PASS",
+        "unresolved_questions": []
+      },
+      {
+        "evidence_ids": [
+          "EV-006",
+          "EV-007",
+          "EV-008"
+        ],
+        "explanation": "Every configured condition is supported by approved traceable evidence.",
+        "failure_reason": "",
+        "gate_id": "G6_INTERNAL_OPERABILITY",
+        "gate_name": "Internal operability",
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "status": "PASS",
+        "unresolved_questions": []
+      },
+      {
+        "evidence_ids": [
+          "EV-005"
+        ],
+        "explanation": "Every configured condition is supported by approved traceable evidence.",
+        "failure_reason": "",
+        "gate_id": "G7_COMPETITIVE_VIABILITY",
+        "gate_name": "Competitive viability",
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "status": "PASS",
+        "unresolved_questions": []
+      },
+      {
+        "evidence_ids": [
+          "EV-004"
+        ],
+        "explanation": "Every configured condition is supported by approved traceable evidence.",
+        "failure_reason": "",
+        "gate_id": "G8_ETHICAL_LEGAL_REGULATORY_ACCEPTABILITY",
+        "gate_name": "Ethical, legal and regulatory acceptability",
+        "rule_version": "SV-RULES-1.0",
+        "schema_version": "1.0",
+        "status": "PASS",
+        "unresolved_questions": []
+      }
+    ],
+    "input_hash": "65d8ad588e8b1116c612710747b1d6a6b699d1bd1a3a014fe93baab91aa16610",
+    "internal_operational_complexity": {
+      "assumptions": [
+        "Shared configuration model"
+      ],
+      "confidence": 0.72,
+      "evidence_ids": [
+        "EV-006",
+        "EV-007"
+      ],
+      "expected_update_cadence": "Monthly maintenance window",
+      "key_person_dependency": false,
+      "monthly_operating_effort_hours": 24.0,
+      "operational_complexity_rating": "MEDIUM",
+      "principal_maintenance_risks": [
+        "Case-system API change"
+      ],
+      "principal_service_risks": [
+        "Customer-specific taxonomy mapping"
+      ],
+      "schema_version": "1.0",
+      "support_effort_hours_per_customer": 4.0
+    },
+    "missing_evidence": [],
+    "output_hash": "bab79b230110787ae289ea775e364d6e9a64325a4189242c067cd192afc535ad",
+    "proposed_workflow": {
+      "metrics": [
+        {
+          "assumptions": [],
+          "evidence_ids": [
+            "EV-007"
+          ],
+          "lower_bound": null,
+          "metric_id": "PM-1",
+          "name": "Manual handoffs per case",
+          "schema_version": "1.0",
+          "unit": "handoffs",
+          "upper_bound": null,
+          "value": 1,
+          "value_kind": "CALCULATED"
+        },
+        {
+          "assumptions": [
+            "Existing case API remains available"
+          ],
+          "evidence_ids": [
+            "EV-007"
+          ],
+          "lower_bound": 20.0,
+          "metric_id": "PM-2",
+          "name": "Handling time",
+          "schema_version": "1.0",
+          "unit": "minutes",
+          "upper_bound": 32.0,
+          "value": 25,
+          "value_kind": "BOUNDED_ESTIMATE"
+        }
+      ],
+      "schema_version": "1.0",
+      "state": "proposed",
+      "steps": [
+        {
+          "actor": "Intake analyst",
+          "compliance_risk": "human review retained",
+          "customer_impact": "fewer resubmissions",
+          "duplicated_work": false,
+          "errors": [],
+          "exceptions": [
+            "unsupported file"
+          ],
+          "handoffs": 1,
+          "inputs": [
+            "dispute",
+            "documents"
+          ],
+          "manual_entries": 1,
+          "name": "Validate and route evidence",
+          "outputs": [
+            "traceable investigation package"
+          ],
+          "rework": [],
+          "schema_version": "1.0",
+          "step_id": "PW-1",
+          "systems": [
+            "bounded prototype",
+            "case system"
+          ]
+        }
+      ],
+      "workflow_id": "WF-PROPOSED-001"
+    },
+    "provena_unit_economics": {
+      "annual_cost_to_serve_per_customer": 9000.0,
+      "annual_price": 48000.0,
+      "assumptions": [
+        "No customer-specific fork",
+        "One bounded integration"
+      ],
+      "break_even_customer_count": 0.81,
+      "development_cost": 25000.0,
+      "evidence_ids": [
+        "EV-006",
+        "EV-007",
+        "EV-008"
+      ],
+      "formulae": [
+        "gross_margin = (annual_price - annual_cost_to_serve) / annual_price",
+        "break_even_customers = development_cost / (annual_price - annual_cost_to_serve - implementation_cost)"
+      ],
+      "gross_margin_percent": 81.25,
+      "implementation_cost_per_customer": 8000.0,
+      "schema_version": "1.0"
+    },
+    "scenarios": [
+      {
+        "assumptions": [
+          "Integration takes 20% longer"
+        ],
+        "category_score_adjustment": -0.1,
+        "expected_learning_value": 60000.0,
+        "name": "downside",
+        "prototype_cost": 30000.0,
+        "schema_version": "1.0"
+      },
+      {
+        "assumptions": [
+          "Bounded integration succeeds"
+        ],
+        "category_score_adjustment": 0.0,
+        "expected_learning_value": 60000.0,
+        "name": "base",
+        "prototype_cost": 25000.0,
+        "schema_version": "1.0"
+      },
+      {
+        "assumptions": [
+          "Reusable connector reduces effort"
+        ],
+        "category_score_adjustment": 0.1,
+        "expected_learning_value": 65000.0,
+        "name": "upside",
+        "prototype_cost": 22000.0,
+        "schema_version": "1.0"
+      }
+    ],
+    "schema_version": "1.0",
+    "sensitivity_results": [
+      {
+        "assumption": "Bounded integration succeeds",
+        "base_verdict": "BUILD PROTOTYPE",
+        "downside_verdict": "BUILD PROTOTYPE",
+        "material": false,
+        "recommended_action": "Monitor; this assumption does not currently change the verdict.",
+        "schema_version": "1.0",
+        "upside_verdict": "BUILD PROTOTYPE"
+      },
+      {
+        "assumption": "Integration takes 20% longer",
+        "base_verdict": "BUILD PROTOTYPE",
+        "downside_verdict": "BUILD PROTOTYPE",
+        "material": false,
+        "recommended_action": "Monitor; this assumption does not currently change the verdict.",
+        "schema_version": "1.0",
+        "upside_verdict": "BUILD PROTOTYPE"
+      },
+      {
+        "assumption": "Reusable connector reduces effort",
+        "base_verdict": "BUILD PROTOTYPE",
+        "downside_verdict": "BUILD PROTOTYPE",
+        "material": false,
+        "recommended_action": "Monitor; this assumption does not currently change the verdict.",
+        "schema_version": "1.0",
+        "upside_verdict": "BUILD PROTOTYPE"
+      }
+    ],
+    "solution_hypothesis": {
+      "estimated_learning_value": 60000.0,
+      "intended_buyer_hypothesis": "Head of consumer dispute operations",
+      "intended_user": "Dispute operations analyst",
+      "measurable_claims": [
+        "Reduce manual handoffs",
+        "Reduce evidence mismatches"
+      ],
+      "prototype_scope": "One workflow, one document type, synthetic or approved test records only",
+      "schema_version": "1.0",
+      "scope_boundaries": [
+        "Intake",
+        "Routing",
+        "Audit trail",
+        "No autonomous adjudication"
+      ],
+      "solution_id": "SOL-FIXTURE-001",
+      "statement": "A bounded evidence-intake and dispute-routing component may reduce document mismatches and rework."
+    },
+    "stable_business_hash": "3333eed63efd227ac052cc20e26a1ee91c75d2eff77212fa43775db0b40c31c7",
+    "svr_id": "SVR-FIXTURE-BUILD-001",
+    "validation_actions": [],
+    "verdict": {
+      "borderline": false,
+      "explanation": "All mandatory gates pass and traceable evidence supports a bounded prototype, not a production build.",
+      "rejection_reasons": [],
+      "rule_version": "SV-RULES-1.0",
+      "schema_version": "1.0",
+      "unresolved_blockers": [],
+      "value": "BUILD PROTOTYPE",
+      "weighted_adjusted_score": 3.1783
+    },
+    "verified_problem": {
+      "affected_organisation_type": "Consumer reporting organisation",
+      "affected_workflow": "Dispute intake, evidence routing and investigation",
+      "confidence": 0.85,
+      "evidence_lineage": [
+        "GS-EV-FIXTURE-001",
+        "GS-EV-FIXTURE-002"
+      ],
+      "evidence_summary": "Synthetic verified-problem handoff for SV Engine testing.",
+      "golden_study_id": "GS-FIXTURE-001",
+      "golden_study_verdict": "BUILD CANDIDATE",
+      "independent_source_family_count": 2,
+      "known_consequences": [
+        "Rework",
+        "Delayed resolution",
+        "Weak audit trace"
+      ],
+      "limitations": [
+        "Synthetic fixture; no market claim may be drawn from it."
+      ],
+      "problem_mechanism": "Evidence submitted during a dispute is not consistently routed to the investigation step.",
+      "schema_version": "1.0",
+      "source_references": [
+        "fixture://golden-study/result"
+      ],
+      "verified_problem_id": "VP-FIXTURE-001"
+    },
+    "version": "1.0"
+  },
+  "run_manifest": {
+    "artifact_hashes": {
+      "buyer_map": "5896e405583757db73fb9f2fcb1b0d82d0d75d603d17a6b9aa8de0b038d5f5fc",
+      "category_scorecard": "7f8d6241b5bfa55df8f4432ec7075aa54fb7fb2e405cccdb97812da064a6134d",
+      "competitive_alternatives": "29938db39732a4a815d106f54ad87ae4c33f0cdbcbb03c5ae7f67b79d8ad577d",
+      "contradiction_register": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "customer_economics": "a88290e42212130272d72f39d026ff00131572d33aaa2eb63fbe8a6cbb82cce1",
+      "decision_brief": "87b0aa21a811c99a6ccca893cdcd1e50a16c417941c86a29b3e3ca58110e61fb",
+      "deterministic_verdict": "ac45aa28bb1062c0f47f72be1eef193d4d0a276ac3e0d9fa250cc6aef81fb396",
+      "evidence_register": "4772c761c646e4c459fb9a5bdd128c8a0cc6ba635bf0e4b69f39037ecf585a66",
+      "gate_register": "8321e54d9523d61f337444039712638e0b97f3ac7e72054dc13d2c63730d42b4",
+      "internal_operational_complexity": "c572f812cf3208d1a808aa8215612dbe6546e7afba5a711a0baf0070baf68c4d",
+      "missing_evidence_register": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "provena_unit_economics": "76f509493d80709b7ddd73ca348e2cf08c859ed1a01bf16dbcb53c38e3dd8b54",
+      "ranked_validation_plan": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rule_set": "d1d520b44c3953390959605cfd1923871ab8a82ba83b9ca0446da4ab883ef5ff",
+      "scenario_sensitivity": "fc2f55179c710bbd9186e0ff843c353720b2055558bea1c111a1ad5f7ad12931",
+      "stable_input": "3333eed63efd227ac052cc20e26a1ee91c75d2eff77212fa43775db0b40c31c7",
+      "technical_feasibility_assessment": "81b08701a39a6a7829701c0db6d32163af8f887925b974fe681938a34ba92f58",
+      "willingness_to_pay_evidence": "1e91142f72e53ebf2c8a3a338f5e6ddddab2cbd50d5c86489e00abfc304546d2",
+      "workflow_comparison": "f49feb3f03bc70a2ddbb99011db58a72bea223457cda82336f6e2ab702b1ccac"
+    },
+    "created_at": "2026-07-18T18:41:05.137994+00:00",
+    "engine_version": "SV-ENGINE-1.0",
+    "execution_id": "SVEXEC-8EE2A7827FF04BDC82BF8554F0D95586",
+    "input_hash": "65d8ad588e8b1116c612710747b1d6a6b699d1bd1a3a014fe93baab91aa16610",
+    "methodology_version": "SV-METHOD-0.1",
+    "output_hash": "bab79b230110787ae289ea775e364d6e9a64325a4189242c067cd192afc535ad",
+    "rule_set_hash": "d1d520b44c3953390959605cfd1923871ab8a82ba83b9ca0446da4ab883ef5ff",
+    "run_id": "SVRUN-3333EED63EFD227A",
+    "schema_version": "1.0",
+    "scoring_rule_version": "SV-RULES-1.0",
+    "source_ids": [
+      "EV-001",
+      "EV-002",
+      "EV-003",
+      "EV-004",
+      "EV-005",
+      "EV-006",
+      "EV-007",
+      "EV-008"
+    ],
+    "source_retrieval_timestamps": [
+      "2026-07-01T12:00:00+00:00",
+      "2026-07-01T12:00:00+00:00",
+      "2026-07-01T12:00:00+00:00",
+      "2026-07-01T12:00:00+00:00",
+      "2026-07-01T12:00:00+00:00",
+      "2026-07-01T12:00:00+00:00",
+      "2026-07-01T12:00:00+00:00",
+      "2026-07-01T12:00:00+00:00"
+    ],
+    "stable_business_hash": "3333eed63efd227ac052cc20e26a1ee91c75d2eff77212fa43775db0b40c31c7",
+    "svr_id": "SVR-FIXTURE-BUILD-001",
+    "transformations": [
+      "Validated typed input contract",
+      "Excluded metadata-only fields from stable business hash",
+      "Scored categories from approved linked evidence",
+      "Applied mandatory gates before aggregate threshold",
+      "Applied downside/base/upside sensitivity rules"
+    ]
+  }
+}

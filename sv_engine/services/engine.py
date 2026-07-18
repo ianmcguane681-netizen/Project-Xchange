@@ -199,6 +199,13 @@ class SolutionValidationEngine:
         if unresolved:
             return VerdictValue.VALIDATE_FURTHER, (), unresolved
 
+        if not data.solution_hypothesis.prototype_scope:
+            unresolved += ("A bounded prototype scope has not been defined.",)
+        if not data.solution_hypothesis.measurable_claims:
+            unresolved += ("The proposed solution has no measurable validation claims.",)
+        if unresolved:
+            return VerdictValue.VALIDATE_FURTHER, (), unresolved
+
         thresholds = self.rules.data["verdict_thresholds"]
         category_rules = {item["id"]: item for item in self.rules.data["categories"]}
         weak_categories = tuple(
@@ -334,4 +341,3 @@ class SolutionValidationEngine:
         if value is VerdictValue.DO_NOT_BUILD:
             return "One or more mandatory or structural conditions fail: " + " ".join(reasons)
         return "The solution remains plausible, but specific evidence gaps must be resolved: " + " ".join(blockers)
-

@@ -86,7 +86,13 @@ def test_internet_research_job_type(tmp_path):
         db_path,
         JobType.INTERNET_RESEARCH.value,
         "PX-R001",
-        {"market": "Property Management", "keyword": "maintenance updates"},
+        {
+            "market": "Property Management",
+            "keyword": "maintenance updates",
+            "source_name": "Manual verified maintenance complaint",
+            "source_url": "https://example.com/manual-evidence",
+            "source_text": "A tenant reports a delayed maintenance request and repeated communication failures.",
+        },
     )
     finished = execute_job(db_path, job["id"])
     assert finished["status"] == "Completed"

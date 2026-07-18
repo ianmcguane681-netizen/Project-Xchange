@@ -212,6 +212,13 @@ def test_internal_estimate_without_assumptions_is_rejected() -> None:
         SolutionValidationInput.from_dict(payload)
 
 
+def test_approved_evidence_requires_review_identity() -> None:
+    payload = build_prototype_case()
+    payload["evidence_items"][0]["reviewed_by"] = ""
+    with pytest.raises(ValueError, match="reviewed_by"):
+        SolutionValidationInput.from_dict(payload)
+
+
 def test_unsupported_positive_claim_receives_no_credit(engine: SolutionValidationEngine) -> None:
     payload = build_prototype_case()
     for claim in payload["validation_claims"]:
@@ -232,6 +239,10 @@ def test_reports_include_all_required_artifacts(tmp_path, engine: SolutionValida
         "sv_result",
         "decision_brief",
         "evidence_register",
+        "buyer_map",
+        "willingness_to_pay_evidence",
+        "competitive_alternatives",
+        "technical_feasibility_assessment",
         "category_scorecard",
         "gate_register",
         "missing_evidence_register",
@@ -242,6 +253,7 @@ def test_reports_include_all_required_artifacts(tmp_path, engine: SolutionValida
         "provena_unit_economics",
         "scenario_sensitivity",
         "ranked_validation_plan",
+        "deterministic_verdict",
         "run_manifest",
     }
     assert required.issubset(paths)

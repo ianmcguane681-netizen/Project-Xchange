@@ -50,7 +50,9 @@ def claim_support_state(
         return "UNKNOWN", ()
     linked = _approved_evidence(claim.evidence_ids, evidence)
     if claim.value_kind is ValueKind.CONTRADICTION or claim.value is False:
-        return "NEGATIVE", tuple(item.evidence_id for item in linked)
+        if linked:
+            return "NEGATIVE", tuple(item.evidence_id for item in linked)
+        return "UNSUPPORTED_NEGATIVE", ()
     if bool(claim.value) and linked:
         return "SUPPORTED", tuple(item.evidence_id for item in linked)
     return "UNSUPPORTED_POSITIVE", ()
@@ -197,12 +199,20 @@ def assess_gates(data: SolutionValidationInput, rules: RuleSet) -> tuple[GateAss
             state, linked_ids = claim_support_state(claims.get(claim_id), evidence)
             states.append(state)
             evidence_ids.update(linked_ids)
-            if state in {"UNKNOWN", "UNSUPPORTED_POSITIVE"}:
+            if state in {"UNKNOWN", "UNSUPPORTED_POSITIVE", "UNSUPPORTED_NEGATIVE"}:
                 unresolved.append(f"Traceable support is required for {claim_id}.")
             elif state == "NEGATIVE":
                 failures.append(f"Required condition {claim_id} is explicitly false or contradicted.")
 
         gate_id = str(gate["id"])
+        if gate_id == "G1_VERIFIED_PROBLEM_LINKAGE":
+            verdict = data.verified_problem.golden_study_verdict.upper()
+            if verdict in {"REJECT", "INSUFFICIENT EVIDENCE", "PROCESS / POLICY PROBLEM"}:
+                failures.append("Golden Study verdict does not establish an eligible verified problem.")
+            if data.verified_problem.independent_source_family_count < 2:
+                unresolved.append("At least two independent source families are required before solution validation.")
+            if data.verified_problem.confidence < 0.5:
+                unresolved.append("Verified-problem confidence is below the methodology threshold.")
         if gate_id == "G2_BASELINE_SUFFICIENCY":
             measurable = any(
                 metric.value_kind in {ValueKind.OBSERVED, ValueKind.CALCULATED, ValueKind.BOUNDED_ESTIMATE}
@@ -230,9 +240,35 @@ def assess_gates(data: SolutionValidationInput, rules: RuleSet) -> tuple[GateAss
                 failures.append("Support effort per customer exceeds the configured limit.")
             if limits["key_person_dependency_blocks_build"] and assessment.key_person_dependency:
                 failures.append("Material key-person dependency makes internal operation unacceptable.")
+            economics = data.provena_unit_economics
+            if economics.annual_price is None or economics.annual_cost_to_serve_per_customer is None:
+                unresolved.append("Annual price and cost-to-serve evidence are required for Provena economics.")
+            elif economics.annual_price <= economics.annual_cost_to_serve_per_customer:
+                failures.append("Calculated Provena contribution margin is non-positive.")
+        if gate_id == "G4_BUYER_CREDIBILITY":
+            buyer_fields = (
+                data.buyer_map.economic_buyer,
+                data.buyer_map.budget_source,
+                data.buyer_map.purchase_authority,
+            )
+            if any(not value or value.lower() == "unknown" for value in buyer_fields):
+                unresolved.append("Buyer identity, budget source and purchase authority must all be explicit.")
+        if gate_id == "G5_VALUE_PLAUSIBILITY":
+            economics = data.customer_economics
+            if economics.annual_value is None or economics.price_assumption is None:
+                unresolved.append("Customer value and price assumptions must be explicit and traceable.")
+            elif economics.annual_value <= 0:
+                failures.append("Calculated customer value is non-positive.")
+        if gate_id == "G7_COMPETITIVE_VIABILITY" and not data.competitors:
+            unresolved.append("At least one current alternative must be assessed.")
         if gate_id == "G8_ETHICAL_LEGAL_REGULATORY_ACCEPTABILITY":
             if "ethical_legal_regulatory_acceptable" not in claims:
                 unresolved.append("Human-reviewed legal and regulatory acceptability evidence is required.")
+            else:
+                legal_claim = claims["ethical_legal_regulatory_acceptable"]
+                linked_legal = _approved_evidence(legal_claim.evidence_ids, evidence)
+                if not any(item.evidence_class is EvidenceClass.AUTHORITATIVE_EXTERNAL for item in linked_legal):
+                    unresolved.append("Legal acceptability requires approved authoritative external evidence.")
 
         if failures:
             status = GateStatus.FAIL
@@ -289,6 +325,33 @@ def build_missing_evidence(
                     priority=1 if gate_by_claim.get(claim_id) else 2,
                 )
             )
+    covered_claims = {
+        claim_id
+        for category in rules.data["categories"]
+        for claim_id in category.get("required_claims", [])
+    }
+    for gate in rules.data["gates"]:
+        for claim_id in gate["required_true_claims"]:
+            if claim_id in covered_claims:
+                continue
+            state, _ = claim_support_state(claims.get(claim_id), evidence)
+            if state in {"SUPPORTED", "NEGATIVE"}:
+                continue
+            missing.append(
+                MissingEvidenceItem(
+                    missing_evidence_id=f"ME-{len(missing) + 1:04d}",
+                    category_id="GATE",
+                    gate_id=str(gate["id"]),
+                    description=f"Approved traceable evidence for {claim_id} is missing.",
+                    recommended_method="Obtain human-reviewed authoritative or direct evidence.",
+                    target_source_or_participant="Appropriate legal, regulatory, buyer or operational reviewer",
+                    success_threshold="The gate condition is directly supported by approved evidence.",
+                    estimated_effort="To be estimated by the validation owner",
+                    decision_unlocked="Resolve the mandatory gate.",
+                    priority=1,
+                )
+            )
+            covered_claims.add(claim_id)
     for global_claim in rules.data.get("global_build_claims", []):
         state, _ = claim_support_state(claims.get(global_claim), evidence)
         if state in {"SUPPORTED", "NEGATIVE"}:

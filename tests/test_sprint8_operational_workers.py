@@ -51,7 +51,13 @@ def test_objectives_schedules_briefs_and_performance(tmp_path):
         "daily",
         "PX-R001",
         JobType.INTERNET_RESEARCH.value,
-        {"market": "Irish property management", "keyword": "maintenance complaints"},
+        {
+            "market": "Irish property management",
+            "keyword": "maintenance complaints",
+            "source_name": "Manual verified maintenance complaint",
+            "source_url": "https://example.com/manual-schedule-evidence",
+            "source_text": "A tenant reports repeated maintenance delays and a lack of communication from the property manager.",
+        },
         objective["id"],
         1,
     )

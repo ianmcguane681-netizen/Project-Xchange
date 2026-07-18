@@ -26,7 +26,11 @@ def test_job_lifecycle_and_worker_orchestration(tmp_path):
             "market": "Property Management",
             "company": "PropertyMe",
             "source_url": "https://example.com/review",
-            "source_text": "Users repeatedly complain that maintenance updates are slow and tenants chase support multiple times.",
+            "source_name": "Verified tenant maintenance communication complaint record",
+            "source_text": (
+                "Users repeatedly complain that maintenance updates are slow, repair requests remain unresolved, "
+                "and tenants chase support multiple times across the documented servicing workflow."
+            ),
         },
         priority=1,
     )

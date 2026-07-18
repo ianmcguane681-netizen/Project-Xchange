@@ -6,6 +6,33 @@ Local Python/Streamlit prototype for the Project Exchange internal operating sys
 
 It also includes `COMP-001 Prompt Engine` for storing, versioning, approving, testing, searching, retiring, and rolling back prompts.
 
+## Provena Solution Validation Engine v1
+
+The repository now includes a separate, local `sv_engine/` package that evaluates whether a proposed solution has earned investment in a bounded prototype. It implements the methodology in `docs/sv_engine_methodology_specification.md` without coupling the decision rules to Streamlit or external AI services.
+
+SV Engine v1 provides:
+
+- typed, versioned solution-validation records and Golden Study handoff contract;
+- 12 validation categories and eight mandatory gates;
+- deterministic `BUILD PROTOTYPE`, `VALIDATE FURTHER`, and `DO NOT BUILD` verdicts;
+- evidence-linked scoring and confidence with no credit for unsupported positive claims;
+- current/proposed workflow comparison, customer economics, Provena unit economics, and internal operational complexity;
+- downside, base, and upside sensitivity analysis with `BORDERLINE` detection;
+- stable business hashes separated from metadata-only changes;
+- append-only SQLite audit runs plus JSON and Markdown artifacts;
+- synthetic fixtures for tests only, clearly excluded from real Provena findings.
+
+Run a controlled example:
+
+```powershell
+python -m sv_engine.cli `
+  --input examples\sv_engine\inputs\build_prototype.json `
+  --output-dir data\sv_engine_output `
+  --db data\sv_engine.db
+```
+
+See `docs/sv_engine_v1_implementation.md` for architecture, input contracts, rules, execution, testing, migration notes, and current limitations.
+
 ## What Works
 
 - SQLite persistence in `data/project_exchange.db`

@@ -71,6 +71,9 @@ class VerifiedProblemPackage(ModelMixin):
         missing = [key for key in required if not data.get(key)]
         if missing:
             raise ValueError(f"Verified problem package missing: {', '.join(missing)}")
+        for key in ("known_consequences", "source_references", "evidence_lineage"):
+            if not data.get(key):
+                raise ValueError(f"Verified problem package requires non-empty {key}")
         confidence = float(data.get("confidence", 0.0))
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("Verified problem confidence must be between 0 and 1")
@@ -147,6 +150,8 @@ class EvidenceItem(ModelMixin):
     contradiction_flag: bool
     confidence_contribution: float
     provenance: str
+    reviewed_by: str = ""
+    reviewed_at: str = ""
     assumptions: tuple[str, ...] = ()
     schema_version: str = SCHEMA_VERSION
 
@@ -176,6 +181,11 @@ class EvidenceItem(ModelMixin):
         confidence = float(data.get("confidence_contribution", 0.0))
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("Evidence confidence contribution must be between 0 and 1")
+        review_state = ReviewState(str(data.get("review_state", ReviewState.PENDING_REVIEW.value)))
+        reviewed_by = str(data.get("reviewed_by", ""))
+        reviewed_at = str(data.get("reviewed_at", ""))
+        if review_state is ReviewState.APPROVED and (not reviewed_by or not reviewed_at):
+            raise ValueError("Approved evidence must record reviewed_by and reviewed_at")
         return cls(
             evidence_id=str(data["evidence_id"]),
             evidence_class=evidence_class,
@@ -190,11 +200,13 @@ class EvidenceItem(ModelMixin):
             relevant_claim=str(data["relevant_claim"]),
             linked_categories=tuple(str(item) for item in _tuple(data, "linked_categories")),
             linked_gates=tuple(str(item) for item in _tuple(data, "linked_gates")),
-            review_state=ReviewState(str(data.get("review_state", ReviewState.PENDING_REVIEW.value))),
+            review_state=review_state,
             limitations=tuple(str(item) for item in _tuple(data, "limitations")),
             contradiction_flag=bool(data.get("contradiction_flag", False)),
             confidence_contribution=confidence,
             provenance=str(data["provenance"]),
+            reviewed_by=reviewed_by,
+            reviewed_at=reviewed_at,
             assumptions=assumptions,
             schema_version=str(data.get("schema_version", SCHEMA_VERSION)),
         )
@@ -670,7 +682,7 @@ class SolutionValidationInput(ModelMixin):
         scenarios = tuple(Scenario.from_dict(item) for item in data.get("scenarios", []))
         names = {scenario.name for scenario in scenarios}
         expected = {ScenarioName.DOWNSIDE, ScenarioName.BASE, ScenarioName.UPSIDE}
-        if names != expected:
+        if len(scenarios) != 3 or names != expected:
             raise ValueError("Exactly downside, base and upside scenarios are required")
         return cls(
             svr_id=str(data["svr_id"]),

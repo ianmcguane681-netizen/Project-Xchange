@@ -4,6 +4,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 data/project_exchange.db
+data/sv_engine.db
 data/exports/
+examples/sv_engine/*.db
 *.log
 .DS_Store

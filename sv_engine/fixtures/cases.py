@@ -36,6 +36,8 @@ def _evidence(
         "contradiction_flag": contradiction,
         "confidence_contribution": confidence,
         "provenance": "Generated solely for deterministic automated testing.",
+        "reviewed_by": "SV-FIXTURE-REVIEWER",
+        "reviewed_at": "2026-07-01T12:30:00+00:00",
         "assumptions": assumptions or [],
     }
 
@@ -228,9 +230,9 @@ def build_prototype_case() -> dict[str, Any]:
             "implementation_cost_per_customer": 8000,
             "annual_cost_to_serve_per_customer": 9000,
             "annual_price": 48000,
-            "gross_margin_percent": 64.6,
-            "break_even_customer_count": 1.0,
-            "formulae": ["gross_margin = (price - implementation amortisation - cost_to_serve) / price"],
+            "gross_margin_percent": 81.25,
+            "break_even_customer_count": 0.81,
+            "formulae": ["gross_margin = (annual_price - annual_cost_to_serve) / annual_price", "break_even_customers = development_cost / (annual_price - annual_cost_to_serve - implementation_cost)"],
             "assumptions": ["No customer-specific fork", "One bounded integration"],
             "evidence_ids": ["EV-006", "EV-007", "EV-008"]
         },

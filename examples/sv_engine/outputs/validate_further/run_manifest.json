@@ -1,0 +1,58 @@
+{
+  "artifact_hashes": {
+    "buyer_map": "75cef6aae4ba4ab30eebceb1ee4e1f8dd1b9ee7578b0946301ee3be57f94fc56",
+    "category_scorecard": "12c66d58d00d29a4c021193b0cc0e63e13416ca04ea6af37e2f8a39f0815ee90",
+    "competitive_alternatives": "29938db39732a4a815d106f54ad87ae4c33f0cdbcbb03c5ae7f67b79d8ad577d",
+    "contradiction_register": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "customer_economics": "a88290e42212130272d72f39d026ff00131572d33aaa2eb63fbe8a6cbb82cce1",
+    "decision_brief": "cea94bd1d4dfe1a46e10e9c9a9e500d1d12ab29a652f062ad01a94369867b0e8",
+    "deterministic_verdict": "d1bd8b0bcdd1a0bb635d2617e320a0a1182bef9c6420a3a27cae03f0c4f0a3dc",
+    "evidence_register": "c00f77474c54b7fb58e6481c71c7cd2d819b13b1b2bb4b1bc4af987f1cbd2764",
+    "gate_register": "bebe62b4f229688d9d9ebed3debe0498cbec9bf9927935218c618b02f51ea38a",
+    "internal_operational_complexity": "c572f812cf3208d1a808aa8215612dbe6546e7afba5a711a0baf0070baf68c4d",
+    "missing_evidence_register": "936f5ef1bf46ce6305348bc1458cc1cea8eac72e6e27b09036e6b4c2603f4870",
+    "provena_unit_economics": "76f509493d80709b7ddd73ca348e2cf08c859ed1a01bf16dbcb53c38e3dd8b54",
+    "ranked_validation_plan": "e6fd3ea7366bed7c837775b3e410896eac968419c2146139338c94947d5da29c",
+    "rule_set": "d1d520b44c3953390959605cfd1923871ab8a82ba83b9ca0446da4ab883ef5ff",
+    "scenario_sensitivity": "8ea4ac854b1e57890b60bd044f579d17219147e75e3da37e02155674b82e84ca",
+    "stable_input": "4f28a31cb7ba75af150fb9f43310edad941358d6a457adac259b207ac0f51dda",
+    "technical_feasibility_assessment": "81b08701a39a6a7829701c0db6d32163af8f887925b974fe681938a34ba92f58",
+    "willingness_to_pay_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "workflow_comparison": "f49feb3f03bc70a2ddbb99011db58a72bea223457cda82336f6e2ab702b1ccac"
+  },
+  "created_at": "2026-07-18T18:41:05.086981+00:00",
+  "engine_version": "SV-ENGINE-1.0",
+  "execution_id": "SVEXEC-216FA6A9D2DE4A249FD4BC6EDB9D2132",
+  "input_hash": "d72eb33d85422d9722b62304e3a08a15bd14477f12c7eacedadc267d073618e4",
+  "methodology_version": "SV-METHOD-0.1",
+  "output_hash": "d4151f9d2df15596c67393804009f24710786ada4234c325a3253c91bed319fe",
+  "rule_set_hash": "d1d520b44c3953390959605cfd1923871ab8a82ba83b9ca0446da4ab883ef5ff",
+  "run_id": "SVRUN-4F28A31CB7BA75AF",
+  "schema_version": "1.0",
+  "scoring_rule_version": "SV-RULES-1.0",
+  "source_ids": [
+    "EV-001",
+    "EV-003",
+    "EV-004",
+    "EV-005",
+    "EV-006",
+    "EV-007"
+  ],
+  "source_retrieval_timestamps": [
+    "2026-07-01T12:00:00+00:00",
+    "2026-07-01T12:00:00+00:00",
+    "2026-07-01T12:00:00+00:00",
+    "2026-07-01T12:00:00+00:00",
+    "2026-07-01T12:00:00+00:00",
+    "2026-07-01T12:00:00+00:00"
+  ],
+  "stable_business_hash": "4f28a31cb7ba75af150fb9f43310edad941358d6a457adac259b207ac0f51dda",
+  "svr_id": "SVR-FIXTURE-VALIDATE-001",
+  "transformations": [
+    "Validated typed input contract",
+    "Excluded metadata-only fields from stable business hash",
+    "Scored categories from approved linked evidence",
+    "Applied mandatory gates before aggregate threshold",
+    "Applied downside/base/upside sensitivity rules"
+  ]
+}
