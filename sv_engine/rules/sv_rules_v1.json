@@ -1,0 +1,50 @@
+{
+  "rule_version": "SV-RULES-1.0",
+  "methodology_version": "SV-METHOD-0.1",
+  "engine_version": "SV-ENGINE-1.0",
+  "categories": [
+    {"id": "C1_PROBLEM_INHERITANCE", "name": "Problem inheritance", "weight": 0.12, "minimum_build_score": 3, "required_claims": ["problem_solution_linkage"]},
+    {"id": "C2_CURRENT_WORKFLOW_BASELINE", "name": "Current workflow baseline", "weight": 0.10, "minimum_build_score": 3, "required_claims": ["baseline_documented"]},
+    {"id": "C3_WORKFLOW_IMPROVEMENT", "name": "Workflow improvement potential", "weight": 0.10, "minimum_build_score": 3, "required_claims": ["improvement_measurable"]},
+    {"id": "C4_TECHNICAL_FEASIBILITY", "name": "Technical feasibility", "weight": 0.10, "minimum_build_score": 3, "required_claims": ["technical_plausible"]},
+    {"id": "C5_INTERNAL_OPERATIONAL_COMPLEXITY", "name": "Internal operational complexity", "weight": 0.10, "minimum_build_score": 3, "required_claims": ["internal_operability_acceptable"]},
+    {"id": "C6_BUYER_DEFINITION", "name": "Buyer definition and ownership", "weight": 0.10, "minimum_build_score": 3, "required_claims": ["buyer_identified", "budget_path_identified"]},
+    {"id": "C7_CUSTOMER_ECONOMICS", "name": "Willingness to pay and customer economics", "weight": 0.10, "minimum_build_score": 3, "required_claims": ["customer_value_positive", "value_traceable"]},
+    {"id": "C8_MARKET_COMPETITION", "name": "Market and competitive position", "weight": 0.08, "minimum_build_score": 2, "required_claims": ["competitive_wedge"]},
+    {"id": "C9_PROVENA_UNIT_ECONOMICS", "name": "Provena unit economics", "weight": 0.08, "minimum_build_score": 3, "required_claims": ["provena_economics_positive"]},
+    {"id": "C10_ADOPTION_RISK", "name": "Adoption and implementation risk", "weight": 0.05, "minimum_build_score": 2, "required_claims": ["adoption_risk_acceptable"]},
+    {"id": "C11_COMPONENT_REUSABILITY", "name": "Component reusability", "weight": 0.04, "minimum_build_score": 2, "required_claims": ["solution_reusable"]},
+    {"id": "C12_STRATEGIC_FIT", "name": "Strategic fit", "weight": 0.03, "minimum_build_score": 2, "required_claims": ["strategic_fit"]}
+  ],
+  "gates": [
+    {"id": "G1_VERIFIED_PROBLEM_LINKAGE", "name": "Verified problem linkage", "required_true_claims": ["problem_solution_linkage"]},
+    {"id": "G2_BASELINE_SUFFICIENCY", "name": "Baseline sufficiency", "required_true_claims": ["baseline_documented"]},
+    {"id": "G3_TECHNICAL_PLAUSIBILITY", "name": "Technical plausibility", "required_true_claims": ["technical_plausible"]},
+    {"id": "G4_BUYER_CREDIBILITY", "name": "Buyer credibility", "required_true_claims": ["buyer_identified", "budget_path_identified"]},
+    {"id": "G5_VALUE_PLAUSIBILITY", "name": "Value plausibility", "required_true_claims": ["improvement_measurable", "value_traceable", "customer_value_positive"]},
+    {"id": "G6_INTERNAL_OPERABILITY", "name": "Internal operability", "required_true_claims": ["internal_operability_acceptable", "provena_economics_positive"]},
+    {"id": "G7_COMPETITIVE_VIABILITY", "name": "Competitive viability", "required_true_claims": ["competitive_wedge"]},
+    {"id": "G8_ETHICAL_LEGAL_REGULATORY_ACCEPTABILITY", "name": "Ethical, legal and regulatory acceptability", "required_true_claims": ["ethical_legal_regulatory_acceptable"]}
+  ],
+  "evidence_sufficiency": {
+    "approved_review_states": ["APPROVED"],
+    "positive_claim_kinds": ["OBSERVED", "CALCULATED", "BOUNDED_ESTIMATE", "ESTIMATE", "ASSUMPTION"],
+    "internal_estimate_confidence_cap": 0.35,
+    "direct_evidence_classes": ["E1_DIRECT_OPERATIONAL", "E2_DIRECT_BUYER", "E3_DIRECT_USER", "E4_AUTHORITATIVE_EXTERNAL", "E7_PROTOTYPE"]
+  },
+  "verdict_thresholds": {
+    "build_weighted_adjusted_score": 2.75,
+    "minimum_overall_confidence": 0.55,
+    "borderline_tolerance": 0.30,
+    "maximum_scenario_adjustment": 0.75
+  },
+  "operability_limits": {
+    "disallowed_ratings": ["HIGH", "UNACCEPTABLE"],
+    "maximum_monthly_operating_effort_hours": 160,
+    "maximum_support_effort_hours_per_customer": 40,
+    "key_person_dependency_blocks_build": true
+  },
+  "global_build_claims": ["prototype_cost_proportionate"],
+  "metadata_only_fields": ["retrieval_timestamp", "retrieved_at", "created_at", "updated_at", "execution_id", "metadata"]
+}
+

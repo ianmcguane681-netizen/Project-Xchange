@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://provena.local/schemas/golden-study-handoff-1.0.json",
+  "title": "Provena Golden Study Verified Problem Handoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "verified_problem_id",
+    "golden_study_id",
+    "golden_study_verdict",
+    "evidence_summary",
+    "problem_mechanism",
+    "affected_workflow",
+    "affected_organisation_type",
+    "known_consequences",
+    "source_references",
+    "evidence_lineage",
+    "independent_source_family_count",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "verified_problem_id": {"type": "string", "minLength": 1},
+    "golden_study_id": {"type": "string", "minLength": 1},
+    "golden_study_verdict": {"type": "string", "minLength": 1},
+    "evidence_summary": {"type": "string", "minLength": 1},
+    "problem_mechanism": {"type": "string", "minLength": 1},
+    "affected_workflow": {"type": "string", "minLength": 1},
+    "affected_organisation_type": {"type": "string", "minLength": 1},
+    "known_consequences": {"type": "array", "items": {"type": "string"}},
+    "source_references": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "evidence_lineage": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "independent_source_family_count": {"type": "integer", "minimum": 0},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  }
+}
