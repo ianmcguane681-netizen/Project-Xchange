@@ -1,10 +1,10 @@
 # Reviewer Specification: Performance and Operations Audit
 
 **Document ID:** RBS-007  
-**Version:** 1.0.0  
-**Status:** ACTIVE  
+**Version:** 1.1.0  
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
 **Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.0.0  
+**Governing Methodology:** RBM-001 v1.1.0  
 **Reviewer Role:** Performance and Operations Auditor (POA)  
 **Last Updated:** 2026-07-18  
 
@@ -288,6 +288,8 @@ For each new or modified external service call in a request path:
 
 A claim that performance is acceptable without benchmark evidence is not admissible. The absence of benchmarks where performance implications are declared is an Evidence Gap.
 
+> **T3-AUTHORITATIVE-EXTERNAL exception (RBM-001 §8.2):** For SEV-1 findings grounded in a legal, regulatory, contractual, or technical specification obligation, T3 evidence is admissible where all four conditions are met: (1) the source is authoritative for Provena Foundry's context; (2) the specific clause or section is named; (3) applicability in a single logical step is demonstrated; and (4) the source is confirmed in force at the time of the review. Such findings must be flagged `T3-AUTHORITATIVE-EXTERNAL` in the TPL-FND. This exception is relevant to POA findings grounded in SLA obligations that are contractually mandated.
+
 ---
 
 ## 9. Finding Classification Guidance
@@ -430,4 +432,13 @@ Date:
 
 ---
 
-*End of RBS-007 v1.0.0*
+---
+
+## Document History
+
+| Version | Date | Summary of Changes |
+|---------|------|--------------------|
+| 1.0.0 | 2026-07-18 | Initial release |
+| 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception note to §8 with SLA-obligation relevance; status set to RELEASE-CANDIDATE |
+
+*End of RBS-007 v1.1.0*

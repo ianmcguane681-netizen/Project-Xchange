@@ -1,10 +1,10 @@
 # Reviewer Specification: Business and Commercial Audit
 
 **Document ID:** RBS-003  
-**Version:** 1.0.0  
-**Status:** ACTIVE  
+**Version:** 1.1.0  
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
 **Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.0.0  
+**Governing Methodology:** RBM-001 v1.1.0  
 **Reviewer Role:** Business and Commercial Auditor (BCA)  
 **Last Updated:** 2026-07-18  
 
@@ -216,6 +216,8 @@ If the release touches a regulated domain (financial services, health data, gove
 | Undisclosed client-facing change | T3 | Change Summary (absence) vs. functional behaviour documentation |
 | Known issue constituting commercial breach | T3 | Known Issues Register entry cross-referenced with contract text |
 
+> **T3-AUTHORITATIVE-EXTERNAL exception (RBM-001 §8.2):** For SEV-1 findings grounded in a legal, regulatory, contractual, or technical specification obligation, T3 evidence is admissible where all four conditions are met: (1) the source is authoritative for Provena Foundry's context; (2) the specific clause or section is named; (3) applicability in a single logical step is demonstrated; and (4) the source is confirmed in force at the time of the review. Such findings must be flagged `T3-AUTHORITATIVE-EXTERNAL` in the TPL-FND. This exception is particularly relevant to BCA findings grounded in contractual commitments or regulatory obligations — e.g., a data sovereignty clause or a mandatory reporting requirement established by contract.
+
 ---
 
 ## 9. Finding Classification Guidance
@@ -259,6 +261,8 @@ The BCA raises findings that feed into the Board Decision per RBM-001 §10. Addi
 
 **Commercially Deficient:** One or more SEV-1 BCA findings, or two or more Open SEV-2 BCA findings. The BCA cannot confirm milestone completion. Commercial invoicing must not proceed.
 
+> **Scope limitation:** The BCA's commercial opinion and Milestone-Completion Confirmation govern the internal governance gate for invoicing. Where the relevant commercial agreement also requires a separate contractual client acceptance step, the BCA's confirmation is necessary but not sufficient for invoicing to proceed — both the BCA's confirmation and the client acceptance must be obtained.
+
 ---
 
 ## 11. Milestone-Completion Confirmation
@@ -273,6 +277,7 @@ Milestone-Completion Confirmation must:
 - State that all milestone deliverables are met (or list any conditional matters).
 - Be signed by the BCA.
 - Not be issued while any SEV-1 BCA finding is Open.
+- Include the governance-record disclaimer (see template below).
 
 ```
 MILESTONE-COMPLETION CONFIRMATION
@@ -297,6 +302,15 @@ COMMERCIAL ACCEPTANCE:
 [ ] All milestone deliverables are met, subject to the following conditions:
     [State conditions]
 [ ] Milestone deliverables are NOT fully met. Commercial invoicing must not proceed.
+
+GOVERNANCE RECORD NOTICE:
+This document is a governance record confirming that the Provena Foundry Review Board
+completed its review of the above milestone and that the declared deliverables were found
+to meet the criteria assessed by the Board. It is not a warranty of fitness for purpose,
+a representation of commercial readiness for any purpose beyond the internal invoicing gate,
+or a substitute for any contractual client acceptance step required under the applicable
+commercial agreement. Where the governing agreement specifies a separate client acceptance
+process, that process must be completed independently.
 
 BCA Signature:
 Date:
@@ -389,6 +403,7 @@ Date:
 - Must not confuse GS-P001 commercial obligations with Provena Foundry obligations.
 - Must issue findings even when this delays a commercially attractive release.
 - Milestone-Completion Confirmation must never be issued while a SEV-1 BCA finding is Open.
+- Milestone-Completion Confirmation is a governance record only — must not represent it as evidence of client acceptance, as a warranty of fitness, or as sufficient for invoicing where the commercial agreement also requires a separate contractual client acceptance step.
 
 **Inputs to Prompt:** Requirements source, acceptance criteria, commercial agreements (relevant excerpts), Known Issues Register, Change Summary, dependency manifest, previous BCA findings (re-reviews).
 
@@ -396,4 +411,13 @@ Date:
 
 ---
 
-*End of RBS-003 v1.0.0*
+---
+
+## Document History
+
+| Version | Date | Summary of Changes |
+|---------|------|--------------------|
+| 1.0.0 | 2026-07-18 | Initial release |
+| 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception; updated §10 commercial opinion to clarify invoicing gate scope limitation; updated §11 Milestone-Completion Confirmation with governance-record disclaimer; updated §13 prompt constraints accordingly; status set to RELEASE-CANDIDATE |
+
+*End of RBS-003 v1.1.0*

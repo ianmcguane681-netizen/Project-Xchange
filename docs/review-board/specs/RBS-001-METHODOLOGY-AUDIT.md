@@ -1,10 +1,10 @@
 # Reviewer Specification: Methodology Audit
 
 **Document ID:** RBS-001  
-**Version:** 1.0.0  
-**Status:** ACTIVE  
+**Version:** 1.1.0  
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
 **Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.0.0  
+**Governing Methodology:** RBM-001 v1.1.0  
 **Reviewer Role:** Methodology Auditor (MA)  
 **Last Updated:** 2026-07-18  
 
@@ -216,7 +216,7 @@ Confirm that all required records per RBM-001 §15.1 exist, are correctly struct
 | PIC-04 | Reviewer specification versions match TPL-RIR | Compare RIR to each reviewer report header | Same version numbers for each role |
 | PIC-05 | Artefact version did not change during review | Review timeline and version records | SHA or equivalent is identical at start and end of review |
 | PIC-06 | Each specialist report addresses mandatory checklist items | Review each report against its specification | All in-scope checklist items addressed or justified absence |
-| PIC-07 | All findings have admissible evidence | Review each TPL-FND | No SEV-1 or SEV-2 findings rely on T3/T4 only; no finding relies on T5 |
+| PIC-07 | All findings have admissible evidence | Review each TPL-FND | No SEV-1 finding uses T3 unless all four `T3-AUTHORITATIVE-EXTERNAL` conditions are documented (RBM-001 §8.2); no SEV-2 finding relies on T3/T4 only without T1 or T2 support; no finding relies on T5 |
 | PIC-08 | All evidence references are specific | Review each TPL-FND evidence reference | All references include specific file path, line, log entry, or document section |
 | PIC-09 | AI assistance declared where used | Review each TPL-FND | Any AI-assisted finding includes declaration and independent verification confirmation |
 | PIC-10 | Severity classifications are internally consistent | Cross-review comparison | Same class of defect is not assigned materially different severities across reviewers without documented justification |
@@ -224,6 +224,8 @@ Confirm that all required records per RBM-001 §15.1 exist, are correctly struct
 | PIC-12 | All required audit trail records exist | Inspect archive | All records per RBM-001 §15.1 are present, complete, and correctly stored |
 | PIC-13 | Contested findings correctly treated as Open for decision | Verify decision record | Contested findings did not reduce the open finding count for decision purposes |
 | PIC-14 | Machine-readable indicator issued | Inspect TPL-MRI | TPL-MRI is present, valid, and consistent with Board Decision |
+| PIC-15 | Review risk tier correctly classified and recorded | TPL-RIR and RBM-001 §6A criteria | The assigned tier matches all applicable trigger conditions; no de-escalation below the mandated minimum; tier classification is recorded in the TPL-RIR |
+| PIC-16 | Mandatory human sign-off boundaries observed | Review all signed records | Each act requiring human sign-off per RBM-001 §4.4 (finding confirmation, finding closure, Board Decision Record, Milestone-Completion Confirmation, Correction Records) is signed by a named human; no act is signed solely by an AI-generated identifier |
 
 ---
 
@@ -239,6 +241,8 @@ For process findings raised by the MA, the following evidence standards apply:
 | Artefact version change during review | T1 | Git log or equivalent showing SHA change between review start and review end |
 | Independence violation | T2 | Authorship record and independence declaration showing undeclared conflict |
 | Missing specification coverage | T3 | Reviewer report showing uncovered checklist item with no justification |
+
+> **T3-AUTHORITATIVE-EXTERNAL exception (RBM-001 §8.2):** For SEV-1 findings grounded in a legal, regulatory, contractual, or technical specification obligation, T3 evidence is admissible where all four conditions are met: (1) the source is authoritative for Provena Foundry's context; (2) the specific clause or section is named; (3) applicability in a single logical step is demonstrated; and (4) the source is confirmed in force at the time of the review. Such findings must be flagged `T3-AUTHORITATIVE-EXTERNAL` in the TPL-FND. The MA must verify all four conditions are recorded when auditing any such finding.
 
 The MA must not raise process findings on the basis of assertion (T5). If the MA cannot evidence a process concern, it must be recorded as an Observation pending further investigation, not a finding.
 
@@ -401,4 +405,13 @@ Date:
 
 ---
 
-*End of RBS-001 v1.0.0*
+---
+
+## Document History
+
+| Version | Date | Summary of Changes |
+|---------|------|--------------------|
+| 1.0.0 | 2026-07-18 | Initial release |
+| 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception with MA verification obligation; updated PIC-07 for T3-AUTHORITATIVE-EXTERNAL admissibility; added PIC-15 (tier classification validation) and PIC-16 (mandatory human sign-off boundary check); status set to RELEASE-CANDIDATE |
+
+*End of RBS-001 v1.1.0*

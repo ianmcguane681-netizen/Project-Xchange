@@ -1,10 +1,10 @@
 # Reviewer Specification: Sceptical Review
 
 **Document ID:** RBS-008  
-**Version:** 1.0.0  
-**Status:** ACTIVE  
+**Version:** 1.1.0  
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
 **Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.0.0  
+**Governing Methodology:** RBM-001 v1.1.0  
 **Reviewer Role:** Sceptical Reviewer (SR)  
 **Last Updated:** 2026-07-18  
 
@@ -249,6 +249,17 @@ The SR does not follow a fixed checklist in the way that specialist auditors do.
 | CG-02 | Are there areas marked out of scope across multiple specialist reviews that together constitute a significant uncovered domain? |
 | CG-03 | Is there a new type of risk introduced by this change that none of the existing specialist roles is well-positioned to assess? |
 
+### 7.7 Tier 3 Risk Characterisation (Tier 3 reviews only)
+
+For Tier 3 (Full Board) reviews, the SR must include an explicit Tier 3 Risk Characterisation in the SR Report (§11.2). The following prompts are mandatory:
+
+| Prompt | Question |
+|--------|----------|
+| T3-01 | What is the highest-consequence failure mode for this artefact in production, and is it adequately mitigated across the specialist findings? |
+| T3-02 | Are there systemic risks that individually fall below specialist finding thresholds but together represent a material residual risk the Board should accept on record? |
+| T3-03 | Does the combined specialist finding set, including all PASS WITH FINDINGS conditions, leave the Board in a position to make a fully informed deployment decision? If not, what is outstanding? |
+| T3-04 | Does this review involve any `T3-AUTHORITATIVE-EXTERNAL` findings, and are all four admissibility conditions verifiable from the record? |
+
 ---
 
 ## 8. Evidence Standards
@@ -264,6 +275,8 @@ The SR has one additional evidence tool: the compilation of specialist reports i
 | Optimism bias pattern | T3 | Multiple specialist reports showing thin evidence; cross-reference to finding count expectations |
 | Coverage gap | T3 | Review Initiation Record showing missing role; Scope Statement showing the area as in scope |
 | Systemic deferred risk | T3 | Known Issues Register; prior review records; Minor finding accumulation |
+
+> **T3-AUTHORITATIVE-EXTERNAL exception (RBM-001 §8.2):** For SEV-1 findings grounded in a legal, regulatory, contractual, or technical specification obligation, T3 evidence is admissible where all four conditions are met: (1) the source is authoritative for Provena Foundry's context; (2) the specific clause or section is named; (3) applicability in a single logical step is demonstrated; and (4) the source is confirmed in force at the time of the review. Such findings must be flagged `T3-AUTHORITATIVE-EXTERNAL` in the TPL-FND.
 
 ---
 
@@ -389,6 +402,13 @@ FINDINGS SUMMARY:
 FINDINGS:
 [For each finding, attach a completed TPL-FND]
 
+TIER 3 RISK CHARACTERISATION (complete for Tier 3 reviews only — omit for Tier 1 and Tier 2):
+Highest-consequence failure mode and mitigation status:
+Residual systemic risks below individual finding thresholds:
+Board's ability to make a fully informed deployment decision: [ ] YES  [ ] NO — [describe outstanding matters]
+T3-AUTHORITATIVE-EXTERNAL findings present: [ ] YES  [ ] NO
+If YES — all four admissibility conditions verified from record: [ ] YES  [ ] NO — [describe gap]
+
 RECOMMENDATION TO RE-OPEN SPECIALIST REVIEW:
 [ ] Not recommended — the specialist finding set is a sufficient basis for Board decision.
 [ ] Recommended — [state the specific basis: optimism bias, coverage gap, systemic risk]
@@ -425,4 +445,13 @@ Date:
 
 ---
 
-*End of RBS-008 v1.0.0*
+---
+
+## Document History
+
+| Version | Date | Summary of Changes |
+|---------|------|--------------------|
+| 1.0.0 | 2026-07-18 | Initial release |
+| 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception note to §8; added Tier 3 Risk Characterisation requirement to §7 and §11.2 report template; status set to RELEASE-CANDIDATE |
+
+*End of RBS-008 v1.1.0*
