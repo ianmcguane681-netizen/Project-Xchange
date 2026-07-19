@@ -1,12 +1,12 @@
 # Reviewer Specification: Security and Privacy Audit
 
-**Document ID:** RBS-006  
-**Version:** 1.1.0  
-**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
-**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.1.0  
-**Reviewer Role:** Security and Privacy Auditor (SPA)  
-**Last Updated:** 2026-07-18  
+**Document ID:** RBS-006
+**Version:** 2.0.0
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
+**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
+**Governing Methodology:** RBM-001 v2.0.0
+**Reviewer Role:** Security and Privacy Auditor (SPA)
+**Last Updated:** 2026-07-19
 
 ---
 
@@ -21,7 +21,7 @@
 7. [Checklist](#7-checklist)
 8. [Evidence Standards](#8-evidence-standards)
 9. [Finding Classification Guidance](#9-finding-classification-guidance)
-10. [PASS / PASS WITH FINDINGS / FAIL Criteria](#10-pass--pass-with-findings--fail-criteria)
+10. [Board Decision Contribution](#10-board-decision-contribution)
 11. [Required Output](#11-required-output)
 12. [Reviewer Prompt Conversion Notes](#12-reviewer-prompt-conversion-notes)
 
@@ -104,7 +104,7 @@ For artefacts touching production authentication or authorisation systems, the S
 
 | Input | Source | Required Condition |
 |-------|--------|--------------------|
-| SAST scan results | Input Package (conditional, see §7.1) | If any security changes declared in scope |
+| SAST scan results | Input Package (conditional, see RBM-001 §7.2) | If any security changes declared in scope |
 | Dependency vulnerability scan results | Input Package | Always |
 | DAST scan results | Input Package (conditional) | If the change modifies externally accessible endpoints |
 | Privacy impact assessment | Input Package (conditional) | If personal data handling is in scope |
@@ -302,11 +302,11 @@ For all inputs accepted from untrusted sources:
 
 ---
 
-## 10. PASS / PASS WITH FINDINGS / FAIL Criteria
+## 10. Board Decision Contribution
 
-The SPA raises findings that feed into the Board Decision per RBM-001 §10. Per RBM-001 §3.1 (Governing Principle: Honest Rejection), security findings must never be moderated downward to avoid a FAIL verdict.
+The SPA does not issue a Board outcome or process status. The SPA raises findings and records whether in-scope security and privacy evidence is `SUFFICIENT`, `INSUFFICIENT`, or `NOT_APPLICABLE` for a PASS-class conclusion, with missing evidence listed. Per RBM-001 §3 (P6 — Honest Rejection), security findings must never be moderated downward to avoid a `FAIL` outcome.
 
-A SEV-1 security finding is a hard merge block with no waiver permitted. The SPA must not accept schedule pressure, commercial urgency, or team assurances as grounds for reclassifying a confirmed SEV-1 finding.
+An unresolved SEV-1 security finding is a hard merge block with no waiver permitted. The SPA must not accept schedule pressure, commercial urgency, or team assurances as grounds for reclassifying a confirmed SEV-1 finding.
 
 ---
 
@@ -364,6 +364,10 @@ UNMITIGATED THREAT ASSESSMENT:
 [List any threats to the attack surface that are identified but for which no finding was raised,
 with rationale for why no finding was raised. This section may be empty if all threats are mitigated.]
 
+PASS-CLASS EVIDENCE SUFFICIENCY:
+[ ] SUFFICIENT  [ ] INSUFFICIENT  [ ] NOT APPLICABLE
+Missing evidence / limitations:
+
 AI ASSISTANCE:
 [ ] AI tools were used — describe what for and confirm independent verification of all findings
 [ ] AI tools were not used
@@ -376,7 +380,7 @@ Date:
 
 ## 12. Reviewer Prompt Conversion Notes
 
-**Role Prompt Identity:** "You are the Security and Privacy Auditor for the Provena Foundry Review Board. You conduct threat-driven security review and assess privacy obligation compliance. If you discover a Critical finding during review, you must report it immediately to the Board Chair — do not wait until your report is complete."
+**Role Prompt Identity:** "You are a non-authoritative AI assistant supporting the named human Security and Privacy Auditor. You do not hold the SPA role, count toward quorum, assign severity, sign findings, or issue an outcome. Surface candidate security and privacy evidence promptly to the named human SPA."
 
 **Key Prompt Constraints:**
 - Must assess scan results for applicability — not all tool findings are exploitable in context.
@@ -385,10 +389,11 @@ Date:
 - Must not assess business logic unless it has a direct security implication.
 - Must not assess GS-P001 security controls.
 - All security evidence must include specific file paths, line numbers, or request paths.
+- Must label every output as an unsigned draft; exploitability, severity, and evidence sufficiency remain human reviewer acts.
 
 **Inputs to Prompt:** SAST results, dependency vulnerability scan, DAST results (if applicable), privacy impact assessment (if applicable), changed source files, API specification, auth configuration.
 
-**Output Format:** Report matching §11 template, with TPL-FND records for each finding.
+**Output Format:** Unsigned draft report matching §11, with evidence candidates for human verification. TPL-FND records become valid only after the named human SPA verifies evidence, supplies severity, and signs.
 
 ---
 
@@ -400,5 +405,6 @@ Date:
 |---------|------|--------------------|
 | 1.0.0 | 2026-07-18 | Initial release |
 | 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception to §8 with SPA-specific guidance for regulatory and privacy law obligations; status set to RELEASE-CANDIDATE |
+| 2.0.0 | 2026-07-19 | Aligned terminology and decision contribution with RBM-001 v2.0.0; corrected conditional-input reference. |
 
-*End of RBS-006 v1.1.0*
+*End of RBS-006 v2.0.0*

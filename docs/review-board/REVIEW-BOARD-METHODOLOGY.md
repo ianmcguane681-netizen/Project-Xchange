@@ -1,13 +1,17 @@
 # Provena Foundry Review Board — Governing Methodology
 
-**Document ID:** RBM-001  
-**Version:** 1.1.0  
-**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
-**Applicability:** Provena Foundry releases only. This document does not govern GS-P001 or any other Provena product line.  
-**Last Updated:** 2026-07-18  
-**Owner:** Provena Foundry Governance  
+**Document ID:** RBM-001
+**Version:** 2.0.0
+**Status:** RELEASE-CANDIDATE — Pending named human Principal Architect and Methodology Owner approval before first operational use
+**Applicability:** Provena Foundry releases only. This document does not govern GS-P001 or any other Provena product line.
+**Architecture Authority:** RBE-001 v1.1.0 or a later approved compatible release
+**Profile Definition:** `PROFILE.json`
+**Package Manifest:** `MANIFEST.json`
+**Human Approval Record:** Not issued
+**Last Updated:** 2026-07-19
+**Owner:** Provena Foundry Governance
 
-> **Note:** This document is a release candidate. It must not be used as the governing methodology for any live review until the Principal Architect has formally approved it and this status field is updated to ACTIVE in a tagged release commit. Any review conducted under a RELEASE-CANDIDATE version of this document is advisory only and does not constitute a binding Board decision.
+> **Note:** This document is a methodology profile subordinate to the Provena Foundry Review Board Engine (RBE-001) constitution and approved architecture. It is a release candidate. It must not be used for a binding live review until the applicable RBE release is approved, a named human Principal Architect and Methodology Owner approve this exact checksummed package, `PROFILE.json` is updated to `ACTIVE`, and the approved package is tagged. Any release-candidate review is advisory only, must record `binding=false`, and cannot authorise merge, publication, deployment, milestone completion, or invoicing.
 
 ---
 
@@ -23,7 +27,7 @@
 7. [Input Package Requirements](#7-input-package-requirements)
 8. [Evidence Standards](#8-evidence-standards)
 9. [Severity Classification](#9-severity-classification)
-10. [Decision Framework](#10-decision-framework)
+10. [Process Status and Decision Framework](#10-process-status-and-decision-framework)
 11. [Merge-Blocking Rules](#11-merge-blocking-rules)
 12. [Disagreement Handling](#12-disagreement-handling)
 13. [Finding Lifecycle](#13-finding-lifecycle)
@@ -42,7 +46,7 @@
 
 ### 1.1 Purpose
 
-The Provena Foundry Review Board (the Board) is the formal gate-keeping body responsible for certifying that each build increment of Provena Foundry meets defined standards before it may be merged into a protected branch, published to any external environment, or counted as a completed milestone.
+The Provena Foundry Review Board (the Board) is a governed review function that applies this methodology profile within RBE-001. Once this profile is ACTIVE, it may determine whether a scoped build increment meets the profile threshold before merge, publication, deployment, or milestone completion. While this profile is RELEASE-CANDIDATE, it may be used only for non-binding validation and rehearsal.
 
 The Board exists because:
 
@@ -66,7 +70,18 @@ This methodology explicitly does **not** apply to:
 - Internal development branches that have not yet entered formal review.
 - Documentation-only changes that carry no functional impact (subject to a Tier 1 lightweight review, not full Board review — see §6A).
 
-### 1.3 What the Board Is Not
+### 1.3 Authority and Conformance
+
+The order of authority is:
+
+1. RBE constitutional principles.
+2. An approved RBE-001 Reference Architecture release and its normative registers.
+3. This methodology profile, but only when its status is `ACTIVE` and its checksum and human approval record validate.
+4. Reviewer specifications, templates, schemas, automation, and operational documentation subordinate to this profile.
+
+A lower authority cannot weaken or reinterpret a higher one. If this profile conflicts with RBE-001 in a way that can affect process legitimacy or a substantive outcome, the review is `BLOCKED`, no outcome may be issued, and the conflict must be resolved through a new version. The machine-readable identity, outcome subset, process statuses, role rules, lifecycle mapping, and checksum are declared in `PROFILE.json`.
+
+### 1.4 What the Board Is Not
 
 The Board is not:
 
@@ -126,11 +141,11 @@ Commercial relevance includes: client-facing data accuracy, contractual SLA comp
 
 ### P5 — Deterministic Decisions
 
-Board decisions must be deterministic given the finding set. The decision rules in §10 must produce a unique outcome for any given combination of findings. Reviewers and the Board must not override decision rules based on schedule pressure, optimism, or qualitative judgement outside the defined framework.
+When process status is `READY`, Board decisions must be deterministic given the sealed finding set and evidence-sufficiency record. The decision rules in §10 must produce exactly one permitted substantive outcome. When process status is not `READY`, the outcome must be null. Reviewers and the Board must not override these rules based on schedule pressure, optimism, or qualitative judgement outside the defined framework.
 
 If the decision rules produce an outcome that appears wrong, the correct action is to review the evidence and findings, not to adjust the outcome. If the rules themselves are inadequate, the rules must be amended through the versioning process (§16) before the next review cycle.
 
-Board decisions are not votes. The Board Chair confirms and records the outcome produced by the decision rules; they do not cast a deciding vote and cannot override a deterministic outcome.
+Board decisions are not votes. The Board Chair assembles the decision candidate produced by the rules, the Methodology Auditor independently validates governance, and the Board Chair signs the validated result. Neither actor can override a deterministic outcome.
 
 ### P6 — Honest Rejection
 
@@ -138,7 +153,7 @@ A FAIL verdict is not a failure of the review process. It is the review process 
 
 ### P7 — No Fabricated Evidence
 
-Reviewers must not generate, infer, or construct evidence. If a required evidence item is absent from the artefact package, the reviewer must raise an **Evidence Gap** finding. An Evidence Gap is itself a finding with its own severity. The absence of a required test, the absence of a performance baseline, the absence of a security scan report — these are findings, not assumptions.
+Reviewers must not generate, infer, or construct evidence. A missing mandatory Input Package item produces `PROCEDURALLY_INCOMPLETE` before substantive review. An evidentiary gap discovered inside an otherwise procedurally complete package is recorded as an **Evidence Gap** with supporting evidence of the gap. If the sealed record cannot support a defensible substantive conclusion and no confirmed defect independently controls the result, the outcome is `INSUFFICIENT_EVIDENCE`; the gap must never silently fall through to PASS or FAIL.
 
 ### P8 — No Opaque AI Judgement
 
@@ -169,7 +184,7 @@ Where a reviewer uses AI assistance, they must disclose this in their review rep
 | Performance and Operations Auditor | POA | Reviews performance, scalability, and operational readiness |
 | Sceptical Reviewer | SR | Challenges assumptions, probes for hidden risks, devil's advocate |
 
-There are nine roles in total. The six **specialist auditors** are SAA, BCA, DEA, QRA, SPA, and POA. MA and SR are separate cross-cutting roles. BC is the convening authority. This distinction matters for quorum calculation.
+There are nine Board roles in total. The six **specialist auditors** are SAA, BCA, DEA, QRA, SPA, and POA. MA and SR are separate cross-cutting roles. BC is the convening and decision-assembly authority. A separate publication control, operated by protected-branch automation or a named Publication Authority, releases a validated decision; it is not a tenth reviewer role.
 
 ### 4.2 Quorum
 
@@ -182,11 +197,13 @@ Quorum requirements vary by review tier (see §6A). At minimum, for a Tier 2 Sta
 
 For a Tier 3 Full Board Review, all nine roles must be filled with no substitution of scope.
 
-If a required auditor is unavailable, the Board Chair must document the absence and assign a qualified substitute. A review conducted without quorum is void.
+If a required auditor is unavailable, the Board Chair must document the absence and assign a qualified substitute before substantive review begins. A review that lacks quorum is `PROCEDURALLY_INCOMPLETE`. A review knowingly conducted without quorum is `VOID` and cannot produce a substantive outcome.
 
 ### 4.3 Assignment
 
 The Board Chair is responsible for assigning reviewers to each review cycle. Assignment must respect independence rules (§5). Assignments are documented in the Review Initiation Record before any reviewer begins work.
+
+One named human may hold only one logical Board role in a review session. Roles must not be merged at any tier. A designated deputy assumes the BC role for the entire session and is subject to the same restrictions. An AI assistant or automated service does not fill a Board role and does not count toward quorum.
 
 ### 4.4 Human Reviewers and AI Execution Boundaries
 
@@ -223,6 +240,15 @@ All Board roles must be filled by named, accountable human reviewers. This rule 
 
 An AI-generated draft report becomes a valid reviewer report only when the named human reviewer has read it, confirmed all findings against the actual artefact, corrected any errors, and signed it. The human reviewer accepts full accountability for the signed document regardless of how it was drafted.
 
+### 4.5 Decision Finalisation and Publication Separation
+
+The Board Chair may assemble the unsigned decision candidate but may not be its sole governance validator or publication authority. The Methodology Auditor validates the candidate against the sealed finding set, process status, profile version, and checksum. After that validation, the Board Chair may sign the decision. Publication then requires either:
+
+- protected-branch automation that independently validates the signed decision and machine-readable indicator; or
+- a named Publication Authority who did not serve as Board Chair or Methodology Auditor in the same session.
+
+The publication control may release a validated record but may not alter its process status, outcome, reasoning, or merge authorisation.
+
 ---
 
 ## 5. Independence Rules
@@ -233,7 +259,7 @@ A reviewer must not review artefacts they authored, co-authored, or substantiall
 
 ### 5.2 Commercial Independence
 
-A reviewer must not hold a commercial stake in the outcome of the review (e.g., a bonus tied to release, a client relationship that depends on approval). Where a potential commercial conflict exists, the reviewer must declare it. The Board Chair determines whether recusal is required.
+A reviewer must not hold a commercial stake in the outcome of the review (e.g., a bonus tied to release, a client relationship that depends on approval). Where a potential commercial conflict exists, the reviewer must declare it. The Methodology Auditor validates whether recusal is required and the Board Chair assigns any replacement. If the Board Chair has the conflict, the Methodology Auditor and Methodology Owner appoint a deputy; the conflicted Chair must not adjudicate their own conflict or participate further in that session.
 
 ### 5.3 Organisational Independence
 
@@ -247,6 +273,8 @@ The Sceptical Reviewer must always be independent of the authoring team for Tier
 
 Every reviewer must sign an Independence Declaration at the start of each review, confirming they have no disqualifying conflicts. This declaration is retained in the audit trail. AI agents may not sign Independence Declarations; only the named human reviewer may do so.
 
+No reviewer may validate their own independence, assignment exception, finding closure, governance decision, or appeal. An unresolved conflict produces process status `BLOCKED`; a material undisclosed conflict discovered after substantive review may make the session `VOID`.
+
 ---
 
 ## 6. Review Trigger Conditions
@@ -256,8 +284,9 @@ A Board review is mandatory when any of the following conditions are met. The Mi
 | Trigger | Threshold | Minimum Tier |
 |---------|-----------|-------------|
 | Milestone completion | Any milestone with commercial or contractual significance | Tier 3 |
-| Protected branch merge | Any PR targeting `main`, `release/*`, or equivalent | Tier 2 |
-| Production deployment | Any deployment to a production environment | Tier 2 |
+| Protected branch merge | Any PR targeting `main`, `release/*`, or equivalent; low-risk changes may use Tier 1 only when every Tier 1 criterion is met | Tier 1 |
+| Functional code change to protected branch | Any executable production-code change not otherwise requiring Tier 3 | Tier 2 |
+| Production deployment | Any deployment to a production environment | Tier 3 |
 | Security change | Any change to authentication, authorisation, encryption, or access control | Tier 3 |
 | Data contract change | Any change to public API schemas, database schemas affecting external clients | Tier 3 |
 | Governance or methodology change | Any change to this document or any reviewer specification | Tier 3 |
@@ -265,7 +294,7 @@ A Board review is mandatory when any of the following conditions are met. The Mi
 | Dependency upgrade — major version | Major version upgrade of a critical dependency | Tier 2 |
 | Dependency upgrade — patch/minor | Patch or minor version upgrade with no known security advisory | Tier 1 |
 | Post-incident change | Any change implementing a post-incident action item | Tier 2 |
-| Low-risk documentation or configuration | Functional documentation or safe configuration change | Tier 1 |
+| Low-risk documentation or configuration | Documentation or safe configuration with no executable, security, data, API, contractual, or deployment effect | Tier 1 |
 
 Routine development merges to non-protected branches do not require a Board review but should undergo standard developer peer review.
 
@@ -279,13 +308,13 @@ A tier may be **escalated** (e.g., from Tier 1 to Tier 2) by the MA or Board Cha
 
 ### Tier 1 — Lightweight Review
 
-**Applies to:** Changes that carry low risk of defect propagation, commercial harm, or security exposure. Characteristic changes:
-- Documentation corrections with confirmed functional impact (e.g., fixing an incorrect API parameter description that clients rely on).
+**Applies to:** Changes that carry low risk of defect propagation, commercial harm, or security exposure and do not meet a Tier 2 or Tier 3 trigger. Characteristic changes:
+- Documentation corrections with no executable, API-contract, security, data, contractual, or deployment effect.
 - Test-suite-only changes with no production code modification.
 - Dependency patch-version upgrades with no known CVE or breaking change.
 - Configuration-only changes that do not touch security parameters, data routing, or access control.
 
-**Required reviewers:** MA (gate + process integrity) + any two of {SAA, QRA, POA} whose discipline is most relevant to the change + SR.
+**Required reviewers:** BC + MA (gate + process integrity) + any two of {SAA, QRA, POA} whose discipline is most relevant to the change + SR. Each role is held by a distinct named human.
 
 **Not required (unless scope triggers conditional inputs):** BCA, DEA, SPA. If the change summary indicates any commercial, data quality, or security angle, the relevant specialist must be added.
 
@@ -295,7 +324,7 @@ A tier may be **escalated** (e.g., from Tier 1 to Tier 2) by the MA or Board Cha
 
 **Applies to:** Code changes, API changes, data model changes, new integrations, major or minor dependency version upgrades, operational configuration changes, and any change that does not meet Tier 1 criteria and does not require Tier 3.
 
-**Required reviewers:** Full minimum quorum per §4.2 (BC + MA + four of six specialists + SR).
+**Required reviewers:** Full minimum quorum per §4.2 (BC + MA + four of six specialists + SR), with each role held by a distinct named human.
 
 **Decision rules:** §10 applies unchanged.
 
@@ -309,13 +338,34 @@ A tier may be **escalated** (e.g., from Tier 1 to Tier 2) by the MA or Board Cha
 - Is classified as High-risk by the authoring team or escalated to Tier 3 by MA or Board Chair.
 - Is a post-incident change implementing an action item for a SEV-1 production incident.
 
-**Required reviewers:** All nine roles (BC + MA + all six specialists + SR). No role may be omitted or merged. The SR report must explicitly address the Tier 3 characterisation.
+**Required reviewers:** All nine roles (BC + MA + all six specialists + SR), held by nine distinct named humans. No role may be omitted or merged. The SR report must explicitly address the Tier 3 characterisation.
 
 **Decision rules:** §10 applies unchanged. The SR must include a Tier 3 Risk Characterisation section in their report.
 
 ### Tier Classification Record
 
 The assigned tier must be recorded in the Review Initiation Record (TPL-RIR) along with the trigger conditions and classification rationale. Any escalation after initial classification must be documented with the reason.
+
+### 6B. Canonical RBE Lifecycle Mapping
+
+This profile does not define a competing review-session state machine. Its phases map to the RBE-001 canonical states as follows:
+
+| RBM activity | Canonical RBE state(s) |
+|---|---|
+| Assemble and seal Input Package | `DRAFT` → `SUBMITTED` |
+| Validate admissibility | `INTAKE_VALIDATION` → `RETURNED` or `ACCEPTED` |
+| Pin package, profile, rules, and checksums | `EVIDENCE_LOCKED` |
+| Assign distinct, conflict-cleared reviewers | `ASSIGNMENT` |
+| Specialist audits | `INDEPENDENT_REVIEW` |
+| Sceptical challenge and bounded answers | `CHALLENGE` ↔ `CLARIFICATION` |
+| Normalize findings and compute candidate outcome | `CONSOLIDATION` |
+| MA process and decision-candidate validation | `GOVERNANCE_VALIDATION` |
+| Board Chair signs validated result | `DECIDED` |
+| Independent publication control releases record | `PUBLISHED` |
+| Appeal and correction | `APPEALED` → `APPEAL_REVIEW` → `UPHELD`, `SUPERSEDED`, or `REMANDED` |
+| Ordinary close and retention | `FINAL` → `ARCHIVED` |
+
+`BLOCKED`, `VOID`, `WITHDRAWN`, and `RETURNED` retain their RBE meanings. A remand creates a linked successor session that resumes at `ASSIGNMENT`; it does not mutate the original session. Finding lifecycle labels in §13 are states of an individual finding, not aliases for review-session states or process statuses.
 
 ---
 
@@ -349,9 +399,9 @@ No review may begin without a complete Input Package. The following items are ma
 
 ### 7.3 Input Package Validation
 
-The Methodology Auditor validates the Input Package before any specialist review begins. If mandatory items are absent, the review is **deferred** (not failed) pending package completion. A deferral is recorded in the audit trail.
+The Methodology Auditor validates the Input Package before any specialist review begins. If mandatory items are absent, process status is `PROCEDURALLY_INCOMPLETE`, the session moves to `RETURNED`, and no substantive outcome is produced. The deficiency and required completion action are recorded in the audit trail.
 
-The deferral clock starts when the Input Package is deemed incomplete. If the package is not completed within five business days, the Board Chair must escalate.
+The completion clock starts when the Input Package is deemed incomplete. If the package is not completed within five business days, the Board Chair must escalate. Resubmission creates a sealed successor package version; it does not overwrite the incomplete package.
 
 ---
 
@@ -381,7 +431,7 @@ All evidence submitted in support of a finding or a remediation must be classifi
 | Closing a Major finding | T1, T2, or T3 demonstrating resolution |
 | Closing a Minor finding | T1–T4 demonstrating resolution |
 
-**Exception — Authoritative External Reference for Critical Findings:**  
+**Exception — Authoritative External Reference for Critical Findings:**
 T3 evidence is admissible to support a SEV-1 finding when all of the following conditions are satisfied:
 
 1. The T3 reference is an authoritative legal statute, regulatory instrument, contractual obligation, or recognised technical specification (e.g., an applicable data protection regulation, a signed client contract clause, an IETF RFC, or a governing industry standard).
@@ -418,7 +468,7 @@ A defect, gap, or non-conformance that:
 - Would cause the system to produce incorrect outputs in normal operating conditions.
 - Represents a security vulnerability that could be exploited without insider access.
 
-**Board Decision Impact:** A single SEV-1 finding that is Open or Contested produces an automatic FAIL. No exceptions.
+**Board Decision Impact:** A single unresolved SEV-1 finding produces `FAIL` when process status is `READY`. No exception or waiver applies.
 
 ### SEV-2 — Major
 
@@ -429,7 +479,7 @@ A defect, gap, or non-conformance that:
 - Creates a commercial risk that is not mitigated by the known issues register.
 - Would require a non-trivial remediation effort and cannot be deferred without accumulating technical debt that is not disclosed.
 
-**Board Decision Impact:** Two or more Open SEV-2 findings produce FAIL. Exactly one Open SEV-2 finding with an accepted remediation plan produces PASS WITH FINDINGS. Zero Open SEV-2 findings (all other conditions met) produces PASS.
+**Board Decision Impact:** Two or more unresolved SEV-2 findings produce `FAIL`. Exactly one unresolved SEV-2 with an accepted remediation plan may produce `PASS_WITH_FINDINGS` if evidence is otherwise sufficient. One unresolved SEV-2 without an accepted remediation plan produces `FAIL`. Zero unresolved SEV-2 findings may produce `PASS` if all other conditions are met.
 
 ### SEV-3 — Minor
 
@@ -452,53 +502,51 @@ A note, recommendation, or improvement opportunity that:
 
 ---
 
-## 10. Decision Framework
+## 10. Process Status and Decision Framework
 
-### 10.1 Decision Outcomes
+### 10.1 Process Status
 
-The Board produces one of three mutually exclusive decisions. The three outcomes are defined so that exactly one applies to any valid finding set. Evaluate them in order: if FAIL conditions are met, the decision is FAIL regardless of other conditions; if PASS WITH FINDINGS conditions are met, the decision is PASS WITH FINDINGS; otherwise the decision is PASS.
+Process status is evaluated before any substantive outcome. Exactly one canonical status applies:
 
-#### FAIL
+| Status | Profile rule | Substantive outcome |
+|---|---|---|
+| `READY` | Inputs are sealed and complete; profile is ACTIVE for binding use (or explicitly advisory for a dry run); distinct-role quorum, conflicts, required reports, challenge disposition, audit integrity, and governance validation all pass | Exactly one outcome required |
+| `PROCEDURALLY_INCOMPLETE` | A mandatory input, assignment, quorum member, report, signature, or validation step is missing before decision | Must be null |
+| `BLOCKED` | A material but potentially resolvable conflict, dispute, integrity concern, architecture conflict, or governance condition prevents a legitimate decision | Must be null |
+| `VOID` | The session is invalid, including a changed artefact, knowingly bypassed quorum, material undisclosed conflict, checksum failure, or use of an unauthorised profile | Must be null |
 
-Conditions — any one is sufficient:
-- One or more SEV-1 findings are Open or Contested.
-- Two or more SEV-2 findings are Open.
-- The mandatory Input Package was fraudulently represented as complete when it was not.
-- A reviewer independence violation was discovered during the review.
-- Quorum was not maintained and the review was conducted anyway without Board Chair approval.
-- A process finding by the MA is rated SEV-1 (process compromised).
+Process defects never map to `FAIL`. They must be repaired in the current state where allowed or handled through a traceable successor session.
 
-A FAIL requires the authoring team to remediate findings and resubmit for a full re-review (§14).
+### 10.2 Finding Snapshot and Evidence Sufficiency
 
-#### PASS WITH FINDINGS
+The decision candidate is computed from a sealed finding snapshot. For outcome calculation, **unresolved** means a finding in `OPEN`, `CONTESTED`, or `UNDER_REVIEW`. `CLOSED`, `WITHDRAWN`, and valid SEV-3/SEV-4 `WAIVED` findings are not unresolved. A contested finding retains its asserted severity until the dispute is resolved.
 
-Conditions — all must hold (and FAIL conditions must not apply):
-- Zero SEV-1 findings are Open or Contested.
-- Exactly one SEV-2 finding is Open.
-- The Open SEV-2 finding has an accepted remediation plan with a committed timeline.
-- All mandatory inputs were provided.
-- Quorum was maintained.
+The consolidation record derives whether the procedurally complete evidence is sufficient for a defensible PASS-class conclusion from the required specialist reports and recorded evidence gaps; the MA validates that derivation rather than supplying technical judgement. `substantive_evidence_sufficient=false` does not erase confirmed defects. It controls only when no FAIL rule already establishes that the scoped conclusion is not justified.
 
-A PASS WITH FINDINGS permits merge subject to the merge-blocking rules in §11. The Open SEV-2 finding must be tracked and resolved per its remediation timeline. Failure to remediate within the agreed timeline triggers automatic escalation to the Board Chair and a mandatory targeted re-review.
+### 10.3 Deterministic Outcome Rules
 
-#### PASS
+When process status is `READY`, evaluate the following rules in order and stop at the first match:
 
-Conditions — all must hold (and neither FAIL nor PASS WITH FINDINGS conditions apply):
-- Zero SEV-1 findings are Open or Contested.
-- Zero SEV-2 findings are Open.
-- All mandatory inputs were provided.
-- All required reviewer roles were filled.
-- Quorum was maintained.
+| Priority | Condition | Outcome |
+|---|---|---|
+| 1 | One or more unresolved SEV-1 findings | `FAIL` |
+| 2 | Two or more unresolved SEV-2 findings | `FAIL` |
+| 3 | Exactly one unresolved SEV-2 without an accepted remediation plan and committed timeline | `FAIL` |
+| 4 | The sealed record is not substantively sufficient for a defensible PASS-class conclusion | `INSUFFICIENT_EVIDENCE` |
+| 5 | Exactly one unresolved SEV-2 with an accepted remediation plan and committed timeline | `PASS_WITH_FINDINGS` |
+| 6 | Zero unresolved SEV-1 and SEV-2 findings, with sufficient evidence | `PASS` |
 
-A PASS is not a declaration of perfection. It is a declaration that the artefact meets the defined quality threshold for the defined scope.
+The profile permits `PASS`, `PASS_WITH_FINDINGS`, `FAIL`, and `INSUFFICIENT_EVIDENCE`. It omits `DEFER_FOR_FURTHER_RESEARCH`; every bounded evidence or research gap therefore maps to `INSUFFICIENT_EVIDENCE` with a recorded next-evidence action. The outcome rules are total and mutually exclusive for every `READY` input.
 
-### 10.2 Decision Authority
+`FAIL` requires remediation and a governed successor review (§14). `PASS_WITH_FINDINGS` permits conditional merge only under §11 and requires tracked remediation. `INSUFFICIENT_EVIDENCE` does not assert that the artefact passes or fails and cannot authorise merge, deployment, publication, milestone completion, or invoicing. `PASS` is not a declaration of perfection; it means the evidence supports the scoped conclusion at this profile's threshold.
 
-The Board decision is determined by the finding set per the rules in §10.1. It is not a vote and does not require consensus. The outcome is determined by the rules; the Board Chair's role is to confirm that the rules have been applied correctly and to record the result.
+### 10.4 Decision Authority and Four-Eyes Control
 
-If any reviewer disputes the finding record (not the outcome — the record), disputes are resolved through §12 before the decision is finalised. Disputes about outcomes are resolved through the Appeal and Correction Mechanism (§18A).
+The outcome is not a vote. The Board Chair assembles an unsigned candidate from the sealed snapshot and §10.3. The Methodology Auditor independently validates process status, snapshot counts, evidence sufficiency, rule application, profile checksum, and activation status. Only then may the Board Chair sign the record. Publication follows §4.5.
 
-### 10.3 Abstentions
+If any reviewer disputes a finding record, the dispute must be resolved or the process remains `BLOCKED`; it must not be converted into an outcome. Disputes about an already signed outcome are handled through §18A.
+
+### 10.5 Abstentions
 
 A reviewer may not abstain from raising a finding they have identified. If a reviewer is uncertain whether a finding warrants raising, they must raise it at the severity they believe is most defensible and note their uncertainty. Findings may be challenged and re-classified but must not be suppressed.
 
@@ -512,27 +560,23 @@ The following conditions constitute hard merge blocks. No merge to a protected b
 
 | Block Condition |
 |----------------|
-| Board decision is FAIL |
-| One or more SEV-1 findings are Open |
-| Two or more SEV-2 findings are Open without accepted remediation plans |
-| The review has not been completed (quorum not met, review not initiated) |
+| Process status is not `READY` |
+| Outcome is `FAIL` or `INSUFFICIENT_EVIDENCE` |
+| One or more SEV-1 findings are unresolved |
+| One SEV-2 finding is unresolved without an accepted remediation plan, or two or more SEV-2 findings are unresolved |
 | The artefact identifier has changed since the review was conducted |
 | The Board Decision Record has not been signed by the Board Chair |
+| MA governance validation is absent or failed |
+| Profile status is not `ACTIVE`, profile checksum is invalid, or the human approval record is absent |
+| Independent publication control has not validated the decision artifact |
 
-### 11.2 Soft Blocks
+### 11.2 Conditional Merge
 
-The following conditions are soft blocks. They may be waived by the Board Chair with explicit written justification recorded in the audit trail.
-
-| Soft Block Condition | Waiver Condition |
-|---------------------|-----------------|
-| One Open SEV-2 without remediation plan | Board Chair confirms a remediation plan will be submitted within one business day |
-| Review conducted without full specialist complement (Tier 2 only) | Board Chair confirms the missing specialist's scope was covered by another qualified reviewer |
-
-Soft block waivers do not change the Board decision; they permit operational continuity while the condition is resolved. Soft block waivers are not available for Tier 3 reviews.
+`PASS_WITH_FINDINGS` is the only conditional merge path. It requires exactly one unresolved SEV-2, an accepted remediation plan with a committed timeline, `READY` process status, valid quorum, an ACTIVE profile, completed four-eyes validation, and successful independent publication control. No Board Chair waiver may replace any of those conditions. Missing specialist scope is acceptable only where the tier's declared minimum quorum and conditional-role rules were satisfied before review began.
 
 ### 11.3 Branch Protection Integration
 
-For repositories using automated branch protection, the Board decision must be recorded in the machine-readable indicator format (TPL-MRI, defined in §17.6 and schema §17.9) that can be consumed by branch protection rules. The merge-blocking mechanism must not rely solely on manual process.
+For repositories using automated branch protection, the Board decision must be recorded in the machine-readable indicator format (TPL-MRI, defined in §17.6 and schema §17.9) that can be consumed by branch protection rules. The merge-blocking mechanism must not rely solely on manual process. A RELEASE-CANDIDATE profile always emits `binding=false` and `merge_permitted=false`, regardless of its advisory outcome.
 
 ---
 
@@ -548,14 +592,14 @@ For repositories using automated branch protection, the Board decision must be r
 
 ### 12.2 Finding Dispute Resolution
 
-**Step 1 — Peer Resolution (24 hours)**  
+**Step 1 — Peer Resolution (24 hours)**
 The disputing reviewer contacts the finding owner directly. Both reviewers attempt to agree on finding disposition. If agreed: the finding record is updated with the agreed disposition and the rationale, as an appended correction (not an overwrite).
 
-**Step 2 — Board Panel (48 hours from Step 1 failure)**  
+**Step 2 — Board Panel (48 hours from Step 1 failure)**
 If peer resolution fails, the Board Chair convenes a panel of three reviewers (excluding the disputing parties). The panel reviews the evidence and makes a binding determination. The determination is recorded as an appended entry.
 
-**Step 3 — Board Chair Confirmation**  
-If the panel cannot reach a unanimous determination within 48 hours, the Board Chair reviews the evidence and applies the decision rules mechanically. The Board Chair records the outcome with the specific rule applied. This is not a discretionary decision; the Board Chair identifies which rule produces the correct outcome given the evidence.
+**Step 3 — Independent Escalation**
+If the panel cannot reach a unanimous determination within 48 hours, the finding remains `CONTESTED`, process status becomes `BLOCKED`, and the Board Chair appoints an independent qualified adjudicator who did not participate in the original review or panel. The adjudicator resolves only the finding dispute against the admissibility and severity rules and records the evidence basis. The Board Chair must not resolve evidentiary truth or finding severity by applying outcome rules.
 
 At no stage may a finding be suppressed during an active dispute. The finding remains Open and Contested until resolution. A Contested SEV-1 finding blocks merge.
 
@@ -563,17 +607,19 @@ At no stage may a finding be suppressed during an active dispute. The finding re
 
 A Decision Dispute can only be raised on the grounds that the decision does not follow from the finding set per §10. Schedule pressure, commercial impact, or team workload are not valid grounds.
 
-The MA reviews the finding record and confirms whether the decision rules in §10.1 were applied correctly. If a misapplication is confirmed, the Board Chair records a corrected decision per the Correction Mechanism (§18A). The original decision is preserved; the correction is a separate appended record. If the decision correctly follows from the rules, the dispute is closed with a written explanation.
+The MA reviews the process status, sealed finding snapshot, evidence-sufficiency record, and outcome and confirms whether §§10.1–10.3 were applied correctly. If a misapplication is confirmed, the Board Chair records a corrected decision per the Correction Mechanism (§18A). The original decision is preserved; the correction is a separate appended record. If the decision correctly follows from the rules, the dispute is closed with a written explanation.
 
 ### 12.4 Process Dispute Resolution
 
-Process disputes (independence violations, evidence fabrication, deliberate suppression) are elevated to Provena Foundry governance leadership immediately. The affected review is suspended pending investigation. All findings from the affected reviewer are placed under review.
+Process disputes (independence violations, evidence fabrication, deliberate suppression) are elevated to Provena Foundry governance leadership immediately. The affected review becomes `BLOCKED` pending investigation. If integrity can no longer be established, it becomes `VOID`. All findings from the affected reviewer are placed under review; no substantive outcome may be issued while the dispute is active.
 
 ---
 
 ## 13. Finding Lifecycle
 
 All findings follow this lifecycle. State transitions are permanent and append-only in the audit trail.
+
+For §10 calculations, `OPEN`, `CONTESTED`, and `UNDER_REVIEW` are unresolved. Moving a finding to `UNDER_REVIEW` does not reduce its decision impact.
 
 ```
 [OPEN]
@@ -618,7 +664,7 @@ Each finding must be recorded with:
 
 ### 14.1 Remediation Plan Requirements
 
-For SEV-1 and SEV-2 findings, the authoring team must submit a Remediation Plan within two business days of a FAIL or PASS WITH FINDINGS decision. The plan must include:
+For SEV-1 and SEV-2 findings, the authoring team must submit a Remediation Plan within two business days of a `FAIL` or `PASS_WITH_FINDINGS` outcome. The plan must include:
 
 - Root cause analysis for each finding.
 - Specific changes to be made.
@@ -640,9 +686,7 @@ A re-review is **not** a fresh full review unless the Board Chair determines tha
 
 ### 14.3 Re-Review Decision
 
-A re-review produces a decision using the same framework as the original review, applied to the post-remediation finding set. If all SEV-1 and SEV-2 findings have been closed and no new findings of the same severity have been introduced, the re-review will produce a PASS or PASS WITH FINDINGS.
-
-If the remediation introduced new SEV-1 or SEV-2 findings, the re-review produces a FAIL and the process repeats.
+A re-review is a linked successor session and uses the same process-status and outcome framework as the original review against a newly sealed artefact and finding snapshot. It may produce any permitted outcome in §10.3. Closed findings remain linked as historical records; unresolved or newly introduced findings retain their normal decision impact.
 
 ### 14.4 Remediation Timeout
 
@@ -669,6 +713,8 @@ The following records must be retained for every review:
 | Board Decision Record | Permanent |
 | Correction Records (if any) | Permanent |
 | Branch protection integration record | 7 years |
+| Methodology profile, checksum, manifest, and human approval record | Permanent |
+| Governance validation and publication records | Permanent |
 
 ### 15.2 Immutability
 
@@ -694,6 +740,7 @@ Each audit log entry must be structured with:
 - Event type (finding raised, finding updated, decision recorded, etc.).
 - Payload (the record content or a reference to the full record).
 - Previous record reference (for updates and supersessions; `null` for initial entries).
+- Methodology profile ID, version, status, and checksum for decision-affecting events.
 
 ---
 
@@ -704,12 +751,24 @@ Each audit log entry must be structured with:
 This methodology and all reviewer specifications are versioned using semantic versioning (MAJOR.MINOR.PATCH):
 
 - **MAJOR:** Changes that alter decision outcomes for the same finding set (e.g., changing severity rules, changing decision criteria, adding new hard-block conditions).
-- **MINOR:** Changes that add new sections, new guidance, new tiers, or new templates without altering how existing findings are evaluated. This version (1.1.0) is a MINOR increment.
+- **MINOR:** Changes that add new sections, new guidance, new tiers, or new templates without altering how existing findings are evaluated.
 - **PATCH:** Typographic corrections, cross-reference fixes, or formatting changes.
 
-Every published version is retained in version control with an immutable tag. The version used for a given review is recorded in the Review Initiation Record and determines which rules apply for that review.
+Every approved version is retained in version control with an immutable tag. The exact profile checksum, package manifest root hash, architecture authority, and human approval reference used for a review are recorded in the Review Initiation Record and determine which rules apply.
 
-### 16.2 Review Reproducibility
+### 16.2 Activation Gate
+
+A release candidate becomes ACTIVE only when all of the following are true:
+
+1. The referenced RBE architecture release has named human approval.
+2. The package validator passes against the exact commit.
+3. The Principal Architect and Methodology Owner approve the exact profile checksum in a recorded human approval artifact.
+4. `PROFILE.json` status is changed to `ACTIVE` and contains that approval reference.
+5. The package is rebuilt, revalidated, committed, and tagged immutably.
+
+Codex, another AI tool, a test result, a merged pull request, or a checksum cannot supply the human approval record. Activation is a separate governed change and must not be bundled silently into this release candidate.
+
+### 16.3 Review Reproducibility
 
 A review is reproducible if, given:
 
@@ -720,7 +779,7 @@ A review is reproducible if, given:
 
 A different reviewer following the same process would reach materially equivalent conclusions. Reviews must be conducted and documented to this standard.
 
-### 16.3 Artefact Versioning
+### 16.4 Artefact Versioning
 
 The artefact under review must be identified by an immutable version identifier before the review begins. Reviews conducted against a moving target are void unless the commit SHA is captured at the time of review initiation and does not change during the review.
 
@@ -734,16 +793,16 @@ If the artefact changes during a review, the review must be restarted against th
 
 | Template ID | Name | Owner | Used By | Schema |
 |-------------|------|-------|---------|--------|
-| TPL-RIR | Review Initiation Record | Board Chair | All reviews | §17.9.1 |
+| TPL-RIR | Review Initiation Record | Board Chair | All reviews | `schemas/tpl-rir.schema.json` |
 | TPL-IND | Independence Declaration | Each reviewer | All reviews | — |
 | TPL-IPV | Input Package Validation | Methodology Auditor | All reviews | — |
-| TPL-FND | Finding Record | Each reviewer | Per finding | §17.9.2 |
-| TPL-RRR | Reviewer Report | Each reviewer | All reviews | — |
-| TPL-BDR | Board Decision Record | Board Chair | All reviews | §17.9.3 |
-| TPL-RMP | Remediation Plan | Authoring team | FAIL/PASS WITH FINDINGS | — |
+| TPL-FND | Finding Record | Each reviewer | Per finding | `schemas/tpl-fnd.schema.json` |
+| TPL-RRR | Reviewer Report | Each reviewer | All reviews | `schemas/tpl-rrr.schema.json` |
+| TPL-BDR | Board Decision Record | Board Chair | All reviews | `schemas/tpl-bdr.schema.json` |
+| TPL-RMP | Remediation Plan | Authoring team | `FAIL` / `PASS_WITH_FINDINGS` | `schemas/tpl-rmp.schema.json` |
 | TPL-RVR | Re-Review Record | Board Chair | Re-reviews | — |
-| TPL-MRI | Machine-Readable Indicator | Board Chair | Branch protection | §17.9.4 |
-| TPL-COR | Correction Record | Panel Chair | Appeals/corrections | §17.9.5 |
+| TPL-MRI | Machine-Readable Indicator | Publication control | Branch protection | `schemas/tpl-mri.schema.json` |
+| TPL-COR | Correction Record | Panel Chair | Appeals/corrections | `schemas/tpl-cor.schema.json` |
 
 ### 17.2 Template: Review Initiation Record (TPL-RIR)
 
@@ -759,6 +818,12 @@ Artefact Identifier (commit SHA or equivalent):
 Repository:
 Branch / Target:
 Methodology Version:
+Methodology Profile ID:
+Methodology Profile Status:
+Methodology Profile Checksum:
+Package Manifest Root Hash:
+Architecture Authority:
+Human Approval Record:
 Reviewer Spec Versions (list each):
 
 Assigned Reviewers:
@@ -775,7 +840,7 @@ Assigned Reviewers:
 Omitted Specialist Roles (with justification; not permitted for Tier 3):
 
 Input Package Location:
-Input Package Validated (Y/N):
+Input Package Process Status: [READY / PROCEDURALLY_INCOMPLETE]
 Input Package Validator:
 Input Package Validation Date:
 ```
@@ -799,11 +864,11 @@ I confirm that:
 [ ] I understand that I am personally accountable for the content of any report
     I sign, regardless of whether AI tools assisted in its preparation.
 
-If any item above is unchecked, describe the conflict and state whether
-the Board Chair has approved participation despite the conflict:
+If any item above is unchecked, describe the conflict and state the
+Methodology Auditor disposition and any replacement assignment:
 
 [Conflict description if applicable]
-[Board Chair approval reference if applicable]
+[MA conflict disposition reference]
 
 Signature:
 ```
@@ -868,32 +933,42 @@ Decision Date:
 Board Chair:
 
 Summary of Finding Set:
-  SEV-1 Open:                            [count]
-  SEV-2 Open:                            [count]
+  SEV-1 Unresolved:                      [count]
+  SEV-2 Unresolved:                      [count]
   SEV-2 Remediation Plans Accepted:      [count]
   SEV-3 Open:                            [count]
   SEV-4 Open:                            [count]
   Contested Findings:                    [count]
 
-Decision (§10.1 applied in order — FAIL checked first):
-  [ ] FAIL       — Basis: [state which FAIL condition applies]
-  [ ] PASS WITH FINDINGS — Basis: exactly one SEV-2 Open with accepted remediation plan
-  [ ] PASS       — Basis: zero SEV-1 Open, zero SEV-2 Open, quorum met, inputs complete
+Process Status (§10.1):
+  [ ] READY  [ ] PROCEDURALLY INCOMPLETE  [ ] BLOCKED  [ ] VOID
+
+Substantive Evidence Sufficient for a PASS-class conclusion: [ ] YES  [ ] NO
+
+Outcome (§10.3; exactly one only when Process Status is READY):
+  [ ] FAIL
+  [ ] INSUFFICIENT EVIDENCE
+  [ ] PASS WITH FINDINGS
+  [ ] PASS
+  [ ] NONE — Process Status is not READY
 
 Decision rules applied deterministically; this is not a vote.
 
-Open Findings at Time of Decision (list Finding IDs):
+Unresolved Findings at Time of Decision (list Finding IDs):
 
 Conditions on PASS WITH FINDINGS (if applicable):
-  Open Finding ID:
+  Unresolved Finding ID:
   Remediation Plan accepted: [ ] YES
   Remediation deadline:
+
+Binding Decision: [ ] YES  [ ] NO — advisory release-candidate review
 
 Merge Authorisation:
   [ ] Merge permitted
   [ ] Merge blocked — hard block condition:
-  [ ] Merge blocked pending soft block waiver
 
+MA Governance Validator:
+MA Governance Validation Reference:
 Board Chair Signature:
 Date:
 ```
@@ -904,18 +979,25 @@ The TPL-MRI is governed by the versioned JSON schema at §17.9.4. Human-readable
 
 ```json
 {
-  "schema_version": "1.1.0",
+  "schema_version": "2.0.0",
   "review_id": "",
   "artefact_sha": "",
   "review_risk_tier": 2,
-  "methodology_version": "",
-  "decision": "PASS | PASS_WITH_FINDINGS | FAIL",
-  "merge_permitted": true,
+  "methodology_profile_id": "RBM-001",
+  "methodology_version": "2.0.0",
+  "methodology_status": "RELEASE_CANDIDATE",
+  "methodology_checksum": "sha256:...",
+  "binding": false,
+  "process_status": "READY",
+  "outcome": "PASS",
+  "merge_permitted": false,
   "decision_date": "",
   "board_chair": "",
-  "open_sev1_count": 0,
-  "open_sev2_count": 0,
-  "open_sev2_remediation_plan_accepted": 0,
+  "governance_validator": "",
+  "publication_authority": "",
+  "unresolved_sev1_count": 0,
+  "unresolved_sev2_count": 0,
+  "unresolved_sev2_remediation_plan_accepted": 0,
   "contested_findings": 0,
   "expires_at": "",
   "correction_ref": null
@@ -934,7 +1016,7 @@ Review ID:
 Authoring Team Contact:
 Date Submitted:
 
-For each Open SEV-1 or SEV-2 Finding:
+For each unresolved SEV-1 or SEV-2 Finding:
 
 Finding ID:
   Root Cause Analysis:
@@ -976,8 +1058,10 @@ Original Record Status: PRESERVED — this correction does not delete or modify 
 Lineage Reference: [Original Record ID] → [This Correction ID]
 
 Effect on Board Decision (if correction is to TPL-BDR):
-  Original decision: [PASS / PASS WITH FINDINGS / FAIL]
-  Corrected decision: [PASS / PASS WITH FINDINGS / FAIL]
+  Original process status: [READY / PROCEDURALLY INCOMPLETE / BLOCKED / VOID]
+  Corrected process status: [READY / PROCEDURALLY INCOMPLETE / BLOCKED / VOID]
+  Original outcome: [PASS / PASS WITH FINDINGS / FAIL / INSUFFICIENT EVIDENCE / NONE]
+  Corrected outcome: [PASS / PASS WITH FINDINGS / FAIL / INSUFFICIENT EVIDENCE / NONE]
   Revised TPL-MRI issued: [ ] YES — ID:  [ ] NO
 
 Panel Chair Signature:
@@ -986,199 +1070,17 @@ Date:
 
 ### 17.9 Versioned Machine-Readable Schemas
 
-The following JSON schemas define the machine-readable format for key record types. Schema version tracks the methodology version. Tools consuming these records must validate against the schema version declared in each record.
+The normative Draft 2020-12 schemas are version-controlled files under `schemas/`:
 
-#### 17.9.1 Review Initiation Schema (v1.1.0)
+- `tpl-rir.schema.json` — Review Initiation Record.
+- `tpl-fnd.schema.json` — Finding Record.
+- `tpl-rrr.schema.json` — Reviewer Report.
+- `tpl-bdr.schema.json` — Board Decision Record.
+- `tpl-rmp.schema.json` — Remediation Plan.
+- `tpl-mri.schema.json` — Machine-Readable Indicator.
+- `tpl-cor.schema.json` — Correction Record.
 
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "provena-foundry/review-board/tpl-rir/1.1.0",
-  "type": "object",
-  "required": ["schema_version","review_id","review_date","trigger","tier","tier_rationale","artefact_sha","repository","methodology_version","board_chair","ma","sceptical_reviewer"],
-  "properties": {
-    "schema_version": { "type": "string", "const": "1.1.0" },
-    "review_id":       { "type": "string" },
-    "review_date":     { "type": "string", "format": "date" },
-    "trigger":         { "type": "string" },
-    "tier":            { "type": "integer", "enum": [1, 2, 3] },
-    "tier_rationale":  { "type": "string" },
-    "artefact_sha":    { "type": "string", "minLength": 7 },
-    "repository":      { "type": "string" },
-    "methodology_version": { "type": "string" },
-    "board_chair":     { "type": "string" },
-    "ma":              { "type": "string" },
-    "sceptical_reviewer": { "type": "string" },
-    "specialists":     {
-      "type": "object",
-      "properties": {
-        "saa": { "type": ["string", "null"] },
-        "bca": { "type": ["string", "null"] },
-        "dea": { "type": ["string", "null"] },
-        "qra": { "type": ["string", "null"] },
-        "spa": { "type": ["string", "null"] },
-        "poa": { "type": ["string", "null"] }
-      }
-    },
-    "omitted_roles": {
-      "type": "array",
-      "items": { "type": "object",
-        "required": ["role","justification"],
-        "properties": {
-          "role":          { "type": "string" },
-          "justification": { "type": "string" }
-        }
-      }
-    }
-  }
-}
-```
-
-#### 17.9.2 Finding Record Schema (v1.1.0)
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "provena-foundry/review-board/tpl-fnd/1.1.0",
-  "type": "object",
-  "required": ["schema_version","finding_id","review_id","reviewer","reviewer_role","artefact_version","date_raised","severity","spec_reference","title","detail","evidence_tier","evidence_reference","status"],
-  "properties": {
-    "schema_version":     { "type": "string", "const": "1.1.0" },
-    "finding_id":         { "type": "string" },
-    "review_id":          { "type": "string" },
-    "reviewer":           { "type": "string" },
-    "reviewer_role":      { "type": "string" },
-    "artefact_version":   { "type": "string" },
-    "date_raised":        { "type": "string", "format": "date-time" },
-    "severity":           { "type": "string", "enum": ["SEV-1","SEV-2","SEV-3","SEV-4"] },
-    "spec_reference":     { "type": "string" },
-    "title":              { "type": "string", "maxLength": 80 },
-    "detail":             { "type": "string" },
-    "evidence_tier":      { "type": "string", "enum": ["T1","T2","T3","T3-AUTHORITATIVE-EXTERNAL","T4","T5"] },
-    "t3_authoritative":   {
-      "type": ["object","null"],
-      "properties": {
-        "document_name":    { "type": "string" },
-        "clause":           { "type": "string" },
-        "applicability_chain": { "type": "string" },
-        "in_force_confirmed": { "type": "boolean" }
-      }
-    },
-    "evidence_reference": { "type": "string" },
-    "ai_assistance":      { "type": "boolean" },
-    "ai_disclosure":      { "type": ["string","null"] },
-    "status":             { "type": "string", "enum": ["OPEN","CONTESTED","UNDER_REVIEW","CLOSED","WITHDRAWN","WAIVED"] },
-    "remediation_requirement": { "type": "string" },
-    "target_resolution_date": { "type": ["string","null"], "format": "date" },
-    "closure": {
-      "type": ["object","null"],
-      "properties": {
-        "closure_evidence": { "type": "string" },
-        "closure_reviewer": { "type": "string" },
-        "closure_date":     { "type": "string", "format": "date" },
-        "decision":         { "type": "string", "enum": ["ACCEPTED","REJECTED"] },
-        "rejection_reason": { "type": ["string","null"] }
-      }
-    }
-  }
-}
-```
-
-#### 17.9.3 Board Decision Record Schema (v1.1.0)
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "provena-foundry/review-board/tpl-bdr/1.1.0",
-  "type": "object",
-  "required": ["schema_version","review_id","artefact_sha","tier","decision_date","board_chair","finding_set","decision","merge_permitted"],
-  "properties": {
-    "schema_version":  { "type": "string", "const": "1.1.0" },
-    "review_id":       { "type": "string" },
-    "artefact_sha":    { "type": "string" },
-    "tier":            { "type": "integer", "enum": [1,2,3] },
-    "decision_date":   { "type": "string", "format": "date-time" },
-    "board_chair":     { "type": "string" },
-    "finding_set": {
-      "type": "object",
-      "required": ["sev1_open","sev2_open","sev2_remediation_accepted","sev3_open","sev4_open","contested"],
-      "properties": {
-        "sev1_open":                  { "type": "integer", "minimum": 0 },
-        "sev2_open":                  { "type": "integer", "minimum": 0 },
-        "sev2_remediation_accepted":  { "type": "integer", "minimum": 0 },
-        "sev3_open":                  { "type": "integer", "minimum": 0 },
-        "sev4_open":                  { "type": "integer", "minimum": 0 },
-        "contested":                  { "type": "integer", "minimum": 0 }
-      }
-    },
-    "decision":         { "type": "string", "enum": ["PASS","PASS_WITH_FINDINGS","FAIL"] },
-    "decision_basis":   { "type": "string" },
-    "merge_permitted":  { "type": "boolean" },
-    "open_finding_ids": { "type": "array", "items": { "type": "string" } },
-    "correction_refs":  { "type": "array", "items": { "type": "string" } }
-  }
-}
-```
-
-#### 17.9.4 Machine-Readable Indicator Schema (v1.1.0)
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "provena-foundry/review-board/tpl-mri/1.1.0",
-  "type": "object",
-  "required": ["schema_version","review_id","artefact_sha","review_risk_tier","methodology_version","decision","merge_permitted","decision_date","board_chair","expires_at"],
-  "properties": {
-    "schema_version":    { "type": "string", "const": "1.1.0" },
-    "review_id":         { "type": "string" },
-    "artefact_sha":      { "type": "string" },
-    "review_risk_tier":  { "type": "integer", "enum": [1,2,3] },
-    "methodology_version": { "type": "string" },
-    "decision":          { "type": "string", "enum": ["PASS","PASS_WITH_FINDINGS","FAIL"] },
-    "merge_permitted":   { "type": "boolean" },
-    "decision_date":     { "type": "string", "format": "date-time" },
-    "board_chair":       { "type": "string" },
-    "open_sev1_count":   { "type": "integer", "minimum": 0 },
-    "open_sev2_count":   { "type": "integer", "minimum": 0 },
-    "open_sev2_remediation_plan_accepted": { "type": "integer", "minimum": 0 },
-    "contested_findings":{ "type": "integer", "minimum": 0 },
-    "expires_at":        { "type": "string", "format": "date-time" },
-    "correction_ref":    { "type": ["string","null"] }
-  }
-}
-```
-
-#### 17.9.5 Correction Record Schema (v1.1.0)
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "provena-foundry/review-board/tpl-cor/1.1.0",
-  "type": "object",
-  "required": ["schema_version","correction_id","original_record_id","original_record_type","correction_date","panel_chair","reason","error_description","corrected_content","original_preserved"],
-  "properties": {
-    "schema_version":       { "type": "string", "const": "1.1.0" },
-    "correction_id":        { "type": "string" },
-    "original_record_id":   { "type": "string" },
-    "original_record_type": { "type": "string", "enum": ["TPL-RIR","TPL-FND","TPL-BDR","TPL-MRI","TPL-RMP","TPL-RVR","OTHER"] },
-    "correction_date":      { "type": "string", "format": "date-time" },
-    "panel_chair":          { "type": "string" },
-    "reason":               { "type": "string", "enum": ["PROCEDURAL_ERROR","NEW_MATERIAL_EVIDENCE","DECISION_RULE_MISAPPLICATION"] },
-    "error_description":    { "type": "string" },
-    "corrected_content":    { "type": "object" },
-    "original_preserved":   { "type": "boolean", "const": true },
-    "lineage":              { "type": "string" },
-    "decision_effect": {
-      "type": ["object","null"],
-      "properties": {
-        "original_decision": { "type": "string" },
-        "corrected_decision":{ "type": "string" },
-        "revised_mri_id":    { "type": ["string","null"] }
-      }
-    }
-  }
-}
-```
+Schema version `2.0.0` matches this profile. The package validator parses every schema, validates profile and manifest identity, and enforces cross-record invariants that JSON Schema alone cannot safely express. In particular: non-`READY` process status requires a null outcome; `FAIL` and `INSUFFICIENT_EVIDENCE` cannot permit merge; RELEASE-CANDIDATE records are non-binding; reviewer identities must satisfy distinct-role quorum; and a decision requires separate Board Chair, governance validator, and publication-control identities where applicable.
 
 ---
 
@@ -1190,20 +1092,21 @@ A milestone is complete when and only when:
 
 1. All deliverables defined in the milestone specification have been produced.
 2. A Board review has been completed for the artefact representing the milestone output.
-3. The Board decision is PASS or PASS WITH FINDINGS.
-4. The Business and Commercial Auditor has issued a Milestone-Completion Confirmation.
-5. All Open SEV-1 findings are Closed.
-6. A Remediation Plan with accepted timeline is in place for any Open SEV-2 findings.
-7. The Board Decision Record has been signed by the Board Chair.
+3. Process status is `READY` under an ACTIVE, checksum-valid, human-approved profile.
+4. The Board outcome is `PASS` or `PASS_WITH_FINDINGS`.
+5. The Business and Commercial Auditor has issued a Milestone-Completion Confirmation.
+6. All SEV-1 findings are resolved.
+7. A Remediation Plan with accepted timeline is in place for the single unresolved SEV-2 permitted by `PASS_WITH_FINDINGS`, if present.
+8. The Board Decision Record has been validated by the MA, signed by the Board Chair, and released by independent publication control.
 
 ### 18.2 Commercial Invoicing Gate
 
-Where milestone completion is linked to a commercial invoice, the invoice must not be raised until conditions 1–7 above are satisfied.
+Where milestone completion is linked to a commercial invoice, the invoice must not be raised until conditions 1–8 above are satisfied.
 
 **Important scope limitation:** The Board Decision Record and the Milestone-Completion Confirmation are governance records. They confirm that:
 
 - The review process was completed per this methodology.
-- The finding set met the threshold criteria defined in §10.1.
+- The process status and outcome met the threshold criteria defined in §§10.1–10.3.
 - The BCA assessed that the declared acceptance criteria were addressed.
 
 They are **not** representations of present commercial readiness, fitness for purpose, warranty of quality, or evidence of client acceptance. They do **not** supersede or substitute for:
@@ -1234,7 +1137,7 @@ An appeal may be raised only on one of the following grounds:
 |--------|-------------|
 | Procedural Error | A material breach of this methodology occurred during the review that affected the finding set or decision (e.g., independence violation not caught by MA, quorum not met without authorisation) |
 | New Material Evidence | Evidence that was not available at the time of the review and would materially affect a finding's admissibility or severity |
-| Decision Rule Misapplication | The Board Decision Record does not follow from the finding set per §10.1 as applied to the evidence on record |
+| Decision Rule Misapplication | The Board Decision Record does not follow from the process status, sealed finding set, evidence-sufficiency record, and rules in §§10.1–10.3 |
 
 The following are **not** valid grounds for appeal:
 
@@ -1244,21 +1147,21 @@ The following are **not** valid grounds for appeal:
 
 ### 18A.3 Appeal Process
 
-**Step 1 — Submission (within 5 business days of Board Decision)**  
+**Step 1 — Submission (within 5 business days of Board Decision)**
 Any named reviewer, the Board Chair, or the authoring team may submit an appeal. The submission must:
 - State the ground (Procedural Error / New Material Evidence / Decision Rule Misapplication).
 - Reference the specific record or finding being challenged.
 - Provide the evidence supporting the appeal ground (T1–T3; T5 assertions are not admissible in an appeal).
 
-**Step 2 — Admissibility Review (within 2 business days of submission)**  
+**Step 2 — Admissibility Review (within 2 business days of submission)**
 The Methodology Auditor assesses whether the appeal meets the grounds criteria. If the appeal does not meet the criteria, it is rejected with a written explanation. The original decision stands.
 
-**Step 3 — Appeal Panel (within 5 business days of admissibility confirmation)**  
-If admissible, the Board Chair convenes a panel of three reviewers, none of whom participated in the original review. The panel:
+**Step 3 — Appeal Panel (within 5 business days of admissibility confirmation)**
+If admissible, the Board Chair convenes a panel of three reviewers, none of whom participated in the original review and none of whom holds a conflicting role or commercial interest. The Board Chair does not sit on the panel. The panel:
 - Reviews the original records and the appeal evidence.
 - Makes a binding determination: Upheld (error confirmed) or Dismissed (original record correct).
 
-**Step 4 — Correction Record (if Upheld)**  
+**Step 4 — Correction Record (if Upheld)**
 If the appeal is upheld, the Panel Chair issues a Correction Record (TPL-COR, §17.8) appended to the audit trail. The original record is preserved unchanged. If the original Board Decision is corrected, a revised TPL-MRI is issued, referencing the correction.
 
 ### 18A.4 Lineage Preservation
@@ -1273,14 +1176,14 @@ The following specifications define the scope, inputs, evidence requirements, ch
 
 | Spec ID | Title | File | Version |
 |---------|-------|------|---------|
-| RBS-001 | Methodology Audit | `specs/RBS-001-METHODOLOGY-AUDIT.md` | 1.1.0 |
-| RBS-002 | Software Architecture Audit | `specs/RBS-002-SOFTWARE-ARCHITECTURE-AUDIT.md` | 1.1.0 |
-| RBS-003 | Business and Commercial Audit | `specs/RBS-003-BUSINESS-COMMERCIAL-AUDIT.md` | 1.1.0 |
-| RBS-004 | Data and Evidence Audit | `specs/RBS-004-DATA-EVIDENCE-AUDIT.md` | 1.1.0 |
-| RBS-005 | QA and Reliability Audit | `specs/RBS-005-QA-RELIABILITY-AUDIT.md` | 1.1.0 |
-| RBS-006 | Security and Privacy Audit | `specs/RBS-006-SECURITY-PRIVACY-AUDIT.md` | 1.1.0 |
-| RBS-007 | Performance and Operations Audit | `specs/RBS-007-PERFORMANCE-OPERATIONS-AUDIT.md` | 1.1.0 |
-| RBS-008 | Sceptical Review | `specs/RBS-008-SCEPTICAL-REVIEW.md` | 1.1.0 |
+| RBS-001 | Methodology Audit | `specs/RBS-001-METHODOLOGY-AUDIT.md` | 2.0.0 |
+| RBS-002 | Software Architecture Audit | `specs/RBS-002-SOFTWARE-ARCHITECTURE-AUDIT.md` | 2.0.0 |
+| RBS-003 | Business and Commercial Audit | `specs/RBS-003-BUSINESS-COMMERCIAL-AUDIT.md` | 2.0.0 |
+| RBS-004 | Data and Evidence Audit | `specs/RBS-004-DATA-EVIDENCE-AUDIT.md` | 2.0.0 |
+| RBS-005 | QA and Reliability Audit | `specs/RBS-005-QA-RELIABILITY-AUDIT.md` | 2.0.0 |
+| RBS-006 | Security and Privacy Audit | `specs/RBS-006-SECURITY-PRIVACY-AUDIT.md` | 2.0.0 |
+| RBS-007 | Performance and Operations Audit | `specs/RBS-007-PERFORMANCE-OPERATIONS-AUDIT.md` | 2.0.0 |
+| RBS-008 | Sceptical Review | `specs/RBS-008-SCEPTICAL-REVIEW.md` | 2.0.0 |
 
 ---
 
@@ -1290,7 +1193,8 @@ The following specifications define the scope, inputs, evidence requirements, ch
 |---------|------|--------|---------|
 | 1.0.0 | 2026-07-18 | Provena Foundry Governance | Initial release |
 | 1.1.0 | 2026-07-18 | Provena Foundry Governance | Principal Architect review: (1) Status set to RELEASE-CANDIDATE; (2) Decision outcomes made mutually exclusive with explicit evaluation order; (3) Quorum role count corrected to six specialist auditors; (4) Board Chair role description corrected — decisions are deterministic, not voted; (5) AI execution boundaries and mandatory human sign-off table added (§4.4); (6) Review Risk Tiers introduced (§6A) with Tier 1 lightweight, Tier 2 standard, Tier 3 full-board paths; (7) T3-AUTHORITATIVE-EXTERNAL evidence exception for SEV-1 findings added (§8.2); (8) Milestone-completion gate scope limitation added — Board decision is not warranty of commercial readiness (§18.2); (9) Versioned machine-readable JSON schemas added for TPL-RIR, TPL-FND, TPL-BDR, TPL-MRI, TPL-COR (§17.9); (10) Appeal and Correction Mechanism added (§18A) with append-only lineage and TPL-COR template |
+| 2.0.0 | 2026-07-19 | Provena Foundry Governance | RBE-001 conformance correction: separated process status from substantive outcome; added mandatory `INSUFFICIENT_EVIDENCE`; closed unresolved-finding decision gaps; added architecture authority, canonical lifecycle mapping, activation gate, profile checksum/manifest, distinct-role and four-eyes controls, independent publication, corrected tier precedence and evidence rules, external schemas, validation tests, and principal review record. Status remains RELEASE-CANDIDATE pending named human approval. |
 
 ---
 
-*End of Governing Methodology — RBM-001 v1.1.0*
+*End of Governing Methodology — RBM-001 v2.0.0*

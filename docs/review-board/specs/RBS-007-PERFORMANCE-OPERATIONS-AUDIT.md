@@ -1,12 +1,12 @@
 # Reviewer Specification: Performance and Operations Audit
 
-**Document ID:** RBS-007  
-**Version:** 1.1.0  
-**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
-**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.1.0  
-**Reviewer Role:** Performance and Operations Auditor (POA)  
-**Last Updated:** 2026-07-18  
+**Document ID:** RBS-007
+**Version:** 2.0.0
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
+**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
+**Governing Methodology:** RBM-001 v2.0.0
+**Reviewer Role:** Performance and Operations Auditor (POA)
+**Last Updated:** 2026-07-19
 
 ---
 
@@ -21,7 +21,7 @@
 7. [Checklist](#7-checklist)
 8. [Evidence Standards](#8-evidence-standards)
 9. [Finding Classification Guidance](#9-finding-classification-guidance)
-10. [PASS / PASS WITH FINDINGS / FAIL Criteria](#10-pass--pass-with-findings--fail-criteria)
+10. [Board Decision Contribution](#10-board-decision-contribution)
 11. [Required Output](#11-required-output)
 12. [Reviewer Prompt Conversion Notes](#12-reviewer-prompt-conversion-notes)
 
@@ -324,11 +324,11 @@ A claim that performance is acceptable without benchmark evidence is not admissi
 
 ---
 
-## 10. PASS / PASS WITH FINDINGS / FAIL Criteria
+## 10. Board Decision Contribution
 
-The POA raises findings that feed into the Board Decision per RBM-001 §10. The POA does not issue a separate decision.
+The POA does not issue a Board outcome or process status. The POA raises findings and records whether in-scope performance and operations evidence is `SUFFICIENT`, `INSUFFICIENT`, or `NOT_APPLICABLE` for a PASS-class conclusion, with missing evidence listed.
 
-The POA must state, in the report, whether the artefact is operationally ready for deployment. This is an advisory assessment, not a Board vote.
+The POA must state whether the evidence supports operational readiness for deployment. This evidence-sufficiency contribution is traceable, not a Board vote or outcome.
 
 ---
 
@@ -404,6 +404,10 @@ OPERATIONAL READINESS ASSESSMENT:
 
 Basis for assessment:
 
+PASS-CLASS EVIDENCE SUFFICIENCY:
+[ ] SUFFICIENT  [ ] INSUFFICIENT  [ ] NOT APPLICABLE
+Missing evidence / limitations:
+
 AI ASSISTANCE:
 [ ] AI tools were used — describe what for and confirm independent verification of all findings
 [ ] AI tools were not used
@@ -416,7 +420,7 @@ Date:
 
 ## 12. Reviewer Prompt Conversion Notes
 
-**Role Prompt Identity:** "You are the Performance and Operations Auditor for the Provena Foundry Review Board. You assess performance evidence, SLA compliance, database query efficiency, and operational readiness. You work from measurements, not estimates. The absence of benchmarks where they are required is itself a finding."
+**Role Prompt Identity:** "You are a non-authoritative AI assistant supporting the named human Performance and Operations Auditor. You do not hold the POA role, count toward quorum, assign severity, sign findings, or issue an outcome. Help locate measured performance and operations evidence."
 
 **Key Prompt Constraints:**
 - Must not accept performance claims without benchmark evidence.
@@ -425,10 +429,11 @@ Date:
 - Must assess SLA compliance against the actual SLA targets, not implied or assumed targets.
 - Must not assess GS-P001 performance or operational configuration.
 - Operational readiness finding must be an explicit assessment, not implied.
+- Must label every output as an unsigned draft; operational readiness and evidence sufficiency remain human reviewer acts.
 
 **Inputs to Prompt:** Performance benchmark results (current and baseline), SLA document, database execution plans, load test results, monitoring/alerting configuration, deployment runbook, health check implementation, changed source files.
 
-**Output Format:** Report matching §11 template, with TPL-FND records for each finding.
+**Output Format:** Unsigned draft report matching §11, with evidence candidates for human verification. TPL-FND records become valid only after the named human POA verifies evidence, supplies severity, and signs.
 
 ---
 
@@ -440,5 +445,6 @@ Date:
 |---------|------|--------------------|
 | 1.0.0 | 2026-07-18 | Initial release |
 | 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception note to §8 with SLA-obligation relevance; status set to RELEASE-CANDIDATE |
+| 2.0.0 | 2026-07-19 | Aligned terminology and evidence-sufficiency contribution with RBM-001 v2.0.0. |
 
-*End of RBS-007 v1.1.0*
+*End of RBS-007 v2.0.0*

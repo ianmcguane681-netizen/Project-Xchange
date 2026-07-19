@@ -1,12 +1,12 @@
 # Reviewer Specification: QA and Reliability Audit
 
-**Document ID:** RBS-005  
-**Version:** 1.1.0  
-**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
-**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.1.0  
-**Reviewer Role:** QA and Reliability Auditor (QRA)  
-**Last Updated:** 2026-07-18  
+**Document ID:** RBS-005
+**Version:** 2.0.0
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
+**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
+**Governing Methodology:** RBM-001 v2.0.0
+**Reviewer Role:** QA and Reliability Auditor (QRA)
+**Last Updated:** 2026-07-19
 
 ---
 
@@ -21,7 +21,7 @@
 7. [Checklist](#7-checklist)
 8. [Evidence Standards](#8-evidence-standards)
 9. [Finding Classification Guidance](#9-finding-classification-guidance)
-10. [PASS / PASS WITH FINDINGS / FAIL Criteria](#10-pass--pass-with-findings--fail-criteria)
+10. [Board Decision Contribution](#10-board-decision-contribution)
 11. [Required Output](#11-required-output)
 12. [Reviewer Prompt Conversion Notes](#12-reviewer-prompt-conversion-notes)
 
@@ -281,11 +281,11 @@ Review the Known Issues Register:
 
 ---
 
-## 10. PASS / PASS WITH FINDINGS / FAIL Criteria
+## 10. Board Decision Contribution
 
-The QRA raises findings that feed into the Board Decision per RBM-001 §10. The QRA does not issue a separate decision.
+The QRA does not issue a Board outcome or process status. The QRA raises findings and records whether in-scope test and reliability evidence is `SUFFICIENT`, `INSUFFICIENT`, or `NOT_APPLICABLE` for a PASS-class conclusion, with missing evidence listed.
 
-The QRA must state, in the report, whether the test suite provides trustworthy quality assurance for the artefact under review. This is a professional assessment, not a Board vote, and is advisory to the Board.
+The QRA must state whether the test suite provides trustworthy quality assurance for the artefact under review. This evidence-sufficiency contribution is traceable, not a Board vote or outcome.
 
 ---
 
@@ -357,6 +357,10 @@ TEST SUITE TRUSTWORTHINESS ASSESSMENT:
 
 Basis for assessment:
 
+PASS-CLASS EVIDENCE SUFFICIENCY:
+[ ] SUFFICIENT  [ ] INSUFFICIENT  [ ] NOT APPLICABLE
+Missing evidence / limitations:
+
 AI ASSISTANCE:
 [ ] AI tools were used — describe what for and confirm independent verification of all findings
 [ ] AI tools were not used
@@ -369,7 +373,7 @@ Date:
 
 ## 12. Reviewer Prompt Conversion Notes
 
-**Role Prompt Identity:** "You are the QA and Reliability Auditor for the Provena Foundry Review Board. You assess the adequacy, quality, and trustworthiness of the test suite and reliability mechanisms. You do not re-run tests or confirm their authenticity — that is the Data and Evidence Auditor's role. You assess whether the right things are being tested in the right way."
+**Role Prompt Identity:** "You are a non-authoritative AI assistant supporting the named human QA and Reliability Auditor. You do not hold the QRA role, count toward quorum, assign severity, sign findings, or issue an outcome. Help inspect whether the right things are tested in the right way."
 
 **Key Prompt Constraints:**
 - Must assess test quality from the test implementation, not just from coverage numbers.
@@ -377,10 +381,11 @@ Date:
 - Must assess reliability mechanisms independently of performance (defer performance questions to POA).
 - Must not accept test coverage claims without examining actual test code.
 - Must not raise findings about GS-P001 test suites.
+- Must label every output as an unsigned draft; trustworthiness and evidence sufficiency remain human reviewer acts.
 
 **Inputs to Prompt:** Test Evidence Package, test source files, coverage report (if available), Known Issues Register, Change Summary with risk characterisation, CI pipeline definition.
 
-**Output Format:** Report matching §11 template, with TPL-FND records for each finding.
+**Output Format:** Unsigned draft report matching §11, with evidence candidates for human verification. TPL-FND records become valid only after the named human QRA verifies evidence, supplies severity, and signs.
 
 ---
 
@@ -392,5 +397,6 @@ Date:
 |---------|------|--------------------|
 | 1.0.0 | 2026-07-18 | Initial release |
 | 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception note to §8; status set to RELEASE-CANDIDATE |
+| 2.0.0 | 2026-07-19 | Aligned terminology and evidence-sufficiency contribution with RBM-001 v2.0.0. |
 
-*End of RBS-005 v1.1.0*
+*End of RBS-005 v2.0.0*

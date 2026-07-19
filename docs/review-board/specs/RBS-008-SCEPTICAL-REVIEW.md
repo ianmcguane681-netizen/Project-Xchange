@@ -1,12 +1,12 @@
 # Reviewer Specification: Sceptical Review
 
-**Document ID:** RBS-008  
-**Version:** 1.1.0  
-**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
-**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.1.0  
-**Reviewer Role:** Sceptical Reviewer (SR)  
-**Last Updated:** 2026-07-18  
+**Document ID:** RBS-008
+**Version:** 2.0.0
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
+**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
+**Governing Methodology:** RBM-001 v2.0.0
+**Reviewer Role:** Sceptical Reviewer (SR)
+**Last Updated:** 2026-07-19
 
 ---
 
@@ -21,7 +21,7 @@
 7. [Checklist](#7-checklist)
 8. [Evidence Standards](#8-evidence-standards)
 9. [Finding Classification Guidance](#9-finding-classification-guidance)
-10. [PASS / PASS WITH FINDINGS / FAIL Criteria](#10-pass--pass-with-findings--fail-criteria)
+10. [Board Decision Contribution](#10-board-decision-contribution)
 11. [Required Output](#11-required-output)
 12. [Reviewer Prompt Conversion Notes](#12-reviewer-prompt-conversion-notes)
 
@@ -310,11 +310,11 @@ The SR has one additional evidence tool: the compilation of specialist reports i
 
 ---
 
-## 10. PASS / PASS WITH FINDINGS / FAIL Criteria
+## 10. Board Decision Contribution
 
-The SR raises findings that feed into the Board Decision per RBM-001 §10. The SR does not issue a separate decision.
+The SR does not issue a Board outcome or process status. The SR raises findings and records whether challenge coverage is `SUFFICIENT` or `INSUFFICIENT` for a PASS-class conclusion, with unanswered challenges and missing evidence listed.
 
-The SR has one additional function: the SR may recommend to the Board Chair that the specialist review cycle be re-opened if the SR's assessment is that the overall review is so compromised by optimism bias, coverage gaps, or systemic risks that the finding set cannot be trusted as the basis for a Board decision. This recommendation is advisory — it must be accepted or rejected by the Board Chair with written justification.
+If the SR identifies an unanswered material challenge, optimism bias, coverage gap, or systemic risk that makes the finding snapshot untrustworthy, process status is `BLOCKED` until the challenge receives a traceable disposition and the MA validates that disposition. The Board Chair may not dismiss a material challenge by assertion or schedule preference.
 
 ---
 
@@ -411,8 +411,12 @@ If YES — all four admissibility conditions verified from record: [ ] YES  [ ] 
 
 RECOMMENDATION TO RE-OPEN SPECIALIST REVIEW:
 [ ] Not recommended — the specialist finding set is a sufficient basis for Board decision.
-[ ] Recommended — [state the specific basis: optimism bias, coverage gap, systemic risk]
-This recommendation is advisory. Board Chair response required:
+[ ] BLOCKED pending disposition — [state the material optimism bias, coverage gap, systemic risk, or unanswered challenge]
+Traceable challenge disposition and MA validation reference:
+
+PASS-CLASS CHALLENGE SUFFICIENCY:
+[ ] SUFFICIENT  [ ] INSUFFICIENT
+Missing evidence / unanswered challenges:
 
 AI ASSISTANCE:
 [ ] AI tools were used — describe what for and confirm independent verification of all findings
@@ -426,7 +430,7 @@ Date:
 
 ## 12. Reviewer Prompt Conversion Notes
 
-**Role Prompt Identity:** "You are the Sceptical Reviewer for the Provena Foundry Review Board. You read the specialist reviews and challenge what they missed, assumed, or accepted too readily. You find cross-domain risks, probe assumptions, and represent the adversarial perspective. You are not a specialist auditor — you are the reviewer who asks whether the specialist reviews are trustworthy."
+**Role Prompt Identity:** "You are a non-authoritative AI assistant supporting the named human Sceptical Reviewer. You do not hold the SR role, count toward quorum, assign severity, sign findings, block a review, or issue an outcome. Help locate candidate contradictions, omissions, and assumptions for human review."
 
 **Key Prompt Constraints:**
 - Must wait until all specialist reports are available before beginning the SR review.
@@ -436,10 +440,11 @@ Date:
 - Must not raise findings about GS-P001 assets.
 - If optimism bias is identified, must cite specific patterns in specific specialist reports.
 - A Sceptical Review with zero findings on a non-trivial change requires written justification in the report.
+- Must label every output as an unsigned draft; challenge materiality and evidence sufficiency remain human reviewer acts.
 
 **Inputs to Prompt:** All specialist reviewer reports, all Finding Records, Change Summary, Input Package, Scope Statement.
 
-**Output Format:** SR Challenge Questions (TPL-SRCQ) issued before Board decision; SR Report (TPL-SRR) matching §11.2 after challenge questions are resolved; TPL-FND records for each finding.
+**Output Format:** Unsigned draft SR Challenge Questions and report matching §11.2, with evidence candidates for human verification. TPL-SRCQ, TPL-SRR, and TPL-FND become valid only after the named human SR verifies and signs them.
 
 **Sequencing for Orchestration:** This prompt must be invoked after all specialist reviewer prompts have completed and their outputs are available. The SR Challenge Question issuance must trigger a pause before the Board Decision prompt is invoked.
 
@@ -453,5 +458,6 @@ Date:
 |---------|------|--------------------|
 | 1.0.0 | 2026-07-18 | Initial release |
 | 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception note to §8; added Tier 3 Risk Characterisation requirement to §7 and §11.2 report template; status set to RELEASE-CANDIDATE |
+| 2.0.0 | 2026-07-19 | Aligned terminology, challenge blocking, and decision contribution with RBM-001 v2.0.0. |
 
-*End of RBS-008 v1.1.0*
+*End of RBS-008 v2.0.0*

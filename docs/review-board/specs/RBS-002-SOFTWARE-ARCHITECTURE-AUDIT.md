@@ -1,12 +1,12 @@
 # Reviewer Specification: Software Architecture Audit
 
-**Document ID:** RBS-002  
-**Version:** 1.1.0  
-**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
-**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.1.0  
-**Reviewer Role:** Software Architecture Auditor (SAA)  
-**Last Updated:** 2026-07-18  
+**Document ID:** RBS-002
+**Version:** 2.0.0
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
+**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
+**Governing Methodology:** RBM-001 v2.0.0
+**Reviewer Role:** Software Architecture Auditor (SAA)
+**Last Updated:** 2026-07-19
 
 ---
 
@@ -21,7 +21,7 @@
 7. [Checklist](#7-checklist)
 8. [Evidence Standards](#8-evidence-standards)
 9. [Finding Classification Guidance](#9-finding-classification-guidance)
-10. [PASS / PASS WITH FINDINGS / FAIL Criteria](#10-pass--pass-with-findings--fail-criteria)
+10. [Board Decision Contribution](#10-board-decision-contribution)
 11. [Required Output](#11-required-output)
 12. [Reviewer Prompt Conversion Notes](#12-reviewer-prompt-conversion-notes)
 
@@ -276,9 +276,9 @@ Review any changes to configuration, environment variables, or feature flags:
 
 ---
 
-## 10. PASS / PASS WITH FINDINGS / FAIL Criteria
+## 10. Board Decision Contribution
 
-The SAA does not issue a Board Decision. The SAA raises findings that feed into the Board Decision per RBM-001 §10. The SAA's report summarises findings by severity and states whether structural risks are, in the SAA's judgement, adequately addressed.
+The SAA does not issue a Board outcome or process status. The SAA raises findings and records whether the in-scope architecture evidence is `SUFFICIENT`, `INSUFFICIENT`, or `NOT_APPLICABLE` for a PASS-class conclusion, with missing evidence listed. This contribution enters the sealed evidence-sufficiency record used by RBM-001 §10; it is not a vote or verdict.
 
 ---
 
@@ -322,6 +322,10 @@ ARCHITECTURAL DECISION CONFORMANCE:
 [ ] Conforms to all applicable ADRs
 [ ] Deviates from ADRs — deviations listed in findings above
 
+PASS-CLASS EVIDENCE SUFFICIENCY:
+[ ] SUFFICIENT  [ ] INSUFFICIENT  [ ] NOT APPLICABLE
+Missing evidence / limitations:
+
 AI ASSISTANCE:
 [ ] AI tools were used — describe what for and confirm independent verification of all findings
 [ ] AI tools were not used
@@ -334,17 +338,18 @@ Date:
 
 ## 12. Reviewer Prompt Conversion Notes
 
-**Role Prompt Identity:** "You are the Software Architecture Auditor for the Provena Foundry Review Board. You assess structural soundness, dependency quality, API design, and architectural conformance. You do not assess performance, security controls, business logic correctness, or test coverage."
+**Role Prompt Identity:** "You are a non-authoritative AI assistant supporting the named human Software Architecture Auditor. You do not hold the SAA role, count toward quorum, assign severity, sign findings, or issue an outcome. Help locate evidence about structural soundness, dependency quality, API design, and architectural conformance."
 
 **Key Prompt Constraints:**
 - Must cite specific file paths and line numbers for all findings.
 - Must not assess GS-P001 code or raise findings against shared libraries owned by GS-P001.
 - Must distinguish between findings (non-conformances) and observations (improvement suggestions).
 - Must not use AI-generated analysis as a finding without independent verification.
+- Must label every output as an unsigned draft; severity and evidence sufficiency remain human reviewer acts.
 
 **Inputs to Prompt:** Full diff of changed files, dependency manifest, current and prior API spec (if applicable), current and prior schema (if applicable), architectural decision record, Change Summary.
 
-**Output Format:** Report matching §11 template, with TPL-FND records for each finding.
+**Output Format:** Unsigned draft report matching §11, with evidence candidates for human verification. TPL-FND records become valid only after the named human SAA verifies evidence, supplies severity, and signs.
 
 ---
 
@@ -356,5 +361,6 @@ Date:
 |---------|------|--------------------|
 | 1.0.0 | 2026-07-18 | Initial release |
 | 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception note to §8; status set to RELEASE-CANDIDATE |
+| 2.0.0 | 2026-07-19 | Aligned terminology and decision contribution with RBM-001 v2.0.0; retained human authority and evidence requirements. |
 
-*End of RBS-002 v1.1.0*
+*End of RBS-002 v2.0.0*

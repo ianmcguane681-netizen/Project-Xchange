@@ -6,3 +6,8 @@ docs/rbe-001/README.md text eol=lf
 docs/rbe-001/CODEX_REVIEW_INSTRUCTIONS.md text eol=lf
 scripts/build_rbe001_v1_1_package.py text eol=lf
 tests/test_rbe001_package.py text eol=lf
+
+# Keep the controlled RBM-001 profile and its validator byte-stable.
+docs/review-board/** text eol=lf
+scripts/validate_rbm001_package.py text eol=lf
+tests/test_rbm001_package.py text eol=lf

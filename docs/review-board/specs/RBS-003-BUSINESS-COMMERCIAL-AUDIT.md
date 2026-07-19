@@ -1,12 +1,12 @@
 # Reviewer Specification: Business and Commercial Audit
 
-**Document ID:** RBS-003  
-**Version:** 1.1.0  
-**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
-**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.1.0  
-**Reviewer Role:** Business and Commercial Auditor (BCA)  
-**Last Updated:** 2026-07-18  
+**Document ID:** RBS-003
+**Version:** 2.0.0
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
+**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
+**Governing Methodology:** RBM-001 v2.0.0
+**Reviewer Role:** Business and Commercial Auditor (BCA)
+**Last Updated:** 2026-07-19
 
 ---
 
@@ -21,7 +21,7 @@
 7. [Checklist](#7-checklist)
 8. [Evidence Standards](#8-evidence-standards)
 9. [Finding Classification Guidance](#9-finding-classification-guidance)
-10. [PASS / PASS WITH FINDINGS / FAIL Criteria](#10-pass--pass-with-findings--fail-criteria)
+10. [Board Decision Contribution](#10-board-decision-contribution)
 11. [Milestone-Completion Confirmation](#11-milestone-completion-confirmation)
 12. [Required Output](#12-required-output)
 13. [Reviewer Prompt Conversion Notes](#13-reviewer-prompt-conversion-notes)
@@ -251,15 +251,17 @@ If the release touches a regulated domain (financial services, health data, gove
 
 ---
 
-## 10. PASS / PASS WITH FINDINGS / FAIL Criteria
+## 10. Board Decision Contribution
 
-The BCA raises findings that feed into the Board Decision per RBM-001 §10. Additionally, the BCA must issue a commercial opinion:
+The BCA does not issue a Board outcome or process status. The BCA raises findings, records whether in-scope commercial evidence is `SUFFICIENT`, `INSUFFICIENT`, or `NOT_APPLICABLE` for a PASS-class conclusion, and issues a bounded commercial opinion:
 
-**Commercially Sound:** No SEV-1 or SEV-2 BCA findings. The artefact meets its commercial obligations. The BCA can confirm milestone completion (if applicable).
+**Commercially Sound:** Commercial evidence is sufficient and there are no unresolved SEV-1 or SEV-2 BCA findings. The evidence supports the scoped commercial obligations. The BCA may confirm milestone completion only if every RBM-001 §18 gate is also satisfied.
 
-**Commercially Conditional:** One Open SEV-2 BCA finding with an accepted remediation plan. The BCA can confirm milestone completion only if the remediation plan is accepted and the finding does not affect the commercial deliverable assessed for this milestone.
+**Commercially Conditional:** Commercial evidence is sufficient and exactly one unresolved SEV-2 BCA finding has an accepted remediation plan. The BCA may confirm milestone completion only if the finding does not affect the assessed deliverable and every RBM-001 §18 gate is satisfied.
 
-**Commercially Deficient:** One or more SEV-1 BCA findings, or two or more Open SEV-2 BCA findings. The BCA cannot confirm milestone completion. Commercial invoicing must not proceed.
+**Commercially Deficient:** One or more unresolved SEV-1 BCA findings, one unresolved SEV-2 without an accepted plan, or two or more unresolved SEV-2 BCA findings. The BCA cannot confirm milestone completion. Commercial invoicing must not proceed.
+
+**Commercial Evidence Insufficient:** The available record cannot support a defensible commercial opinion. This contributes `INSUFFICIENT` to the evidence-sufficiency record; it must not be converted into a positive or negative commercial claim.
 
 > **Scope limitation:** The BCA's commercial opinion and Milestone-Completion Confirmation govern the internal governance gate for invoicing. Where the relevant commercial agreement also requires a separate contractual client acceptance step, the BCA's confirmation is necessary but not sufficient for invoicing to proceed — both the BCA's confirmation and the client acceptance must be obtained.
 
@@ -267,7 +269,7 @@ The BCA raises findings that feed into the Board Decision per RBM-001 §10. Addi
 
 ## 11. Milestone-Completion Confirmation
 
-The BCA is the only Board role with authority to issue Milestone-Completion Confirmation. This is a separate document from the Board Decision Record and must be issued independently.
+The BCA is the only Board role that may author and sign Milestone-Completion Confirmation. This is a separate document from the Board Decision Record and must be issued independently. It cannot be issued when process status is not `READY`, outcome is `FAIL` or `INSUFFICIENT_EVIDENCE`, the methodology profile is not ACTIVE, or publication control has not released the validated decision.
 
 Milestone-Completion Confirmation must:
 
@@ -383,6 +385,10 @@ MILESTONE-COMPLETION CONFIRMATION:
 [ ] Not applicable (not a milestone review)
 [ ] Cannot be issued (state reason)
 
+PASS-CLASS EVIDENCE SUFFICIENCY:
+[ ] SUFFICIENT  [ ] INSUFFICIENT  [ ] NOT APPLICABLE
+Missing evidence / limitations:
+
 AI ASSISTANCE:
 [ ] AI tools were used — describe what for and confirm independent verification of all findings
 [ ] AI tools were not used
@@ -395,7 +401,7 @@ Date:
 
 ## 13. Reviewer Prompt Conversion Notes
 
-**Role Prompt Identity:** "You are the Business and Commercial Auditor for the Provena Foundry Review Board. You assess whether the artefact meets its commercial obligations, contractual requirements, and business acceptance criteria. You are the only reviewer who can issue Milestone-Completion Confirmation."
+**Role Prompt Identity:** "You are a non-authoritative AI assistant supporting the named human Business and Commercial Auditor. You do not hold the BCA role, count toward quorum, assign severity, sign findings, issue a Board outcome, or issue Milestone-Completion Confirmation. Help locate and organise traceable commercial evidence."
 
 **Key Prompt Constraints:**
 - Must not assess technical implementation quality — defer to specialist auditors.
@@ -404,10 +410,11 @@ Date:
 - Must issue findings even when this delays a commercially attractive release.
 - Milestone-Completion Confirmation must never be issued while a SEV-1 BCA finding is Open.
 - Milestone-Completion Confirmation is a governance record only — must not represent it as evidence of client acceptance, as a warranty of fitness, or as sufficient for invoicing where the commercial agreement also requires a separate contractual client acceptance step.
+- Must label every output as an unsigned draft; commercial opinion, evidence sufficiency, and completion confirmation remain human reviewer acts.
 
 **Inputs to Prompt:** Requirements source, acceptance criteria, commercial agreements (relevant excerpts), Known Issues Register, Change Summary, dependency manifest, previous BCA findings (re-reviews).
 
-**Output Format:** Report matching §12 template, with TPL-FND records for each finding, and Milestone-Completion Confirmation (§11) if applicable.
+**Output Format:** Unsigned draft report matching §12, with evidence candidates for human verification. The AI must not generate an operative Milestone-Completion Confirmation. Any TPL-FND or confirmation becomes valid only after the named human BCA verifies, completes, and signs it.
 
 ---
 
@@ -419,5 +426,6 @@ Date:
 |---------|------|--------------------|
 | 1.0.0 | 2026-07-18 | Initial release |
 | 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception; updated §10 commercial opinion to clarify invoicing gate scope limitation; updated §11 Milestone-Completion Confirmation with governance-record disclaimer; updated §13 prompt constraints accordingly; status set to RELEASE-CANDIDATE |
+| 2.0.0 | 2026-07-19 | Aligned terminology and milestone controls with RBM-001 v2.0.0; prohibited release-candidate or insufficient-evidence completion confirmation. |
 
-*End of RBS-003 v1.1.0*
+*End of RBS-003 v2.0.0*

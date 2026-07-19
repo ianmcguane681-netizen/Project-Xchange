@@ -1,12 +1,12 @@
 # Reviewer Specification: Data and Evidence Audit
 
-**Document ID:** RBS-004  
-**Version:** 1.1.0  
-**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
-**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.1.0  
-**Reviewer Role:** Data and Evidence Auditor (DEA)  
-**Last Updated:** 2026-07-18  
+**Document ID:** RBS-004
+**Version:** 2.0.0
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
+**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
+**Governing Methodology:** RBM-001 v2.0.0
+**Reviewer Role:** Data and Evidence Auditor (DEA)
+**Last Updated:** 2026-07-19
 
 ---
 
@@ -21,7 +21,7 @@
 7. [Checklist](#7-checklist)
 8. [Evidence Standards](#8-evidence-standards)
 9. [Finding Classification Guidance](#9-finding-classification-guidance)
-10. [PASS / PASS WITH FINDINGS / FAIL Criteria](#10-pass--pass-with-findings--fail-criteria)
+10. [Board Decision Contribution](#10-board-decision-contribution)
 11. [Required Output](#11-required-output)
 12. [Reviewer Prompt Conversion Notes](#12-reviewer-prompt-conversion-notes)
 
@@ -132,7 +132,7 @@ A gap between changed areas and test coverage is an Evidence Gap. The DEA does n
 
 For each data-handling change in the artefact:
 
-**Ingestion:** 
+**Ingestion:**
 - Is invalid input rejected or handled explicitly? Is the rejection or handling code present and tested?
 - Is there a risk of silent data loss on error conditions?
 
@@ -300,9 +300,9 @@ Particular attention to:
 
 ---
 
-## 10. PASS / PASS WITH FINDINGS / FAIL Criteria
+## 10. Board Decision Contribution
 
-The DEA raises findings that feed into the Board Decision per RBM-001 §10. The DEA does not issue a separate decision. However, a DEA SEV-1 finding regarding evidence fabrication must be escalated to a Process Dispute per RBM-001 §12.3 immediately, as it affects the integrity of the entire review.
+The DEA does not issue a Board outcome or process status. The DEA raises findings and records whether in-scope data and evidence are `SUFFICIENT`, `INSUFFICIENT`, or `NOT_APPLICABLE` for a PASS-class conclusion, with missing evidence listed. A DEA SEV-1 finding regarding evidence fabrication is escalated immediately under RBM-001 §12.4; the review is `BLOCKED` or `VOID` until integrity is resolved.
 
 ---
 
@@ -357,7 +357,11 @@ FINDINGS:
 
 EVIDENCE FABRICATION FLAG:
 [ ] No evidence of fabrication or misrepresentation
-[ ] SUSPECTED FABRICATION — escalating to Board Chair per RBM-001 §12.3
+[ ] SUSPECTED FABRICATION — escalating under RBM-001 §12.4
+
+PASS-CLASS EVIDENCE SUFFICIENCY:
+[ ] SUFFICIENT  [ ] INSUFFICIENT  [ ] NOT APPLICABLE
+Missing evidence / limitations:
 
 AI ASSISTANCE:
 [ ] AI tools were used — describe what for and confirm independent verification of all findings
@@ -371,7 +375,7 @@ Date:
 
 ## 12. Reviewer Prompt Conversion Notes
 
-**Role Prompt Identity:** "You are the Data and Evidence Auditor for the Provena Foundry Review Board. You have two equal responsibilities: (1) assess the quality and integrity of data handled by the artefact, and (2) assess the quality and authenticity of the evidence provided by the authoring team."
+**Role Prompt Identity:** "You are a non-authoritative AI assistant supporting the named human Data and Evidence Auditor. You do not hold the DEA role, count toward quorum, authenticate evidence, assign severity, sign findings, or issue an outcome. Help locate candidate evidence about data and evidence integrity."
 
 **Key Prompt Constraints:**
 - Must confirm evidence authenticity before assessing evidence content.
@@ -379,10 +383,11 @@ Date:
 - Must not assess business rules or commercial impact — those belong to the BCA.
 - Evidence fabrication must be escalated immediately, not just recorded as a finding.
 - Must be explicit about which checklist items are in scope vs. not applicable for a given artefact.
+- Must label every output as an unsigned draft; authenticity and evidence sufficiency remain human reviewer acts.
 
 **Inputs to Prompt:** Test Evidence Package, CI/CD pipeline configuration, Known Issues Register, changed data-handling source files, data model documentation, Change Summary.
 
-**Output Format:** Report matching §11 template, with TPL-FND records for each finding.
+**Output Format:** Unsigned draft report matching §11, with evidence candidates for human verification. TPL-FND records become valid only after the named human DEA verifies evidence, supplies severity, and signs.
 
 ---
 
@@ -394,5 +399,6 @@ Date:
 |---------|------|--------------------|
 | 1.0.0 | 2026-07-18 | Initial release |
 | 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception note to §8; status set to RELEASE-CANDIDATE |
+| 2.0.0 | 2026-07-19 | Aligned terminology and evidence-sufficiency contribution with RBM-001 v2.0.0. |
 
-*End of RBS-004 v1.1.0*
+*End of RBS-004 v2.0.0*

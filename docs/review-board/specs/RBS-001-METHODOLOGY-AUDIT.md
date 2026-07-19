@@ -1,12 +1,12 @@
 # Reviewer Specification: Methodology Audit
 
-**Document ID:** RBS-001  
-**Version:** 1.1.0  
-**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use  
-**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.  
-**Governing Methodology:** RBM-001 v1.1.0  
-**Reviewer Role:** Methodology Auditor (MA)  
-**Last Updated:** 2026-07-18  
+**Document ID:** RBS-001
+**Version:** 2.0.0
+**Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
+**Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
+**Governing Methodology:** RBM-001 v2.0.0
+**Reviewer Role:** Methodology Auditor (MA)
+**Last Updated:** 2026-07-19
 
 ---
 
@@ -21,7 +21,7 @@
 7. [Checklist](#7-checklist)
 8. [Evidence Standards](#8-evidence-standards)
 9. [Finding Classification Guidance](#9-finding-classification-guidance)
-10. [PASS / PASS WITH FINDINGS / FAIL Criteria](#10-pass--pass-with-findings--fail-criteria)
+10. [Board Decision Contribution](#10-board-decision-contribution)
 11. [Required Output](#11-required-output)
 12. [Reviewer Prompt Conversion Notes](#12-reviewer-prompt-conversion-notes)
 
@@ -50,9 +50,9 @@ The MA's scope encompasses:
 - Compliance of each reviewer's conduct with their respective reviewer specification.
 - Compliance of findings with the evidence standards of RBM-001 §8.
 - Compliance of the finding lifecycle with RBM-001 §13.
-- Validity of the Board Decision relative to the finding set and decision rules in RBM-001 §10.
+- Validity of process status and outcome relative to the sealed finding snapshot, evidence-sufficiency record, profile identity, and RBM-001 §10.
 - Completeness and integrity of the audit trail (RBM-001 §15).
-- Version consistency: the methodology version and all reviewer specification versions recorded in the Review Initiation Record must match the documents actually applied.
+- Version consistency: the architecture authority, methodology profile version/checksum/status, package manifest, human approval record, and reviewer specification versions in the Review Initiation Record must match the documents actually applied.
 
 The MA's scope does **not** encompass:
 
@@ -72,7 +72,7 @@ The MA's scope does **not** encompass:
 | Validate each mandatory input per RBM-001 §7.1 | Before any specialist review begins |
 | Validate conditional inputs per RBM-001 §7.2 based on declared scope | Before any specialist review begins |
 | Issue Input Package Validation record (TPL-IPV) | Before any specialist review begins |
-| Block or defer the review if the package is incomplete | Immediately on discovery |
+| Return the package with `PROCEDURALLY_INCOMPLETE` status if incomplete | Immediately on discovery |
 | Confirm artefact identifier is immutable and recorded | Before any specialist review begins |
 
 ### 3.2 During Review
@@ -91,7 +91,9 @@ The MA's scope does **not** encompass:
 | Review each reviewer's report for specification compliance | After all specialist reports are submitted |
 | Assess each finding for evidence admissibility per RBM-001 §8 | After all specialist reports are submitted |
 | Identify findings that rely on T5 evidence (assertion) | After all specialist reports are submitted |
-| Confirm the Board Decision follows from the finding set per RBM-001 §10 | After the Board Decision Record is drafted |
+| Validate process status and candidate outcome under RBM-001 §10 | After the unsigned Board Decision Record is drafted |
+| Validate distinct-role quorum and four-eyes separation | Before the Board Chair signs |
+| Validate profile checksum, manifest, activation, and human approval record | Before the Board Chair signs |
 | Confirm the audit trail is complete per RBM-001 §15 | Before the review is closed |
 | Issue the MA Report | After all post-review checks are complete |
 
@@ -119,6 +121,7 @@ For milestone reviews, the MA must be organisationally independent from the auth
 |-------|--------|--------------------|
 | Draft Input Package | Authoring team | Always |
 | Review Initiation Record (TPL-RIR) | Board Chair | Always |
+| `PROFILE.json` and `MANIFEST.json` | Controlled package | Always |
 | Scope Statement | Authoring team or Board Chair | Always |
 | Previous Review Record | Board Chair | Re-reviews only |
 
@@ -144,15 +147,15 @@ Review each mandatory input item against the checklist in §7. For each item:
 - Confirm it is not a template placeholder (e.g., a test results document that contains no actual test results).
 - Confirm it is not materially stale (produced against a prior version of the artefact).
 
-If any mandatory item fails, issue a deferral notice. Do not proceed to Step 2 until the package is complete.
+If any mandatory item fails, record `PROCEDURALLY_INCOMPLETE`, return the package, and stop. Do not proceed to Step 2 until a sealed successor package is complete.
 
 ### Step 2 — Independence Declaration Collection
 
-Collect a signed Independence Declaration from every assigned reviewer before they begin their review. Flag any reviewer who begins work without a signed declaration. Flag any declaration that discloses a conflict that has not been addressed by the Board Chair.
+Collect a signed Independence Declaration from every assigned reviewer before they begin their review. Confirm each Board role is held by a distinct named human. Flag any reviewer who begins work without a signed declaration. The MA adjudicates disclosed reviewer conflicts; if the Board Chair is conflicted, the MA and Methodology Owner appoint a deputy.
 
 ### Step 3 — Version Consistency Check
 
-Confirm that the methodology version (RBM-001) and each reviewer specification version recorded in the Review Initiation Record match the documents that each reviewer applied. If a reviewer applied a different version than recorded, this is a process defect.
+Confirm that the architecture authority, methodology profile ID/version/status/checksum, package manifest root hash, human approval reference, and each reviewer specification version in the Review Initiation Record match the controlled package. If any identity or checksum differs, stop with `VOID`. A RELEASE-CANDIDATE profile may continue only as an explicitly non-binding dry run.
 
 ### Step 4 — Post-Review Report Audit
 
@@ -172,10 +175,13 @@ For each specialist reviewer's report:
 
 ### Step 5 — Decision Validation
 
-Confirm that the draft Board Decision Record correctly applies the decision rules of RBM-001 §10 to the finding set:
-- Count Open SEV-1 and SEV-2 findings.
-- Verify that Contested findings are treated as Open for decision purposes.
-- Verify that the decision (PASS / PASS WITH FINDINGS / FAIL) is the unique correct outcome per §10.1.
+Confirm that the unsigned Board Decision Record correctly applies RBM-001 §10:
+- Validate the canonical process status first; a non-`READY` status requires a null outcome.
+- Count unresolved (`OPEN`, `CONTESTED`, or `UNDER_REVIEW`) SEV-1 and SEV-2 findings.
+- Validate the specialist-derived evidence-sufficiency record without substituting MA technical judgement.
+- Verify the unique outcome among `PASS`, `PASS_WITH_FINDINGS`, `FAIL`, and `INSUFFICIENT_EVIDENCE` per §10.3.
+- Verify RELEASE-CANDIDATE runs are non-binding with merge prohibited.
+- Verify the Board Chair and MA are distinct and publication control is independent.
 
 If the decision does not follow from the rules, this is a process defect — raise it as a Critical process finding before the decision is finalised.
 
@@ -212,20 +218,22 @@ Confirm that all required records per RBM-001 §15.1 exist, are correctly struct
 |---|------|--------|----------------|
 | PIC-01 | Independence Declarations received from all reviewers | Inspect declarations | All assigned reviewers have submitted a signed declaration before beginning work |
 | PIC-02 | No undeclared conflicts identified | Cross-reference declarations with authorship records | All potential conflicts are declared |
-| PIC-03 | Methodology version matches TPL-RIR | Compare RIR to actual documents used | Same version number |
+| PIC-03 | Profile identity and package integrity match TPL-RIR | Validate `PROFILE.json`, checksum, `MANIFEST.json`, architecture authority, status, and human approval reference | Exact match; binding use requires ACTIVE and named human approval |
 | PIC-04 | Reviewer specification versions match TPL-RIR | Compare RIR to each reviewer report header | Same version numbers for each role |
 | PIC-05 | Artefact version did not change during review | Review timeline and version records | SHA or equivalent is identical at start and end of review |
 | PIC-06 | Each specialist report addresses mandatory checklist items | Review each report against its specification | All in-scope checklist items addressed or justified absence |
-| PIC-07 | All findings have admissible evidence | Review each TPL-FND | No SEV-1 finding uses T3 unless all four `T3-AUTHORITATIVE-EXTERNAL` conditions are documented (RBM-001 §8.2); no SEV-2 finding relies on T3/T4 only without T1 or T2 support; no finding relies on T5 |
+| PIC-07 | All findings have admissible evidence | Review each TPL-FND | SEV-1 uses T1/T2 or valid `T3-AUTHORITATIVE-EXTERNAL`; SEV-2 may use T1/T2/T3; SEV-3/4 may use T1–T4; no finding relies on T5 |
 | PIC-08 | All evidence references are specific | Review each TPL-FND evidence reference | All references include specific file path, line, log entry, or document section |
 | PIC-09 | AI assistance declared where used | Review each TPL-FND | Any AI-assisted finding includes declaration and independent verification confirmation |
 | PIC-10 | Severity classifications are internally consistent | Cross-review comparison | Same class of defect is not assigned materially different severities across reviewers without documented justification |
-| PIC-11 | Board Decision correctly applies §10 rules | Re-apply decision rules to finding set | Decision matches the unique correct outcome |
+| PIC-11 | Process status and outcome correctly apply §10 | Re-apply rules to process record, sealed snapshot, and evidence sufficiency | Non-READY has null outcome; READY has the unique correct outcome |
 | PIC-12 | All required audit trail records exist | Inspect archive | All records per RBM-001 §15.1 are present, complete, and correctly stored |
-| PIC-13 | Contested findings correctly treated as Open for decision | Verify decision record | Contested findings did not reduce the open finding count for decision purposes |
+| PIC-13 | Unresolved findings counted consistently | Verify decision record | OPEN, CONTESTED, and UNDER_REVIEW findings retain severity impact |
 | PIC-14 | Machine-readable indicator issued | Inspect TPL-MRI | TPL-MRI is present, valid, and consistent with Board Decision |
 | PIC-15 | Review risk tier correctly classified and recorded | TPL-RIR and RBM-001 §6A criteria | The assigned tier matches all applicable trigger conditions; no de-escalation below the mandated minimum; tier classification is recorded in the TPL-RIR |
 | PIC-16 | Mandatory human sign-off boundaries observed | Review all signed records | Each act requiring human sign-off per RBM-001 §4.4 (finding confirmation, finding closure, Board Decision Record, Milestone-Completion Confirmation, Correction Records) is signed by a named human; no act is signed solely by an AI-generated identifier |
+| PIC-17 | Four-eyes and publication separation observed | Compare identities and records | Board Chair, MA governance validator, and human Publication Authority are distinct where publication is human; automation cannot be bypassed |
+| PIC-18 | Outcome evidence floor preserved | Inspect evidence-sufficiency record and candidate | Evidentiary insufficiency maps to `INSUFFICIENT_EVIDENCE`, never PASS/PASS_WITH_FINDINGS/FAIL |
 
 ---
 
@@ -253,7 +261,7 @@ The MA must not raise process findings on the basis of assertion (T5). If the MA
 ### SEV-1 for Methodology Audit
 
 - The Input Package was represented as complete when mandatory items were absent, and the review proceeded on false premises.
-- A reviewer with a direct conflict of interest reviewed their own work without disclosure or Board Chair approval.
+- A reviewer with a direct conflict of interest reviewed their own work; no Chair or MA waiver can cure authorship conflict.
 - The Board Decision does not follow from the finding set and was recorded anyway (potential integrity violation).
 - Evidence fabrication: a reviewer recorded evidence that demonstrably does not exist in the artefact.
 
@@ -261,7 +269,7 @@ The MA must not raise process findings on the basis of assertion (T5). If the MA
 
 - A mandatory Input Package item is absent and the review proceeded without MA deferral.
 - An Independence Declaration was not collected before a reviewer began work.
-- A SEV-1 finding relies solely on T3/T4 evidence without T1 or T2 support.
+- A SEV-1 finding relies on T3 without satisfying all `T3-AUTHORITATIVE-EXTERNAL` conditions, or relies on T4/T5.
 - The artefact version changed during the review and this was not documented or acted upon.
 - A reviewer's report does not address mandatory checklist sections that are in scope, with no documented justification.
 
@@ -279,15 +287,16 @@ The MA must not raise process findings on the basis of assertion (T5). If the MA
 
 ---
 
-## 10. PASS / PASS WITH FINDINGS / FAIL Criteria
+## 10. Board Decision Contribution
 
-The MA issues a process compliance opinion, not the Board Decision. However, the MA's process findings feed into the Board Decision per RBM-001 §10.
+The MA does not issue the substantive outcome. The MA records exactly one canonical process status and validates the unsigned decision candidate:
 
-**Process CLEAR:** The MA has completed all checks and found no process findings at SEV-1 or SEV-2. The review process was conducted in compliance with RBM-001. The Board may proceed to finalise the decision.
+- `READY`: every required process, identity, integrity, role, challenge, and validation control passes. A candidate outcome is required.
+- `PROCEDURALLY_INCOMPLETE`: a mandatory input, assignment, quorum member, report, signature, or validation step is absent. Outcome must be null.
+- `BLOCKED`: a material conflict, dispute, architecture conflict, or remediable integrity concern prevents finalisation. Outcome must be null.
+- `VOID`: the session is invalid and cannot yield an outcome. A linked successor session is required.
 
-**Process DEFICIENT:** The MA has found one or more process findings at SEV-2, with no SEV-1 findings. The review process had material gaps but the underlying substantive reviews are likely valid. The Board Chair must determine whether the deficiencies affect the validity of specialist findings before finalising the decision.
-
-**Process COMPROMISED:** The MA has found one or more process findings at SEV-1. The review process integrity is in question. The Board must not finalise a decision until SEV-1 process findings are resolved. This may require the affected review components to be repeated.
+The Board Chair cannot override the MA's documented failed control. A disagreement follows RBM-001 §§12 or 18A and remains traceable.
 
 ---
 
@@ -304,16 +313,16 @@ Validation Date:
 Artefact Identifier under review:
 
 MANDATORY ITEMS:
-[For each IPV-01 through IPV-08, record: PRESENT / ABSENT / DEFERRED]
+[For each IPV-01 through IPV-08, record: PRESENT / ABSENT]
 [For absent items: state the specific gap]
 
 CONDITIONAL ITEMS:
 [Identify which conditions apply based on Scope Statement]
 [For each applicable conditional item: PRESENT / ABSENT / NOT APPLICABLE]
 
-OVERALL VALIDATION RESULT:
-[ ] COMPLETE — Review may proceed
-[ ] INCOMPLETE — Review deferred pending: [list missing items]
+OVERALL PROCESS STATUS:
+[ ] READY — Review may proceed
+[ ] PROCEDURALLY INCOMPLETE — Package returned pending: [list missing items]
 
 Notes:
 
@@ -335,7 +344,7 @@ Methodology Version: RBM-001 [version]
 This Spec Version:  RBS-001 [version]
 
 SECTION 1 — GATE FUNCTION
-Input Package Validation: [ ] COMPLETE  [ ] INCOMPLETE
+Input Package Process Status: [ ] READY  [ ] PROCEDURALLY INCOMPLETE
 Reference to TPL-IPV:
 
 SECTION 2 — INDEPENDENCE CHECK
@@ -344,7 +353,10 @@ Any undeclared conflicts identified: [ ] YES  [ ] NO
 Details if NO or YES respectively:
 
 SECTION 3 — VERSION CONSISTENCY
-Methodology version consistent: [ ] YES  [ ] NO
+Architecture authority consistent: [ ] YES  [ ] NO
+Profile ID/version/status/checksum consistent: [ ] YES  [ ] NO
+Manifest root hash valid: [ ] YES  [ ] NO
+Human approval record valid for binding use: [ ] YES  [ ] NO  [ ] ADVISORY ONLY
 Reviewer spec versions consistent: [ ] YES  [ ] NO
 Details if NO:
 
@@ -359,13 +371,16 @@ Reviewer Name / Role:
   Notes:
 
 SECTION 5 — DECISION VALIDATION
-Finding set summary:
-  SEV-1 Open:
-  SEV-2 Open:
-  SEV-2 Contested:
+Process Status:
+Finding snapshot summary:
+  SEV-1 Unresolved:
+  SEV-2 Unresolved:
   SEV-2 Remediation Plans Accepted:
-Board Decision as recorded:
-Decision correctly applies §10 rules: [ ] YES  [ ] NO
+Substantive Evidence Sufficient: [ ] YES  [ ] NO
+Candidate Outcome:
+Outcome correctly applies §10 rules: [ ] YES  [ ] NO  [ ] N/A — process not READY
+Board Chair and MA identities distinct: [ ] YES  [ ] NO
+Publication control independent: [ ] YES  [ ] NO  [ ] NOT YET PUBLISHED
 If NO, state discrepancy:
 
 SECTION 6 — AUDIT TRAIL COMPLETENESS
@@ -377,9 +392,10 @@ SECTION 7 — PROCESS FINDINGS RAISED
 [Include Finding ID, Severity, Title, and Status]
 
 SECTION 8 — OVERALL PROCESS OPINION
-[ ] PROCESS CLEAR
-[ ] PROCESS DEFICIENT — [state SEV-2 findings and impact assessment]
-[ ] PROCESS COMPROMISED — [state SEV-1 findings and recommended action]
+[ ] READY
+[ ] PROCEDURALLY INCOMPLETE — [state missing controls]
+[ ] BLOCKED — [state blocking controls and remediation]
+[ ] VOID — [state invalidating condition and successor-session requirement]
 
 MA Signature:
 Date:
@@ -391,17 +407,17 @@ Date:
 
 *This section is for the orchestration layer that converts this specification into individual reviewer prompts.*
 
-**Role Prompt Identity:** "You are the Methodology Auditor for the Provena Foundry Review Board. Your role is to audit the review process itself, not the technical content. You have two phases: (1) validate the Input Package before specialist reviews begin, and (2) audit process integrity after specialist reviews complete."
+**Role Prompt Identity:** "You are a non-authoritative AI assistant supporting the named human Methodology Auditor. You do not hold the MA role, count toward quorum, sign records, adjudicate conflicts, or determine process status. Assist with two phases: (1) candidate checks for Input Package validation, and (2) candidate checks for process and decision integrity."
 
 **Phase Separation:** The MA prompt must be invoked twice — once before specialist reviews begin (gate function) and once after all specialist reports are submitted (process integrity function). These are distinct prompt invocations with different inputs.
 
 **Inputs to Phase 1 Prompt:** Input Package, Review Initiation Record, Scope Statement.
 
-**Inputs to Phase 2 Prompt:** All specialist reviewer reports, all Finding Records, draft Board Decision Record, audit trail records, Independence Declarations.
+**Inputs to Phase 2 Prompt:** All specialist reviewer reports, all Finding Records, sealed finding snapshot, evidence-sufficiency record, unsigned Board Decision Record, `PROFILE.json`, `MANIFEST.json`, audit trail records, and Independence Declarations.
 
-**Prohibited Behaviours for Prompt:** The MA prompt must not assess technical merit of specialist findings. It must not generate findings about the artefact's technical content. It must not use the word "probably" or "likely" as a finding basis — only documented evidence.
+**Prohibited Behaviours for Prompt:** The MA prompt must not assess technical merit of specialist findings, supply evidence sufficiency from its own judgement, sign a record, or choose an outcome. It must not generate findings about the artefact's technical content. It must not use the word "probably" or "likely" as a finding basis — only documented evidence. Any AI output remains an unsigned draft until the named human MA verifies and signs it.
 
-**Output Format:** The prompt must produce a structured report matching the template in §11.2. All finding records must use the TPL-FND format.
+**Output Format:** Produce an unsigned draft report matching §11.2 and clearly labelled AI-assisted. Potential issues are evidence candidates, not accepted TPL-FND records, until the named human MA verifies the evidence, assigns any severity, corrects the draft, and signs it.
 
 ---
 
@@ -413,5 +429,6 @@ Date:
 |---------|------|--------------------|
 | 1.0.0 | 2026-07-18 | Initial release |
 | 1.1.0 | 2026-07-18 | Updated to RBM-001 v1.1.0; added T3-AUTHORITATIVE-EXTERNAL evidence exception with MA verification obligation; updated PIC-07 for T3-AUTHORITATIVE-EXTERNAL admissibility; added PIC-15 (tier classification validation) and PIC-16 (mandatory human sign-off boundary check); status set to RELEASE-CANDIDATE |
+| 2.0.0 | 2026-07-19 | Aligned with RBM-001 v2.0.0: canonical process statuses, `INSUFFICIENT_EVIDENCE`, four-eyes governance validation, profile/manifest checks, unresolved-finding semantics, and corrected evidence admissibility. |
 
-*End of RBS-001 v1.1.0*
+*End of RBS-001 v2.0.0*
