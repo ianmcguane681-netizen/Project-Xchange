@@ -15,6 +15,7 @@ PACKAGE_ROOT = REPO_ROOT / "docs" / "review-board"
 PROFILE_PATH = PACKAGE_ROOT / "PROFILE.json"
 MANIFEST_PATH = PACKAGE_ROOT / "MANIFEST.json"
 SCHEMA_ROOT = PACKAGE_ROOT / "schemas"
+CONTROLLED_TEXT_SUFFIXES = {".json", ".md"}
 
 PROFILE_ID = "RBM-001"
 PROFILE_VERSION = "2.0.0"
@@ -116,7 +117,31 @@ def build_manifest() -> dict[str, Any]:
     }
 
 
+def normalize_controlled_text_files() -> None:
+    """Write controlled text with canonical LF endings before hashing it."""
+
+    for path in controlled_files():
+        if path.suffix.lower() not in CONTROLLED_TEXT_SUFFIXES:
+            continue
+        raw = path.read_bytes()
+        normalized = raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        if normalized != raw:
+            path.write_bytes(normalized)
+
+
+def _validate_controlled_line_endings() -> None:
+    invalid = []
+    for path in [*controlled_files(), MANIFEST_PATH]:
+        if path.suffix.lower() in CONTROLLED_TEXT_SUFFIXES and b"\r" in path.read_bytes():
+            invalid.append(path.relative_to(PACKAGE_ROOT).as_posix())
+    if invalid:
+        raise PackageValidationError(
+            f"Controlled text must use canonical LF endings: {sorted(invalid)}"
+        )
+
+
 def write_control_files() -> None:
+    normalize_controlled_text_files()
     profile = load_json(PROFILE_PATH)
     profile["checksum"] = calculate_profile_checksum(profile)
     PROFILE_PATH.write_text(
@@ -509,6 +534,7 @@ def _validate_decision_coverage() -> None:
 
 
 def validate_package() -> None:
+    _validate_controlled_line_endings()
     profile = load_json(PROFILE_PATH)
     _validate_profile(profile)
     _validate_schemas()

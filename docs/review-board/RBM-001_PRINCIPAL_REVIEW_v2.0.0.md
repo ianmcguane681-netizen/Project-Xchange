@@ -24,6 +24,7 @@
 | PR1-011 | High | Decision and indicator schemas did not fully prohibit a non-binding or inactive record from claiming merge permission, and no callable bundle validator checked record identity and role separation. | `schemas/tpl-bdr.schema.json`; `schemas/tpl-mri.schema.json`; `scripts/validate_rbm001_package.py` | Closed with explicit `merge_permitted=true` schema guards and `validate_decision_bundle()`, covering profile identity, quorum, distinct humans, publication separation, deterministic outcome, and cross-record parity. |
 | PR1-012 | Medium | `PROFILE.json` omitted canonical RBE state `BLOCKED`, so its claimed lifecycle mapping was incomplete; release-candidate headings also named only one of the two required activation approvers. | `PROFILE.json`, `canonical_lifecycle_mapping`; `README.md` status; `REVIEW-BOARD-METHODOLOGY.md` status | Closed by adding `BLOCKED`, validating exact state coverage, and naming both the Principal Architect and Methodology Owner activation gates. |
 | PR1-013 | High | The byte-level manifest was not portable because Git had no LF rule for RBM-001; Windows checkout conversion could invalidate every controlled-file checksum. | Repository `.gitattributes`; `MANIFEST.json`; `scripts/validate_rbm001_package.py` | Closed with LF enforcement for the complete RBM package, validator, and focused tests. The manifest is now stable across supported checkout environments. |
+| PR1-014 | High | Post-merge verification showed that adding an LF Git attribute did not rewrite pre-existing CRLF working-tree bytes before manifest generation, so Git's commit-time normalization made the committed manifest stale. | `scripts/validate_rbm001_package.py`, `write_control_files()` and `validate_package()`; `MANIFEST.json` | Closed by normalizing controlled text before hashing, rejecting carriage returns during package validation, regenerating the manifest from canonical LF bytes, and adding a checkout-level regression test. |
 
 ## Authority Boundary
 
@@ -32,8 +33,8 @@ This review is a technical assessment and does not impersonate a named human Pri
 ## Validation
 
 - Controlled-package validation: `python scripts/validate_rbm001_package.py --check` - passed.
-- Focused RBM-001 validation: `python -m pytest -p no:cacheprovider tests/test_rbm001_package.py -q` - 21 passed.
+- Focused RBM-001 validation: `python -m pytest -p no:cacheprovider tests/test_rbm001_package.py -q` - 22 passed.
 - Python compilation: `python -m compileall scripts/validate_rbm001_package.py` - passed.
-- Full repository validation: `python -m pytest -p no:cacheprovider -q` - 202 passed, 1 unrelated Starlette deprecation warning.
+- Full repository validation: `python -m pytest -p no:cacheprovider -q` - 203 passed, 1 unrelated Starlette deprecation warning.
 
 No open technical finding remains. The package is approved for merge as a non-binding release candidate; activation remains outside this review's authority.
