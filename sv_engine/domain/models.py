@@ -77,10 +77,16 @@ class VerifiedProblemPackage(ModelMixin):
         confidence = float(data.get("confidence", 0.0))
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("Verified problem confidence must be between 0 and 1")
+        verdict = str(data["golden_study_verdict"]).strip().upper()
+        if verdict != "BUILD CANDIDATE":
+            raise ValueError(
+                "SV Engine requires a Golden Study BUILD CANDIDATE handoff; "
+                f"received {verdict or 'empty verdict'}"
+            )
         return cls(
             verified_problem_id=str(data["verified_problem_id"]),
             golden_study_id=str(data["golden_study_id"]),
-            golden_study_verdict=str(data["golden_study_verdict"]),
+            golden_study_verdict=verdict,
             evidence_summary=str(data["evidence_summary"]),
             problem_mechanism=str(data["problem_mechanism"]),
             affected_workflow=str(data["affected_workflow"]),

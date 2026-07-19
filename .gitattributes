@@ -1,0 +1,8 @@
+# Keep the controlled RBE package byte-stable across operating systems.
+/.gitattributes text eol=lf
+docs/rbe-001/v1.1.0/** text eol=lf
+docs/rbe-001/v1.1.0/*.zip -text -eol
+docs/rbe-001/README.md text eol=lf
+docs/rbe-001/CODEX_REVIEW_INSTRUCTIONS.md text eol=lf
+scripts/build_rbe001_v1_1_package.py text eol=lf
+tests/test_rbe001_package.py text eol=lf

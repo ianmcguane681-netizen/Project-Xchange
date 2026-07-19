@@ -22,6 +22,11 @@ from sv_engine.domain.models import (
     ValidationClaim,
 )
 from sv_engine.rules.loader import RuleSet
+from sv_engine.services.calculations import (
+    compare_workflows,
+    customer_economics_check,
+    provena_economics_check,
+)
 
 
 def _evidence_index(data: SolutionValidationInput) -> dict[str, EvidenceItem]:
@@ -34,21 +39,39 @@ def _evidence_index(data: SolutionValidationInput) -> dict[str, EvidenceItem]:
 
 
 def _approved_evidence(
-    evidence_ids: tuple[str, ...], evidence: dict[str, EvidenceItem]
+    evidence_ids: tuple[str, ...],
+    evidence: dict[str, EvidenceItem],
+    *,
+    category_id: str = "",
+    gate_id: str = "",
+    include_contradictions: bool = False,
 ) -> tuple[EvidenceItem, ...]:
     return tuple(
         evidence[item_id]
         for item_id in evidence_ids
-        if item_id in evidence and evidence[item_id].review_state is ReviewState.APPROVED
+        if item_id in evidence
+        and evidence[item_id].review_state is ReviewState.APPROVED
+        and (include_contradictions or not evidence[item_id].contradiction_flag)
+        and (not category_id or category_id in evidence[item_id].linked_categories)
+        and (not gate_id or gate_id in evidence[item_id].linked_gates)
     )
 
 
 def claim_support_state(
-    claim: ValidationClaim | None, evidence: dict[str, EvidenceItem]
+    claim: ValidationClaim | None,
+    evidence: dict[str, EvidenceItem],
+    *,
+    gate_id: str = "",
 ) -> tuple[str, tuple[str, ...]]:
     if claim is None or claim.value is None or claim.value_kind is ValueKind.UNKNOWN:
         return "UNKNOWN", ()
-    linked = _approved_evidence(claim.evidence_ids, evidence)
+    linked = _approved_evidence(
+        claim.evidence_ids,
+        evidence,
+        category_id=claim.category_id,
+        gate_id=gate_id,
+        include_contradictions=claim.value_kind is ValueKind.CONTRADICTION or claim.value is False,
+    )
     if claim.value_kind is ValueKind.CONTRADICTION or claim.value is False:
         if linked:
             return "NEGATIVE", tuple(item.evidence_id for item in linked)
@@ -106,11 +129,12 @@ def assess_categories(
     for category in rules.data["categories"]:
         category_id = str(category["id"])
         category_claims = claims_by_category.get(category_id, [])
-        linked = tuple(
+        category_evidence = tuple(
             item
             for item in data.evidence_items
             if category_id in item.linked_categories and item.review_state is ReviewState.APPROVED
         )
+        linked = tuple(item for item in category_evidence if not item.contradiction_flag)
         supported_claims = [
             claim
             for claim in category_claims
@@ -144,9 +168,9 @@ def assess_categories(
         category_contradictions = tuple(
             item.contradiction_id
             for item in contradictions
-            if set(item.evidence_ids).intersection({entry.evidence_id for entry in linked})
+            if set(item.evidence_ids).intersection({entry.evidence_id for entry in category_evidence})
         )
-        if category_contradictions and raw_score <= 1:
+        if category_contradictions:
             sufficiency = EvidenceSufficiency.CONTRADICTED
         elif raw_score >= 4 and confidence >= 0.5:
             sufficiency = EvidenceSufficiency.SUPPORTED
@@ -164,7 +188,7 @@ def assess_categories(
         )
         if raw_score == 0:
             conclusion = "No positive score awarded because traceable approved evidence is absent."
-        elif negative_claims:
+        elif negative_claims or category_contradictions:
             conclusion = "Evidence exists, but explicit negative or contradictory evidence reduces the score."
         else:
             conclusion = "Score derives only from approved linked evidence and supported structured claims."
@@ -196,7 +220,7 @@ def assess_gates(data: SolutionValidationInput, rules: RuleSet) -> tuple[GateAss
         unresolved: list[str] = []
         failures: list[str] = []
         for claim_id in gate["required_true_claims"]:
-            state, linked_ids = claim_support_state(claims.get(claim_id), evidence)
+            state, linked_ids = claim_support_state(claims.get(claim_id), evidence, gate_id=str(gate["id"]))
             states.append(state)
             evidence_ids.update(linked_ids)
             if state in {"UNKNOWN", "UNSUPPORTED_POSITIVE", "UNSUPPORTED_NEGATIVE"}:
@@ -207,7 +231,7 @@ def assess_gates(data: SolutionValidationInput, rules: RuleSet) -> tuple[GateAss
         gate_id = str(gate["id"])
         if gate_id == "G1_VERIFIED_PROBLEM_LINKAGE":
             verdict = data.verified_problem.golden_study_verdict.upper()
-            if verdict in {"REJECT", "INSUFFICIENT EVIDENCE", "PROCESS / POLICY PROBLEM"}:
+            if verdict != "BUILD CANDIDATE":
                 failures.append("Golden Study verdict does not establish an eligible verified problem.")
             if data.verified_problem.independent_source_family_count < 2:
                 unresolved.append("At least two independent source families are required before solution validation.")
@@ -240,11 +264,18 @@ def assess_gates(data: SolutionValidationInput, rules: RuleSet) -> tuple[GateAss
                 failures.append("Support effort per customer exceeds the configured limit.")
             if limits["key_person_dependency_blocks_build"] and assessment.key_person_dependency:
                 failures.append("Material key-person dependency makes internal operation unacceptable.")
-            economics = data.provena_unit_economics
-            if economics.annual_price is None or economics.annual_cost_to_serve_per_customer is None:
-                unresolved.append("Annual price and cost-to-serve evidence are required for Provena economics.")
-            elif economics.annual_price <= economics.annual_cost_to_serve_per_customer:
-                failures.append("Calculated Provena contribution margin is non-positive.")
+            minimum_confidence = float(limits.get("minimum_internal_operability_confidence", 0.5))
+            if assessment.confidence < minimum_confidence:
+                unresolved.append(
+                    f"Internal operability confidence {assessment.confidence:.2f} is below {minimum_confidence:.2f}."
+                )
+            if assessment.monthly_operating_effort_hours is not None and assessment.monthly_operating_effort_hours < 0:
+                failures.append("Monthly operating effort cannot be negative.")
+            if assessment.support_effort_hours_per_customer is not None and assessment.support_effort_hours_per_customer < 0:
+                failures.append("Support effort per customer cannot be negative.")
+            provena_check = provena_economics_check(data.provena_unit_economics)
+            failures.extend(provena_check.failures)
+            unresolved.extend(provena_check.unresolved)
         if gate_id == "G4_BUYER_CREDIBILITY":
             buyer_fields = (
                 data.buyer_map.economic_buyer,
@@ -253,12 +284,20 @@ def assess_gates(data: SolutionValidationInput, rules: RuleSet) -> tuple[GateAss
             )
             if any(not value or value.lower() == "unknown" for value in buyer_fields):
                 unresolved.append("Buyer identity, budget source and purchase authority must all be explicit.")
+            linked_buyer = [evidence[item_id] for item_id in evidence_ids if item_id in evidence]
+            if not any(item.evidence_class is EvidenceClass.DIRECT_BUYER for item in linked_buyer):
+                unresolved.append("Buyer credibility requires approved direct-buyer evidence.")
         if gate_id == "G5_VALUE_PLAUSIBILITY":
-            economics = data.customer_economics
-            if economics.annual_value is None or economics.price_assumption is None:
-                unresolved.append("Customer value and price assumptions must be explicit and traceable.")
-            elif economics.annual_value <= 0:
-                failures.append("Calculated customer value is non-positive.")
+            workflow_check = compare_workflows(data.current_workflow, data.proposed_workflow)
+            if workflow_check.regressions:
+                failures.append(
+                    "Proposed workflow regresses explicit measures: " + "; ".join(workflow_check.regressions)
+                )
+            elif not workflow_check.measurable or not workflow_check.improvements:
+                unresolved.append("No measurable workflow improvement has been demonstrated.")
+            customer_check = customer_economics_check(data.customer_economics)
+            failures.extend(customer_check.failures)
+            unresolved.extend(customer_check.unresolved)
         if gate_id == "G7_COMPETITIVE_VIABILITY" and not data.competitors:
             unresolved.append("At least one current alternative must be assessed.")
         if gate_id == "G8_ETHICAL_LEGAL_REGULATORY_ACCEPTABILITY":
@@ -266,7 +305,12 @@ def assess_gates(data: SolutionValidationInput, rules: RuleSet) -> tuple[GateAss
                 unresolved.append("Human-reviewed legal and regulatory acceptability evidence is required.")
             else:
                 legal_claim = claims["ethical_legal_regulatory_acceptable"]
-                linked_legal = _approved_evidence(legal_claim.evidence_ids, evidence)
+                linked_legal = _approved_evidence(
+                    legal_claim.evidence_ids,
+                    evidence,
+                    category_id=legal_claim.category_id,
+                    gate_id=gate_id,
+                )
                 if not any(item.evidence_class is EvidenceClass.AUTHORITATIVE_EXTERNAL for item in linked_legal):
                     unresolved.append("Legal acceptability requires approved authoritative external evidence.")
 

@@ -23,7 +23,7 @@
     "schema_version": {"const": "1.0"},
     "verified_problem_id": {"type": "string", "minLength": 1},
     "golden_study_id": {"type": "string", "minLength": 1},
-    "golden_study_verdict": {"type": "string", "minLength": 1},
+    "golden_study_verdict": {"type": "string", "enum": ["BUILD CANDIDATE"]},
     "evidence_summary": {"type": "string", "minLength": 1},
     "problem_mechanism": {"type": "string", "minLength": 1},
     "affected_workflow": {"type": "string", "minLength": 1},

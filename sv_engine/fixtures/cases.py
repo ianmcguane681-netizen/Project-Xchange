@@ -223,7 +223,7 @@ def build_prototype_case() -> dict[str, Any]:
             "payback_months": 3.2,
             "formulae": ["annual_value = observed_rework_hours * loaded_hourly_cost"],
             "assumptions": ["Observed fixture volume remains stable"],
-            "evidence_ids": ["EV-001", "EV-002", "EV-007"]
+            "evidence_ids": ["EV-002", "EV-007"]
         },
         "provena_unit_economics": {
             "development_cost": 25000,
@@ -261,14 +261,40 @@ def build_prototype_case() -> dict[str, Any]:
 def validate_further_case() -> dict[str, Any]:
     payload = deepcopy(build_prototype_case())
     payload["svr_id"] = "SVR-FIXTURE-VALIDATE-001"
-    payload["evidence_items"] = [item for item in payload["evidence_items"] if item["evidence_id"] not in {"EV-002", "EV-008"}]
+    removed_ids = {"EV-002", "EV-008"}
+    payload["evidence_items"] = [
+        item for item in payload["evidence_items"] if item["evidence_id"] not in removed_ids
+    ]
     payload["validation_claims"] = [
         item
         for item in payload["validation_claims"]
         if item["claim_id"] not in {"buyer_identified", "budget_path_identified", "customer_value_positive"}
-        and not set(item["evidence_ids"]).intersection({"EV-002", "EV-008"})
+        and not set(item["evidence_ids"]).intersection(removed_ids)
     ]
     payload["buyer_map"].update({"economic_buyer": "unknown", "budget_source": "unknown", "purchase_authority": "unknown", "evidence_ids": []})
+    for section in (
+        "customer_economics",
+        "provena_unit_economics",
+        "internal_operational_complexity",
+    ):
+        payload[section]["evidence_ids"] = [
+            evidence_id
+            for evidence_id in payload[section].get("evidence_ids", [])
+            if evidence_id not in removed_ids
+        ]
+    for workflow_name in ("current_workflow", "proposed_workflow"):
+        for metric in payload[workflow_name]["metrics"]:
+            metric["evidence_ids"] = [
+                evidence_id
+                for evidence_id in metric.get("evidence_ids", [])
+                if evidence_id not in removed_ids
+            ]
+    for competitor in payload["competitors"]:
+        competitor["evidence_ids"] = [
+            evidence_id
+            for evidence_id in competitor.get("evidence_ids", [])
+            if evidence_id not in removed_ids
+        ]
     return payload
 
 
