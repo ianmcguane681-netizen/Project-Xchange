@@ -146,7 +146,13 @@ def validate_report_submission(
         )
     policy.require_role_spec(assignment.reviewer_role, raw_record["reviewer_spec_id"])
     ai = raw_record["ai_assistance"]
-    ai_used = bool(ai.get("used"))
+    if not isinstance(ai.get("used"), bool):
+        raise RBEError(
+            "RBE_AI_ASSISTANCE_UNDECLARED",
+            "Reviewer reports must explicitly declare whether AI assistance was used",
+            "RBE-ES-DES-002",
+        )
+    ai_used = ai["used"]
     if ai_used and ai.get("human_verified") is not True:
         raise RBEError(
             "RBE_AI_REPORT_UNVERIFIED",

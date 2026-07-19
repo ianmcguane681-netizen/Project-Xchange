@@ -321,6 +321,21 @@ def test_unsigned_ai_cannot_become_authoritative_report(
             evidence_reference_ids=["EVI-001"],
         )
 
+    undeclared = valid_report_record()
+    undeclared["ai_assistance"] = {}
+    with pytest.raises(RBEError, match="explicitly declare"):
+        validate_report_submission(
+            schemas,
+            policy,
+            session=valid_session(authority),
+            assignment=valid_assignment(),
+            evidence=valid_evidence(),
+            raw_record=undeclared,
+            summary="Ambiguous assistance metadata.",
+            recommendation="Research",
+            evidence_reference_ids=["EVI-001"],
+        )
+
 
 def test_finding_preserves_report_and_evidence_lineage(
     authority: AuthorityBundle,

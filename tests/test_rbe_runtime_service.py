@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -395,3 +396,46 @@ def test_stage_guards_prevent_late_evidence_and_early_review(tmp_path: Path) -> 
             actor="human-chair",
             idempotency_key="late-evidence",
         )
+
+
+def test_returned_review_requires_immutable_successor_package(tmp_path: Path) -> None:
+    review_id = "REV-RETURNED-001"
+    runtime = RBERuntime(tmp_path / "returned.sqlite3", clock=lambda: NOW)
+    original = initiation(runtime.authority, review_id)
+    original["input_process_status"] = "PROCEDURALLY_INCOMPLETE"
+    runtime.initiate_review(
+        original,
+        actor="human-chair",
+        idempotency_key="initiate",
+    )
+    advance(runtime, review_id, "SUBMITTED", 1)
+    advance(runtime, review_id, "INTAKE_VALIDATION", 2)
+    advance(runtime, review_id, "RETURNED", 3)
+    with pytest.raises(RBEError, match="SUCCESSOR_SUBMISSION_REQUIRED"):
+        runtime.advance(
+            review_id,
+            "SUBMITTED",
+            actor="human-chair",
+            idempotency_key="premature-resubmit",
+            metadata={"successor_package_id": "PKG-NOT-REGISTERED"},
+        )
+
+    successor = copy.deepcopy(original)
+    successor["input_process_status"] = "READY"
+    successor["review_date"] = "2026-07-20T13:00:00Z"
+    package = runtime.resubmit_review_package(
+        review_id,
+        successor,
+        actor="human-chair",
+        idempotency_key="successor-package",
+    )
+    runtime.advance(
+        review_id,
+        "SUBMITTED",
+        actor="human-chair",
+        idempotency_key="accepted-resubmit",
+        metadata={"successor_package_id": package["package_id"]},
+    )
+    latest = runtime.repository.get_latest_package(review_id)
+    assert latest["package_version"] == 2
+    assert latest["raw_record"]["input_process_status"] == "READY"

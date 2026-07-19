@@ -184,6 +184,73 @@ class RBERuntime:
             idempotency_key=idempotency_key,
         )
 
+    def resubmit_review_package(
+        self,
+        session_id: str,
+        initiation: dict[str, Any],
+        *,
+        actor: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        session = self.repository.get_session(session_id)
+        previous = self.repository.get_initiation(session_id)
+        if session.status != "RETURNED":
+            raise RBEError(
+                "RBE_SUCCESSOR_PACKAGE_NOT_OPEN",
+                "Review-package resubmission is available only in RETURNED state",
+                "RBE-ES-ORC-005",
+            )
+        if actor != previous["board_chair"]:
+            raise RBEError(
+                "RBE_RESUBMISSION_ACTOR_MISMATCH",
+                "Only the named Board Chair may resubmit the review package",
+                "RBE-ES-ORC-004",
+            )
+        validate_initiation(
+            self.authority,
+            self.schemas,
+            self.policy,
+            initiation,
+            ExecutionMode(session.execution_mode),
+        )
+        immutable_fields = {
+            "review_id",
+            "tier",
+            "artefact_sha",
+            "repository",
+            "architecture_authority",
+            "methodology_profile_id",
+            "methodology_version",
+            "methodology_status",
+            "methodology_checksum",
+            "manifest_root_sha256",
+            "human_approval_record",
+            "binding",
+            "board_chair",
+            "methodology_auditor",
+            "sceptical_reviewer",
+            "specialists",
+        }
+        changed = sorted(
+            field
+            for field in immutable_fields
+            if initiation.get(field) != previous.get(field)
+        )
+        if changed:
+            raise RBEError(
+                "RBE_SUCCESSOR_PACKAGE_IDENTITY_CHANGED",
+                "A successor package cannot change sealed review identity or authority",
+                "RBE-ES-ORC-010",
+                {"fields": changed},
+            )
+        return self.repository.append_review_package(
+            session_id,
+            initiation,
+            self.authority.profile_manifest["root_sha256"],
+            actor=actor,
+            idempotency_key=idempotency_key,
+        )
+
     def respond_to_assignment(
         self,
         session_id: str,
@@ -823,10 +890,14 @@ class RBERuntime:
             "input_process_status"
         ] == "READY":
             self._prerequisite_error("NO_INTAKE_DEFECT_RECORDED")
-        if (source, target) == ("RETURNED", "SUBMITTED") and not metadata.get(
-            "successor_package_id"
-        ):
-            self._prerequisite_error("SUCCESSOR_SUBMISSION_REQUIRED")
+        if (source, target) == ("RETURNED", "SUBMITTED"):
+            latest_package = self.repository.get_latest_package(session.session_id)
+            if (
+                latest_package["package_version"] <= 1
+                or metadata.get("successor_package_id")
+                != latest_package["package_id"]
+            ):
+                self._prerequisite_error("SUCCESSOR_SUBMISSION_REQUIRED")
         if (source, target) == ("RETURNED", "WITHDRAWN") and not metadata.get(
             "withdrawal_confirmation"
         ):

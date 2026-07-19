@@ -6,6 +6,25 @@ Local Python/Streamlit prototype for the Project Exchange internal operating sys
 
 It also includes `COMP-001 Prompt Engine` for storing, versioning, approving, testing, searching, retiring, and rolling back prompts.
 
+## Review Board Engine Runtime v0.1
+
+The repository includes a headless, deterministic RBE Foundation runtime under
+`rbe_runtime/`. It consumes RBE-001 v1.1.0 and RBM-001 v2.0.0 directly, uses
+SQLite for durable review records, enforces the canonical lifecycle, preserves
+evidence and provenance, computes profile-driven outcomes, records separated
+human ratification and publication, and exports verifiable JSON/Markdown
+bundles.
+
+RBM-001 remains `RELEASE_CANDIDATE`. Runtime outputs are therefore advisory,
+non-binding, and always `merge_permitted=false`.
+
+```powershell
+python -m rbe_runtime validate-authority
+python -m pytest tests/test_rbe_runtime_*.py
+```
+
+See `docs/rbe-runtime/README.md` for the developer contract and commands.
+
 ## Provena Solution Validation Engine v1
 
 The repository now includes a separate, local `sv_engine/` package that evaluates whether a proposed solution has earned investment in a bounded prototype. It implements the methodology in `docs/sv_engine_methodology_specification.md` without coupling the decision rules to Streamlit or external AI services.

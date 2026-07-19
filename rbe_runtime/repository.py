@@ -60,12 +60,14 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
 
         CREATE TABLE review_packages (
             package_id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL UNIQUE REFERENCES review_sessions(session_id),
+            session_id TEXT NOT NULL REFERENCES review_sessions(session_id),
+            package_version INTEGER NOT NULL CHECK (package_version > 0),
             schema_name TEXT NOT NULL,
             raw_json TEXT NOT NULL,
             raw_sha256 TEXT NOT NULL,
             package_root_hash TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            UNIQUE (session_id, package_version)
         );
 
         CREATE TABLE review_assignments (
@@ -627,11 +629,12 @@ class SQLiteRepository:
             package_id = deterministic_id("PKG", session.session_id, raw_sha256)
             connection.execute(
                 """
-                INSERT INTO review_packages VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO review_packages VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     package_id,
                     session.session_id,
+                    1,
                     "tpl-rir",
                     canonical_json(initiation),
                     raw_sha256,
@@ -1214,7 +1217,10 @@ class SQLiteRepository:
         connection = self._connect()
         try:
             row = connection.execute(
-                "SELECT raw_json FROM review_packages WHERE session_id = ?",
+                """
+                SELECT raw_json FROM review_packages
+                WHERE session_id = ? ORDER BY package_version DESC LIMIT 1
+                """,
                 (session_id,),
             ).fetchone()
         finally:
@@ -1227,6 +1233,116 @@ class SQLiteRepository:
                 {"session_id": session_id},
             )
         return json.loads(row["raw_json"])
+
+    def get_latest_package(self, session_id: str) -> dict[str, Any]:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT * FROM review_packages
+                WHERE session_id = ? ORDER BY package_version DESC LIMIT 1
+                """,
+                (session_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            raise RBEError(
+                "RBE_REVIEW_PACKAGE_NOT_FOUND",
+                "Review initiation package was not found",
+                "RBE-ES-ORC-011",
+            )
+        return {
+            "package_id": row["package_id"],
+            "session_id": row["session_id"],
+            "package_version": row["package_version"],
+            "schema_name": row["schema_name"],
+            "raw_record": json.loads(row["raw_json"]),
+            "raw_sha256": row["raw_sha256"],
+            "package_root_hash": row["package_root_hash"],
+            "created_at": row["created_at"],
+        }
+
+    def append_review_package(
+        self,
+        session_id: str,
+        initiation: dict[str, Any],
+        package_root_hash: str,
+        *,
+        actor: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        payload = {
+            "initiation": initiation,
+            "package_root_hash": package_root_hash,
+        }
+
+        def operation(connection: sqlite3.Connection, now: str) -> dict[str, Any]:
+            session = connection.execute(
+                "SELECT status FROM review_sessions WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if session is None or session["status"] != "RETURNED":
+                raise RBEError(
+                    "RBE_SUCCESSOR_PACKAGE_NOT_OPEN",
+                    "A successor package may be appended only in RETURNED state",
+                    "RBE-ES-ORC-005",
+                )
+            previous = connection.execute(
+                """
+                SELECT package_id, package_version FROM review_packages
+                WHERE session_id = ? ORDER BY package_version DESC LIMIT 1
+                """,
+                (session_id,),
+            ).fetchone()
+            version = previous["package_version"] + 1
+            raw_hash = canonical_hash(initiation)
+            package_id = deterministic_id(
+                "PKG", session_id, str(version), raw_hash
+            )
+            connection.execute(
+                """
+                INSERT INTO review_packages VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    package_id,
+                    session_id,
+                    version,
+                    "tpl-rir",
+                    canonical_json(initiation),
+                    raw_hash,
+                    package_root_hash,
+                    now,
+                ),
+            )
+            self._append_audit(
+                connection,
+                session_id=session_id,
+                event_type="REVIEW_PACKAGE_RESUBMITTED",
+                actor=actor,
+                occurred_at=now,
+                payload={
+                    "package_id": package_id,
+                    "package_version": version,
+                    "package_sha256": raw_hash,
+                    "supersedes_package_id": previous["package_id"],
+                },
+            )
+            return {
+                "package_id": package_id,
+                "package_version": version,
+                "package_sha256": raw_hash,
+                "supersedes_package_id": previous["package_id"],
+            }
+
+        return self._run_idempotent(
+            session_id=session_id,
+            command_name="append_review_package",
+            idempotency_key=idempotency_key,
+            actor=actor,
+            payload=payload,
+            operation=operation,
+        )
 
     def save_decision_candidate(
         self,
