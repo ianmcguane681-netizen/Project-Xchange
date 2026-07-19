@@ -9,28 +9,15 @@ from typing import Any
 
 from sv_engine.domain.models import RunManifest
 from sv_engine.services.engine import EngineResult
+from sv_engine.services.calculations import workflow_comparison_payload
 from sv_engine.services.hashing import canonical_hash
 
 
 def workflow_comparison(result: EngineResult) -> dict[str, Any]:
-    current = result.record.current_workflow
-    proposed = result.record.proposed_workflow
-    return {
-        "current_state": current.to_dict(),
-        "proposed_state": proposed.to_dict(),
-        "calculated_comparison": {
-            "steps": {"current": len(current.steps), "proposed": len(proposed.steps)},
-            "handoffs": {
-                "current": sum(item.handoffs for item in current.steps),
-                "proposed": sum(item.handoffs for item in proposed.steps),
-            },
-            "manual_entries": {
-                "current": sum(item.manual_entries for item in current.steps),
-                "proposed": sum(item.manual_entries for item in proposed.steps),
-            },
-        },
-        "warning": "Unknown metrics remain unknown; the engine does not invent baseline values.",
-    }
+    return workflow_comparison_payload(
+        result.record.current_workflow,
+        result.record.proposed_workflow,
+    )
 
 
 def render_markdown(result: EngineResult) -> str:

@@ -67,11 +67,11 @@ The source-agnostic handoff schema is `sv_engine/schemas/golden_study_handoff.sc
 
 Required fields include the verified problem ID, Golden Study ID and verdict, mechanism, affected workflow and organisation type, consequences, source references, evidence lineage, independent source-family count, confidence, and limitations.
 
-Gate G1 also checks the handoff semantically. A rejected or insufficient Golden Study verdict fails. Fewer than two independent source families or low problem confidence leaves the gate unresolved. The SV Engine does not repair or inflate a weak Golden Study handoff.
+Gate G1 also checks the handoff semantically. Only an exact `BUILD CANDIDATE` Golden Study verdict is eligible; every other outcome is rejected at the input boundary. Fewer than two independent source families or low problem confidence leaves the gate unresolved. The SV Engine does not repair or inflate a weak Golden Study handoff.
 
 ## Rule Configuration
 
-`sv_engine/rules/sv_rules_v1.json` is the decision contract for SV Engine v1. It contains:
+`sv_engine/rules/sv_rules_v1_1.json` is the current decision contract. The historical `sv_rules_v1.json` remains available for reproduction. The current contract contains:
 
 - all 12 category IDs, weights, minimum build scores, and required claims;
 - all eight mandatory gates and their required conditions;
@@ -82,19 +82,19 @@ Gate G1 also checks the handoff semantically. A rejected or insufficient Golden 
 - global prototype-cost proportionality requirements;
 - fields excluded from stable business hashes.
 
-The file is loaded, validated, canonically hashed, and recorded in each run manifest. Historical rules can be supplied through the CLI to reproduce an old run.
+The file is loaded, structurally validated, canonically hashed, and checked against the reviewed rule hashes registered in code before use. Its hash is recorded in each run manifest. Historical reviewed rules can be supplied through the CLI to reproduce an old run; arbitrary local rule mutations are rejected.
 
 Scores use the methodology scale from zero to five. The engine awards score only when a category has both approved linked evidence and a supported structured claim. Confidence is derived from the linked evidence; the adjusted score is `raw_score * confidence`. Gates are evaluated before aggregate thresholds and cannot be overridden by a high score.
 
 ## Verdict Logic
 
-`BUILD PROTOTYPE` requires every mandatory gate to pass, no unresolved global blocker, all minimum category scores, the configured confidence-adjusted threshold, sufficient overall confidence, a bounded prototype scope, measurable claims, and proportionate cost-to-learning evidence.
+`BUILD PROTOTYPE` requires every mandatory gate to pass, no open contradiction, no unresolved global blocker, all minimum category scores and confidence floors, the configured confidence-adjusted threshold, sufficient overall confidence, a bounded prototype scope, measurable claims, and proportionate cost-to-learning evidence. The proposed workflow must demonstrate a calculated improvement without an explicit regression. Customer and Provena economics must reconcile to their declared formula inputs.
 
 `VALIDATE FURTHER` is returned for unresolved but plausible conditions. It always includes specific missing evidence and a ranked validation plan.
 
 `DO NOT BUILD` is returned for evidence-backed mandatory failures, non-positive customer or Provena economics, disproportionate prototype cost, or unacceptable internal operating burden. Scores cannot conceal those failures.
 
-A material verdict change within the configured scenario tolerance marks the run `BORDERLINE`. A borderline positive case is conservatively downgraded to `VALIDATE FURTHER` with a priority action.
+A material verdict change within the configured scenario tolerance marks the run `BORDERLINE`. A borderline positive case is conservatively downgraded to `VALIDATE FURTHER` with a priority action. Scenario cost and expected-learning economics constrain the final verdict; the base scenario cannot be ignored and an upside-only positive case cannot produce `BUILD PROTOTYPE`.
 
 ## Outputs
 
@@ -149,7 +149,7 @@ The controlled examples in `examples/sv_engine/` demonstrate all three verdict c
 
 ## Test Strategy
 
-The focused suite verifies deterministic output, metadata-only stability, material mutation detection, evidence removal, unsupported claims, gate precedence, buyer and baseline gaps, internal operability, customer versus Provena economics, weak solution linkage, contradiction retention, three genuine verdict paths, borderline sensitivity, historical rules, malformed input, review identity, reports, and append-only SQLite persistence.
+The focused suite verifies deterministic output, metadata-only stability, material mutation detection, evidence removal, unsupported claims, gate precedence, buyer and baseline gaps, workflow regression, reconciled customer and Provena economics, internal confidence, weak solution linkage, contradiction blocking, duplicate evidence rejection, semantic material references, scenario economics, reviewed and historical rules, malformed input, review identity, reports, and append-only SQLite persistence.
 
 Run:
 
@@ -176,4 +176,3 @@ python -m pytest -q
 ## Next Eligible Milestone
 
 Run SV Engine v1 with one legitimate Golden Study verified-problem package and one bounded solution hypothesis. Review every source, buyer, workflow, economics, legal, and operating artifact. Only after that run is reproducible should an optional governed human-challenge register or external consumer be considered.
-

@@ -56,8 +56,15 @@ class SolutionValidationEngine:
         gates = assess_gates(data, self.rules)
         missing = build_missing_evidence(data, self.rules, gates)
         weighted_score = self._weighted_adjusted_score(categories)
-        base_verdict, reasons, blockers = self._determine_verdict(data, categories, gates, weighted_score)
-        scenario_verdicts = self._scenario_verdicts(data, categories, gates, weighted_score)
+        base_verdict, reasons, blockers = self._determine_verdict(
+            data, categories, gates, contradictions, weighted_score
+        )
+        scenario_verdicts = self._scenario_verdicts(
+            data, categories, gates, contradictions, weighted_score
+        )
+        base_verdict, reasons, blockers = self._reconcile_scenario_verdicts(
+            base_verdict, reasons, blockers, scenario_verdicts
+        )
         sensitivity = self._sensitivity_results(data, scenario_verdicts)
         borderline = any(item.material for item in sensitivity)
         if base_verdict is VerdictValue.BUILD_PROTOTYPE and borderline:
@@ -132,20 +139,83 @@ class SolutionValidationEngine:
         evidence_ids = [item.evidence_id for item in data.evidence_items]
         if len(evidence_ids) != len(set(evidence_ids)):
             raise ValueError("Evidence IDs must be unique")
+        content_hashes = [item.content_hash for item in data.evidence_items]
+        if len(content_hashes) != len(set(content_hashes)):
+            raise ValueError("Evidence content hashes must be unique; duplicate content cannot earn additional credit")
         known = set(evidence_ids)
+        category_ids = {str(item["id"]) for item in self.rules.data["categories"]}
+        gate_ids = {str(item["id"]) for item in self.rules.data["gates"]}
+        evidence_by_id = {item.evidence_id: item for item in data.evidence_items}
+        claim_ids = [claim.claim_id for claim in data.validation_claims]
+        if len(claim_ids) != len(set(claim_ids)):
+            raise ValueError("Validation claim IDs must be unique")
+        for item in data.evidence_items:
+            unknown_categories = sorted(set(item.linked_categories).difference(category_ids))
+            unknown_gates = sorted(set(item.linked_gates).difference(gate_ids))
+            if unknown_categories or unknown_gates:
+                raise ValueError(
+                    f"Evidence {item.evidence_id} has unknown links: "
+                    f"categories={unknown_categories}, gates={unknown_gates}"
+                )
         for claim in data.validation_claims:
+            if claim.category_id not in category_ids:
+                raise ValueError(f"Claim {claim.claim_id} references unknown category {claim.category_id}")
             unknown = sorted(set(claim.evidence_ids).difference(known))
             if unknown:
                 raise ValueError(
                     f"Claim {claim.claim_id} references unknown evidence: {', '.join(unknown)}"
                 )
-        for workflow in (data.current_workflow, data.proposed_workflow):
+            # Historical handoffs may list broad supporting evidence on a claim.
+            # Scoring only credits evidence explicitly linked to the claim's
+            # category, so an unrelated reference is preserved but earns no
+            # authority or confidence.
+        for workflow, expected_category in (
+            (data.current_workflow, "C2_CURRENT_WORKFLOW_BASELINE"),
+            (data.proposed_workflow, "C3_WORKFLOW_IMPROVEMENT"),
+        ):
+            metric_ids = [metric.metric_id for metric in workflow.metrics]
+            if len(metric_ids) != len(set(metric_ids)):
+                raise ValueError(f"Workflow {workflow.workflow_id} metric IDs must be unique")
             for metric in workflow.metrics:
                 unknown = sorted(set(metric.evidence_ids).difference(known))
                 if unknown:
                     raise ValueError(
                         f"Workflow metric {metric.metric_id} references unknown evidence: {', '.join(unknown)}"
                     )
+                mismatched = sorted(
+                    evidence_id
+                    for evidence_id in metric.evidence_ids
+                    if expected_category not in evidence_by_id[evidence_id].linked_categories
+                )
+                if mismatched:
+                    raise ValueError(
+                        f"Workflow metric {metric.metric_id} uses evidence not linked to "
+                        f"{expected_category}: {', '.join(mismatched)}"
+                    )
+        referenced_sections = [
+            ("Buyer map", data.buyer_map.evidence_ids, "C6_BUYER_DEFINITION"),
+            ("Customer economics", data.customer_economics.evidence_ids, "C7_CUSTOMER_ECONOMICS"),
+            ("Provena unit economics", data.provena_unit_economics.evidence_ids, "C9_PROVENA_UNIT_ECONOMICS"),
+            ("Internal operational complexity", data.internal_operational_complexity.evidence_ids, "C5_INTERNAL_OPERATIONAL_COMPLEXITY"),
+        ]
+        referenced_sections.extend(
+            (f"Competitor {item.competitor_id}", item.evidence_ids, "C8_MARKET_COMPETITION")
+            for item in data.competitors
+        )
+        for label, references, expected_category in referenced_sections:
+            unknown = sorted(set(references).difference(known))
+            if unknown:
+                raise ValueError(f"{label} references unknown evidence: {', '.join(unknown)}")
+            mismatched = sorted(
+                evidence_id
+                for evidence_id in references
+                if expected_category not in evidence_by_id[evidence_id].linked_categories
+            )
+            if mismatched:
+                raise ValueError(
+                    f"{label} uses evidence not linked to {expected_category}: "
+                    f"{', '.join(mismatched)}"
+                )
 
     def _weighted_adjusted_score(self, categories: tuple[Any, ...]) -> float:
         weights = {item["id"]: float(item["weight"]) for item in self.rules.data["categories"]}
@@ -173,6 +243,7 @@ class SolutionValidationEngine:
         data: SolutionValidationInput,
         categories: tuple[Any, ...],
         gates: tuple[Any, ...],
+        contradictions: tuple[Any, ...],
         weighted_score: float,
     ) -> tuple[VerdictValue, tuple[str, ...], tuple[str, ...]]:
         failures = tuple(
@@ -187,6 +258,11 @@ class SolutionValidationEngine:
             for gate in gates
             if gate.status is GateStatus.UNRESOLVED
         )
+        if contradictions:
+            unresolved += (
+                "Open contradiction records must be resolved before BUILD PROTOTYPE: "
+                + ", ".join(item.contradiction_id for item in contradictions),
+            )
         global_state = self._global_claim_state(data)
         if global_state == "NEGATIVE":
             return (
@@ -213,6 +289,13 @@ class SolutionValidationEngine:
             for item in categories
             if item.raw_score < int(category_rules[item.category_id]["minimum_build_score"])
         )
+        weak_categories += tuple(
+            f"{item.category_id} confidence {item.confidence:.2f} is below "
+            f"{float(category_rules[item.category_id].get('minimum_build_confidence', 0.5)):.2f}"
+            for item in categories
+            if item.confidence
+            < float(category_rules[item.category_id].get("minimum_build_confidence", 0.5))
+        )
         if weighted_score < float(thresholds["build_weighted_adjusted_score"]):
             weak_categories += (
                 f"Weighted confidence-adjusted score {weighted_score:.2f} is below the configured threshold.",
@@ -231,39 +314,65 @@ class SolutionValidationEngine:
         data: SolutionValidationInput,
         categories: tuple[Any, ...],
         gates: tuple[Any, ...],
+        contradictions: tuple[Any, ...],
         weighted_score: float,
     ) -> dict[ScenarioName, VerdictValue]:
-        failed = any(item.status is GateStatus.FAIL for item in gates)
-        unresolved = any(item.status is GateStatus.UNRESOLVED for item in gates)
         maximum_adjustment = float(
             self.rules.data["verdict_thresholds"]["maximum_scenario_adjustment"]
         )
-        threshold = float(
-            self.rules.data["verdict_thresholds"]["build_weighted_adjusted_score"]
-        )
-        global_state = self._global_claim_state(data)
         results: dict[ScenarioName, VerdictValue] = {}
         for scenario in data.scenarios:
             if abs(scenario.category_score_adjustment) > maximum_adjustment:
                 raise ValueError(
                     f"Scenario {scenario.name.value} adjustment exceeds configured limit"
                 )
-            if failed or global_state == "NEGATIVE":
+            value, _, _ = self._determine_verdict(
+                data,
+                categories,
+                gates,
+                contradictions,
+                weighted_score + scenario.category_score_adjustment,
+            )
+            if scenario.prototype_cost is None or scenario.expected_learning_value is None:
+                if value is VerdictValue.BUILD_PROTOTYPE:
+                    value = VerdictValue.VALIDATE_FURTHER
+            elif scenario.prototype_cost <= 0 or scenario.expected_learning_value <= 0:
                 value = VerdictValue.DO_NOT_BUILD
-            elif unresolved or global_state == "UNRESOLVED":
-                value = VerdictValue.VALIDATE_FURTHER
-            elif (
-                scenario.prototype_cost is not None
-                and scenario.expected_learning_value is not None
-                and scenario.prototype_cost > scenario.expected_learning_value
-            ):
+            elif scenario.prototype_cost > scenario.expected_learning_value:
                 value = VerdictValue.DO_NOT_BUILD
-            elif weighted_score + scenario.category_score_adjustment >= threshold:
-                value = VerdictValue.BUILD_PROTOTYPE
-            else:
-                value = VerdictValue.VALIDATE_FURTHER
             results[scenario.name] = value
         return results
+
+    def _reconcile_scenario_verdicts(
+        self,
+        verdict: VerdictValue,
+        reasons: tuple[str, ...],
+        blockers: tuple[str, ...],
+        scenarios: dict[ScenarioName, VerdictValue],
+    ) -> tuple[VerdictValue, tuple[str, ...], tuple[str, ...]]:
+        if verdict is VerdictValue.DO_NOT_BUILD:
+            return verdict, reasons, blockers
+        base = scenarios[ScenarioName.BASE]
+        if base is VerdictValue.DO_NOT_BUILD:
+            return (
+                VerdictValue.DO_NOT_BUILD,
+                reasons + ("The base scenario makes prototype cost or evidence structurally unacceptable.",),
+                blockers,
+            )
+        if base is VerdictValue.VALIDATE_FURTHER:
+            return (
+                VerdictValue.VALIDATE_FURTHER,
+                reasons,
+                blockers + ("The base scenario does not support BUILD PROTOTYPE.",),
+            )
+        build_scenarios = [name for name, value in scenarios.items() if value is VerdictValue.BUILD_PROTOTYPE]
+        if verdict is VerdictValue.BUILD_PROTOTYPE and build_scenarios == [ScenarioName.UPSIDE]:
+            return (
+                VerdictValue.VALIDATE_FURTHER,
+                reasons,
+                blockers + ("BUILD PROTOTYPE cannot depend exclusively on the upside scenario.",),
+            )
+        return verdict, reasons, blockers
 
     def _sensitivity_results(
         self,
