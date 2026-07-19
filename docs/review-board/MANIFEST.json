@@ -10,18 +10,18 @@
     },
     {
       "path": "RBM-001_PRINCIPAL_REVIEW_v2.0.0.md",
-      "sha256": "feb7325035ffa8531466b400741cbcfdd06b997b706060e2e58ebf5104e88f45",
-      "size": 6791
+      "sha256": "e5d060af106dfe430865a4b39a85dbf22a113a5a23ef12b1c5165b30039b4953",
+      "size": 7338
     },
     {
       "path": "README.md",
-      "sha256": "2f343b4d1638ce3832333e766877d7e8877163534c96dd52d0dc00899475ed4b",
-      "size": 16188
+      "sha256": "f754b5db099342ff35607e254a62daa4c1adf6daf1f9ffbcb7900f1ae89868cf",
+      "size": 16192
     },
     {
       "path": "REVIEW-BOARD-METHODOLOGY.md",
-      "sha256": "57a540e7a1c43424000867cb84af7bdd15028d96c65ce177dca6115e63c9d5f6",
-      "size": 70400
+      "sha256": "28d32dd3648f0d96eb868bee15cd612d141f804d50b95b447a3856ef7ad18e5a",
+      "size": 69496
     },
     {
       "path": "schemas/tpl-bdr.schema.json",
@@ -60,44 +60,44 @@
     },
     {
       "path": "specs/RBS-001-METHODOLOGY-AUDIT.md",
-      "sha256": "477ddf79f58b07506073382e08228988905a1f8f242d4cd7453491c216103611",
-      "size": 26109
+      "sha256": "68aa0e3b8e6bc628de58487fd6494c8bb4148b1398b354d7703992ae9e79c7ba",
+      "size": 25751
     },
     {
       "path": "specs/RBS-002-SOFTWARE-ARCHITECTURE-AUDIT.md",
-      "sha256": "5314f5cda31c43ac14032b38bf9463756c13962d46782f7227b784265ce45815",
-      "size": 19282
+      "sha256": "b4a760ee9b89d6561179ef93ca6bcf9dbcd23b5fcd3555d8006e748d2be07926",
+      "size": 18937
     },
     {
       "path": "specs/RBS-003-BUSINESS-COMMERCIAL-AUDIT.md",
-      "sha256": "647d054baf12355e75f1115492c6417df2c64fb90b829c51ba4d8c07263b6e6b",
-      "size": 23648
+      "sha256": "b4766616020ddf180109d178d46aa8c8db413de4f0ef52eeeb310bac6e3a58ea",
+      "size": 23245
     },
     {
       "path": "specs/RBS-004-DATA-EVIDENCE-AUDIT.md",
-      "sha256": "c6d8d92260d75255940bf5c21625fa42e2be6092e080eb4b742a2e56eb9ea47a",
-      "size": 21071
+      "sha256": "fc8beb9a3cbf7ba7b4c0062315fce1c2eab13def9174d7d3cd1e49da1bd4add3",
+      "size": 20686
     },
     {
       "path": "specs/RBS-005-QA-RELIABILITY-AUDIT.md",
-      "sha256": "e00bb24c4bc968583d68e274cd7cbbbed20f3705ff05c4d49cd60ad7eca54718",
-      "size": 20511
+      "sha256": "c9ede483ce53fc6686a3cb92984f6779375e034b815678dccb0a6084749420d0",
+      "size": 20129
     },
     {
       "path": "specs/RBS-006-SECURITY-PRIVACY-AUDIT.md",
-      "sha256": "08cbaefc7437b8b426edffa99f584217bffb86a4d39af296e68668a2a4fb17b6",
-      "size": 23506
+      "sha256": "30bef84ab4d231b01baf2c99458bae54b2d39e94550ca5b3b2d37b89231a1fe3",
+      "size": 23119
     },
     {
       "path": "specs/RBS-007-PERFORMANCE-OPERATIONS-AUDIT.md",
-      "sha256": "d48743cae3bbf6fd3de19a5517c8f2708d545f00f4d049bb8b20d77ed847d0bc",
-      "size": 22724
+      "sha256": "3775c0fe20a09b76bef7f58c366aef2df3fe03f5d41335ae651b314c65c7be99",
+      "size": 22294
     },
     {
       "path": "specs/RBS-008-SCEPTICAL-REVIEW.md",
-      "sha256": "fc66a2b0a28ae264ab620a6f91f9fdcfda4c7fa9a856ebaf0068df8ff3943d01",
-      "size": 25358
+      "sha256": "867e11b42407c3732bae31443f74221cd02e97ce3e81e6939e81bc0100f23275",
+      "size": 24918
     }
   ],
-  "root_sha256": "sha256:a2c67b6ab3cd3ccb14e746a57f504905660fce7e1104557eea70a71852af9b68"
+  "root_sha256": "sha256:36a429b5600e2453c14c308a04bf74e7f86147ca5c489886ce7f2a9caf936283"
 }

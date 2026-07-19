@@ -276,7 +276,7 @@ This package follows semantic versioning per RBM-001 §16.1. Changes require upd
 
 ## Controlled Validation
 
-Run `python scripts/validate_rbm001_package.py --check` before review or publication. The validator verifies the profile checksum, controlled-file manifest, complete RBE lifecycle mapping, decision precedence, schema set, and release-candidate activation boundary. Its `validate_decision_bundle()` contract additionally checks TPL-RIR, TPL-BDR, and TPL-MRI identity, quorum, role separation, deterministic outcome, and merge-authorisation invariants.
+Run `python scripts/validate_rbm001_package.py --write` after changing controlled files; it normalizes controlled text to LF before rebuilding checksums. Then run `python scripts/validate_rbm001_package.py --check` before review or publication. The validator verifies canonical line endings, the profile checksum, controlled-file manifest, complete RBE lifecycle mapping, decision precedence, schema set, and release-candidate activation boundary. Its `validate_decision_bundle()` contract additionally checks TPL-RIR, TPL-BDR, and TPL-MRI identity, quorum, role separation, deterministic outcome, and merge-authorisation invariants.
 
 ## Activation Boundary
 

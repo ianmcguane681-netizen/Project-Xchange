@@ -82,6 +82,12 @@ def test_rbm001_package_is_reproducible_and_valid() -> None:
     rbm.validate_package()
 
 
+def test_controlled_package_uses_canonical_lf_endings() -> None:
+    for path in [*rbm.controlled_files(), rbm.MANIFEST_PATH]:
+        if path.suffix.lower() in rbm.CONTROLLED_TEXT_SUFFIXES:
+            assert b"\r" not in path.read_bytes(), path
+
+
 @pytest.mark.parametrize(
     ("kwargs", "expected"),
     [
