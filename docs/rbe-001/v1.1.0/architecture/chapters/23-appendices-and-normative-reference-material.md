@@ -1,7 +1,7 @@
 ---
 document_id: RBE-001
 release_version: 1.1.0
-status: normalized-architecture-release
+status: normalization-release-candidate
 chapter: 23
 source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 ---
@@ -381,9 +381,29 @@ Codex Can a coding agent implement without
 inventing policy?
 Publication Are reports verifiable, versioned and linked to
 provenance?
-## 23.16 Normalization Resolution Register
+## 23.16 Historical v1.0.0 Source Disposition
 
-The v1.1.0 normalization release resolves the master-document assembly questions as follows:
+Controlled source pages 157-159 contained the v1.0.0 master-review open items, publication
+certification, and controlled limitations. They remain historical evidence under source checksum
+`0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31` but do not transfer
+approval to this candidate.
+
+Their unresolved items are dispositioned as follows:
+
+- reviewer combination and quorum rules remain ACTIVE-methodology responsibilities;
+- retention, privacy, SLO, RPO/RTO, identity, cryptography, and publication audiences remain
+  production deployment gates;
+- requirement-to-test traceability remains an implementation acceptance artifact;
+- the cross-chapter entity/event glossary and final diagrams remain controlled publication
+  dependencies and must not be invented by implementation code;
+- the historical `APPROVED FOR CONTROLLED ENGINEERING USE` statement applies only to v1.0.0 and
+  is not a human approval record for v1.1.0.
+
+<!-- Controlled source pages 157-159: historical certification disposition -->
+
+## 23.17 Normalization Resolution Register
+
+The v1.1.0 normalization candidate resolves the master-document assembly questions as follows:
 
 - Chapter 8 is the only authoritative case state machine.
 - Chapter 6 is the canonical outcome taxonomy; process statuses are not verdicts.
@@ -400,7 +420,7 @@ Deployment-specific values for retention, SLO, RPO, RTO, cryptographic profiles,
 providers, publication audiences, and production topology remain controlled deployment ADRs.
 They do not alter the canonical domain semantics and must be approved before production use.
 
-## 23.17 Final Codex Constitutional Contract
+## 23.18 Final Codex Constitutional Contract
 
 Codex is an implementation capability, not a member of the Review Board. It has no desired
 case outcome and no authority to decide what should be true. It must implement the architecture
@@ -415,20 +435,21 @@ rejection rate, or commercial conclusion.
 **RBE-APP-052** Codex SHALL treat insufficient evidence and architecture clarification required as
 valid outputs rather than failures to complete a task.
 
-## 23.18 Release Gates
+## 23.19 Release Gates
 
 - Canonical verdict and process-status registers validate.
 - Canonical state-machine register validates.
 - Architecture and engineering requirement namespaces do not collide.
 - Every superseded v1.0.0 engineering ID has an explicit migration entry.
 - Individual Markdown sources and the deterministic ZIP contain identical bytes.
-- The independent normalization review reports no unresolved architecture blocker.
+- The principal technical review reports no unresolved architecture blocker.
 - A named human Principal Architect must approve operational activation.
 - A live Board decision additionally requires an ACTIVE methodology profile.
 
-## 23.19 Normalized Architecture Status
+## 23.20 Normalized Architecture Status
 
-RBE-001 v1.1.0 supersedes the contradictory release metadata and implementation mappings in
-v1.0.0. The v1.0.0 controlled files remain immutable historical artifacts. This normalized
-Markdown release is technically ready for human approval; it is not evidence of human approval
+RBE-001 v1.1.0 proposes to supersede the contradictory release metadata and implementation
+mappings in v1.0.0. Effective supersession begins only after named human Principal Architect
+approval. The v1.0.0 controlled files remain immutable historical artifacts. This normalized
+Markdown candidate is technically ready for human approval; it is not evidence of that approval
 and does not activate RBM-001 or authorize a live Review Board decision.

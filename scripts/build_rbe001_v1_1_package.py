@@ -9,6 +9,7 @@ import re
 import sys
 import zipfile
 from pathlib import Path
+from typing import TypedDict
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,8 @@ REQUIREMENT_PATTERN = re.compile(
     r"^\*\*(RBE-(?:ES-)?[A-Z]+-\d{3})\*\*\s+(.+)$"
 )
 ENGINEERING_ID_PATTERN = re.compile(r"\bRBE-ES-([A-Z]+)-(\d{3})\b")
+REQUIREMENT_TERMINATORS = (".", "?", "!")
+SEMANTICALLY_NORMALIZED_ENGINEERING_DOMAINS = {"DEC", "LIF", "TST"}
 
 CANONICAL_OUTCOMES = [
     "PASS",
@@ -65,6 +68,15 @@ class PackageValidationError(RuntimeError):
     pass
 
 
+class RequirementRecord(TypedDict):
+    id: str
+    line_end: int
+    line_start: int
+    section: str
+    source: str
+    statement: str
+
+
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
@@ -89,9 +101,10 @@ def architecture_document_bytes() -> bytes:
 document_id: RBE-001
 title: Review Board Engine Reference Architecture
 release_version: 1.1.0
-status: normalized-architecture-release
+status: normalization-release-candidate
 publication_date: 2026-07-19
-supersedes: RBE-001-v1.0.0
+proposed_supersedes: RBE-001-v1.0.0
+supersession_effective_on: named-human-principal-architect-approval
 source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 ---
 
@@ -103,7 +116,7 @@ source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 |---|---|
 | Document identifier | RBE-001 |
 | Version | 1.1.0 |
-| Status | Normalized architecture release - ready for human approval |
+| Status | Normalization release candidate - ready for human approval |
 | Coverage | Chapters 1-23 |
 | Historical source | RBE-001 v1.0.0 controlled PDF, checksum recorded above |
 | Implementation consumer | Codex and engineering teams |
@@ -112,7 +125,7 @@ source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 
 ## Normalization Authority
 
-This release preserves the complete v1.0.0 architectural substance while resolving release
+This candidate retains the normative v1.0.0 architectural substance while resolving release
 metadata, outcome semantics, state ownership, requirement namespaces, and the relationship
 between constitutional architecture, implementation profiles, and active methodologies. The
 normalization registers are normative where they explicitly resolve a v1.0.0 conflict.
@@ -127,36 +140,64 @@ normalization registers are normative where they explicitly resolve a v1.0.0 con
     return ("\n\n".join(parts).rstrip() + "\n").encode("utf-8")
 
 
-def collect_requirements() -> list[dict[str, str]]:
-    requirements: list[dict[str, str]] = []
+def collect_requirements() -> list[RequirementRecord]:
+    requirements: list[RequirementRecord] = []
     seen: dict[str, str] = {}
     for path in source_documents():
+        lines = path.read_text(encoding="utf-8").splitlines()
         current_heading = ""
-        for line in path.read_text(encoding="utf-8").splitlines():
+        line_index = 0
+        while line_index < len(lines):
+            line = lines[line_index]
             if line.startswith("#"):
                 current_heading = line.lstrip("#").strip()
             match = REQUIREMENT_PATTERN.match(line)
             if not match:
+                line_index += 1
                 continue
-            requirement_id, statement = match.groups()
+            requirement_id, first_fragment = match.groups()
             relative = path.relative_to(PACKAGE_ROOT).as_posix()
             if requirement_id in seen:
                 raise PackageValidationError(
                     f"Duplicate requirement {requirement_id}: {seen[requirement_id]} and {relative}"
                 )
+
+            fragments = [first_fragment.strip()]
+            end_index = line_index
+            while not fragments[-1].endswith(REQUIREMENT_TERMINATORS):
+                end_index += 1
+                if end_index >= len(lines):
+                    raise PackageValidationError(
+                        f"Unterminated requirement {requirement_id} in {relative}"
+                    )
+                continuation = lines[end_index].strip()
+                if (
+                    not continuation
+                    or continuation.startswith(("#", "<!--", "|", "- ", "* ", "```"))
+                    or REQUIREMENT_PATTERN.match(lines[end_index])
+                ):
+                    raise PackageValidationError(
+                        f"Requirement {requirement_id} ends before terminal punctuation in {relative}"
+                    )
+                fragments.append(continuation)
+
+            statement = " ".join(fragments)
             seen[requirement_id] = relative
             requirements.append(
                 {
                     "id": requirement_id,
+                    "line_end": end_index + 1,
+                    "line_start": line_index + 1,
                     "section": current_heading,
                     "source": relative,
                     "statement": statement,
                 }
             )
+            line_index = end_index + 1
     return sorted(requirements, key=lambda item: item["id"])
 
 
-def requirement_register_bytes(requirements: list[dict[str, str]]) -> bytes:
+def requirement_register_bytes(requirements: list[RequirementRecord]) -> bytes:
     payload = {
         "architecture_release": "1.1.0",
         "requirements": requirements,
@@ -168,7 +209,7 @@ def requirement_register_bytes(requirements: list[dict[str, str]]) -> bytes:
     )
 
 
-def migration_register_bytes(requirements: list[dict[str, str]]) -> bytes:
+def migration_register_bytes(requirements: list[RequirementRecord]) -> bytes:
     architecture_ids = {
         item["id"] for item in requirements if not item["id"].startswith("RBE-ES-")
     }
@@ -239,18 +280,32 @@ def migration_register_bytes(requirements: list[dict[str, str]]) -> bytes:
             raise PackageValidationError(f"Invalid engineering requirement ID: {new_id}")
         old_id = f"RBE-{match.group(1)}-{match.group(2)}"
         collision = old_id in architecture_ids
+        semantically_normalized = match.group(1) in SEMANTICALLY_NORMALIZED_ENGINEERING_DOMAINS
+        if semantically_normalized:
+            disposition = (
+                "SEMANTIC_NORMALISATION_AND_NAMESPACE_COLLISION_RESOLVED"
+                if collision
+                else "SEMANTIC_NORMALISATION_AND_RENAMESPACE"
+            )
+            note = (
+                "Requirement was renamespaced and revised by the v1.1.0 canonical state, "
+                "verdict, or acceptance-test normalization; compare the source-qualified lineage."
+            )
+        else:
+            disposition = "NAMESPACE_COLLISION_RESOLVED" if collision else "RENAMED_WITH_LINEAGE"
+            note = (
+                "Architecture retains the historical ID; engineering definition is superseded."
+                if collision
+                else "Engineering requirement moved to the explicit RBE-ES namespace."
+            )
         writer.writerow(
             [
                 "RBE-001 Engineering Specification",
                 "1.0.0",
                 old_id,
                 new_id,
-                "NAMESPACE_COLLISION_RESOLVED" if collision else "RENAMED_WITH_LINEAGE",
-                (
-                    "Architecture retains the historical ID; engineering definition is superseded."
-                    if collision
-                    else "Engineering requirement moved to the explicit RBE-ES namespace."
-                ),
+                disposition,
+                note,
             ]
         )
     return buffer.getvalue().encode("utf-8")
@@ -282,6 +337,8 @@ def manifest_bytes(paths: list[Path]) -> bytes:
         "package_id": "RBE-001-AI-READER",
         "package_version": "1.1.0",
         "publication_date": "2026-07-19",
+        "release_status": "normalization-release-candidate",
+        "supersession_effective_on": "named-human-principal-architect-approval",
         "root_hash": root_hash,
         "schema_id": "rbe.ai-reader-manifest",
         "schema_version": "1.0.0",
@@ -349,6 +406,30 @@ def validate_source_documents() -> None:
         raise PackageValidationError(
             "Unnamespaced engineering requirement IDs remain: " + ", ".join(legacy_ids[:10])
         )
+    if (
+        "This outcome indicates that a legitimate substantive decision cannot be issued"
+        in architecture
+    ):
+        raise PackageValidationError("Process status is still described as a substantive outcome")
+    if "| published_by | ActorRef | Required |" in engineering:
+        raise PackageValidationError(
+            "BoardDecision requires publication authority before publication"
+        )
+
+    package_readme = (PACKAGE_ROOT / "README.md").read_text(encoding="utf-8")
+    if "supersedes RBE-001 v1.0.0 for future implementation" in package_readme:
+        raise PackageValidationError("Release candidate claims effective supersession")
+
+    repository_readme = (REPO_ROOT / "docs" / "rbe-001" / "README.md").read_text(
+        encoding="utf-8"
+    )
+    repository_instructions = (
+        REPO_ROOT / "docs" / "rbe-001" / "CODEX_REVIEW_INSTRUCTIONS.md"
+    ).read_text(encoding="utf-8")
+    if "v1.1.0" not in repository_readme or "v1.1.0" not in repository_instructions:
+        raise PackageValidationError("Repository RBE entrypoint does not identify v1.1.0")
+    if "extract the archive" in repository_instructions.casefold():
+        raise PackageValidationError("Repository instructions still direct reviewers to v1.0 ZIP")
 
 
 def validate_registers() -> None:
@@ -357,6 +438,8 @@ def validate_registers() -> None:
     )
     if verdicts["substantive_outcomes"] != CANONICAL_OUTCOMES:
         raise PackageValidationError("Canonical outcome register does not match v1.1.0")
+    if not verdicts["rules"].get("insufficient_evidence_required_for_active_profile"):
+        raise PackageValidationError("ACTIVE profiles may suppress insufficient evidence")
     statuses = [item["id"] for item in verdicts["process_statuses"]]
     if statuses != CANONICAL_PROCESS_STATUSES:
         raise PackageValidationError("Canonical process-status register does not match v1.1.0")
@@ -372,13 +455,37 @@ def validate_registers() -> None:
         raise PackageValidationError("State register contains duplicate states")
     known = set(states)
     outgoing: set[str] = set()
+    transition_pairs: set[tuple[str, str]] = set()
     for source, target in state_machine["transitions"]:
         if source not in known or target not in known:
             raise PackageValidationError(f"Transition references unknown state: {source} -> {target}")
+        if (source, target) in transition_pairs:
+            raise PackageValidationError(f"Duplicate transition: {source} -> {target}")
+        transition_pairs.add((source, target))
         outgoing.add(source)
     for item in state_machine["states"]:
         if item["terminal"] and item["id"] in outgoing:
             raise PackageValidationError(f"Terminal state has outgoing transition: {item['id']}")
+        if not item["terminal"] and item["id"] not in outgoing:
+            raise PackageValidationError(f"Non-terminal state is a dead end: {item['id']}")
+
+    initial_state = state_machine.get("initial_state")
+    if initial_state not in known:
+        raise PackageValidationError("State register lacks a valid initial state")
+    reachable = {initial_state}
+    frontier = [initial_state]
+    while frontier:
+        source = frontier.pop()
+        for transition_source, target in transition_pairs:
+            if transition_source == source and target not in reachable:
+                reachable.add(target)
+                frontier.append(target)
+    if reachable != known:
+        raise PackageValidationError(
+            "State register contains unreachable states: " + ", ".join(sorted(known - reachable))
+        )
+    if ("REMANDED", "ASSIGNMENT") not in transition_pairs:
+        raise PackageValidationError("Canonical remand re-entry transition is missing")
 
 
 def validate_archive(archive_content: bytes, manifest_content: bytes) -> None:

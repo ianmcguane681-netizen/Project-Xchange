@@ -1,7 +1,7 @@
 ---
 document_id: RBE-001
 release_version: 1.1.0
-status: normalized-architecture-release
+status: normalization-release-candidate
 chapter: 6
 source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 ---
@@ -145,12 +145,17 @@ step rather than a generally inadequate evidence base.
 **RBE-DEC-060** A DEFER decision SHALL define the research question, required artifact or verification
 action, responsible role, and re-entry condition.
 **RBE-DEC-061** DEFER SHALL NOT be used to avoid issuing an otherwise required FAIL.
+**RBE-DEC-062** Every ACTIVE methodology profile SHALL permit `INSUFFICIENT_EVIDENCE`; if it omits
+`DEFER_FOR_FURTHER_RESEARCH`, every bounded research gap SHALL map to `INSUFFICIENT_EVIDENCE` and
+SHALL NOT map to PASS, PASS WITH FINDINGS or FAIL.
 
 <!-- Controlled source page 40 -->
 
-### 6.4.6 PROCEDURALLY INCOMPLETE / BLOCKED
-This outcome indicates that a legitimate substantive decision cannot be issued because mandatory
-process conditions are unmet. It is distinct from evidentiary insufficiency.
+### 6.4.6 Non-outcome Process Statuses
+`PROCEDURALLY_INCOMPLETE`, `BLOCKED`, and `VOID` are process statuses, not outcomes. They indicate
+that a legitimate substantive decision cannot be issued because mandatory process, authority, or
+integrity conditions are unmet. They are distinct from evidentiary insufficiency, and the
+substantive outcome must remain null.
 - Missing mandatory reviewer function.
 - Unresolved disqualifying conflict.
 - Broken evidence integrity chain.
@@ -160,32 +165,32 @@ process conditions are unmet. It is distinct from evidentiary insufficiency.
 ## 6.5 Deterministic Precedence
 Outcome precedence prevents commercial or evidentiary strength from masking procedural
 invalidity and prevents positive factors from offsetting critical defects.
-Priority Condition Result
+Priority Condition Decision result
 1 Session invalidated by
 integrity or governance rule.
-VOID / BLOCKED.
+Process status: VOID / BLOCKED; outcome: null.
 2 Mandatory process
 incomplete.
-PROCEDURALLY INCOMPLETE
-/ BLOCKED.
+Process status: PROCEDURALLY INCOMPLETE / BLOCKED;
+outcome: null.
 3 Critical methodology, evidence
 or reasoning defect.
-FAIL.
+Outcome: FAIL.
 4 Evidence cannot support a
 substantive judgment.
-INSUFFICIENT EVIDENCE.
+Outcome: INSUFFICIENT EVIDENCE.
 5 Defined further research can
 resolve a bounded gap.
-DEFER.
+Outcome: DEFER FOR FURTHER RESEARCH.
 6 Conclusion justified with
 material non-blocking
 findings.
-PASS WITH FINDINGS.
+Outcome: PASS WITH FINDINGS.
 7 Conclusion justified with no
 blocking or material residual
 findings.
-PASS.
-**RBE-DEC-070** Outcome precedence SHALL be encoded in the rule set and covered by automated tests.
+Outcome: PASS.
+**RBE-DEC-070** Decision precedence SHALL be encoded in the rule set and covered by automated tests.
 ## 6.6 Decision Rationale Contract
 Rationale field Requirement
 Decision statement One neutral sentence defining the outcome.

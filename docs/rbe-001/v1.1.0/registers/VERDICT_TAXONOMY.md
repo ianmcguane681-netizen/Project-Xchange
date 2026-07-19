@@ -23,9 +23,15 @@ The machine-readable authority is `verdict_taxonomy.json`.
 
 ## Profile Rule
 
-An ACTIVE methodology profile may use a subset of the five substantive outcomes, but it must
-provide a deterministic result for every valid input in its scope. It cannot reinterpret process
-status as `FAIL`, silently fall back to a preferred outcome, or suppress insufficient evidence.
+An ACTIVE methodology profile may use a subset of the five substantive outcomes, but that subset
+must include `INSUFFICIENT_EVIDENCE` and provide a deterministic result for every valid input in
+scope. It cannot reinterpret process status as `FAIL`, silently fall back to a preferred outcome,
+or suppress evidentiary insufficiency.
 
-RBM-001 currently defines `PASS`, `PASS_WITH_FINDINGS`, and `FAIL`. That is a profile constraint,
-not the RBE core taxonomy. RBM-001 remains non-binding until human approval and activation.
+`DEFER_FOR_FURTHER_RESEARCH` may be omitted only when the profile maps a bounded research gap to
+`INSUFFICIENT_EVIDENCE`. Evidentiary insufficiency must never map to `PASS`,
+`PASS_WITH_FINDINGS`, or `FAIL`.
+
+RBM-001 currently defines `PASS`, `PASS_WITH_FINDINGS`, and `FAIL`. It is therefore not yet
+conformant with the ACTIVE-profile outcome floor. RBM-001 remains non-binding until corrected,
+reviewed, approved by a named human authority, and activated.

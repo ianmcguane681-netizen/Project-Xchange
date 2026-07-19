@@ -2,9 +2,10 @@
 document_id: RBE-001-ES
 title: Review Board Engine Engineering Specification
 release_version: 1.1.0
-status: normalized-implementation-contract
+status: normalization-release-candidate
 publication_date: 2026-07-19
-supersedes: RBE-001-Engineering-Specification-v1.0.0
+proposed_supersedes: RBE-001-Engineering-Specification-v1.0.0
+supersession_effective_on: named-human-principal-architect-approval
 source_sha256: 92e159f084ab91d458e57f98d405b7a6146dd6f98db04af76d159b8e09b45ca4
 ---
 
@@ -20,7 +21,7 @@ source_sha256: 92e159f084ab91d458e57f98d405b7a6146dd6f98db04af76d159b8e09b45ca4
 |---|---|
 | Document ID | RBE-001-ES |
 | Version | 1.1.0 |
-| Status | Normalized implementation contract - ready for human approval |
+| Status | Normalization release candidate - ready for human approval |
 | Owner | Project Exchange / Provena |
 | Historical source | Engineering Specification v1.0.0, SHA-256 `92e159f084ab91d458e57f98d405b7a6146dd6f98db04af76d159b8e09b45ca4` |
 | Architecture authority | RBE-001 Reference Architecture v1.1.0 |
@@ -32,7 +33,7 @@ source_sha256: 92e159f084ab91d458e57f98d405b7a6146dd6f98db04af76d159b8e09b45ca4
 | Version | Date | Status | Summary |
 |---|---|---|---|
 | 1.0.0 | 18 Jul 2026 | Historical | Initial implementation specification |
-| 1.1.0 | 19 Jul 2026 | Normalized | Canonical outcomes, state machine, authority order, and requirement namespace |
+| 1.1.0 | 19 Jul 2026 | Release candidate | Canonical outcomes, state machine, authority order, and requirement namespace |
 
 ### Approval Record
 
@@ -51,6 +52,9 @@ roles, or governance powers. An ACTIVE methodology profile supplies decision thr
 review functions, quorum, and its permitted subset of canonical outcomes. The Foundation profile
 may be implemented and tested without an active methodology, but it cannot issue binding live
 Board decisions.
+
+Every ACTIVE methodology profile must include `INSUFFICIENT_EVIDENCE`. A profile may omit
+`DEFER_FOR_FURTHER_RESEARCH` only when bounded research gaps map to `INSUFFICIENT_EVIDENCE`.
 
 ### Normative Language
 
@@ -325,8 +329,9 @@ return the original result; payload mismatch SHALL be rejected and audited.
 
 **RBE-ES-LIF-006** `ARCHIVED`, `VOID`, and `WITHDRAWN` SHALL be terminal under ordinary commands.
 
-**RBE-ES-LIF-007** Appeal, remand, and re-review SHALL preserve the original decision and create the
-successor records required by the canonical state and lineage contracts.
+**RBE-ES-LIF-007** Appeal, remand, and re-review SHALL preserve the original decision, create the
+successor records required by the canonical state and lineage contracts, and route `REMANDED`
+through `ASSIGNMENT` without bypassing role or evidence controls.
 
 ### 4.3 Phase Projections
 
@@ -458,7 +463,10 @@ The domain model is authoritative. API payloads and database tables may add tran
 | reason_codes | array | Required |
 | explanation | string | Required, generated deterministically |
 | computed_at | UTC timestamp | Required |
-| published_by | ActorRef | Required |
+| status | DRAFT_CANDIDATE\|SIGNED\|PUBLISHED\|SUPERSEDED | Required |
+| signed_at | UTC timestamp | Required when status is SIGNED or later |
+| published_at | UTC timestamp | Required only when status is PUBLISHED or SUPERSEDED |
+| published_by | ActorRef | Required only when status is PUBLISHED or SUPERSEDED |
 
 
 ### 5.7 RemediationPlan
@@ -580,8 +588,9 @@ ratified. Process status must never be disguised as `FAIL`.
 
 A methodology profile declares required roles, quorum, severity codes and mappings, outcome
 subset, precedence, thresholds, reason-code templates, and evidence-sufficiency rules. RBE core
-does not hardcode profile-specific SEV mappings. RBM-001 may permit only PASS, PASS WITH
-FINDINGS, and FAIL; that restriction belongs to an ACTIVE RBM profile, not to the core engine.
+does not hardcode profile-specific SEV mappings. An ACTIVE profile's outcome subset must include
+`INSUFFICIENT_EVIDENCE`. RBM-001's current three-outcome taxonomy is non-conforming until this
+floor is added and the corrected profile receives named human approval.
 
 **RBE-ES-DEC-001** Decision evaluation SHALL use a frozen, canonically serialized and hashed input
 snapshot.
@@ -648,7 +657,7 @@ historical decisions remain immutable.
 | findings | Immutable or versioned findings |
 | finding_links | Duplicate, supersedes and related-finding relationships |
 | evidence_references | Registered evidence locators and checksums |
-| board_decisions | Published deterministic decisions |
+| board_decisions | Signed and published deterministic decisions |
 | remediation_plans | Corrective action records |
 | audit_log | Hash-chained append-only events |
 | idempotency_keys | Command replay protection |
@@ -743,7 +752,7 @@ The audit log provides tamper evidence rather than a claim of absolute immutabil
 
     "engine_version": "1.0.0",
 
-    "methodology": {"id": "RBM-001", "version": "1.0.0"},
+    "methodology": {"id": "EXAMPLE-CONFORMING-PROFILE", "version": "1.0.0"},
 
     "process_status": "READY",
     "outcome": "PASS_WITH_FINDINGS",
@@ -1010,8 +1019,8 @@ The v1 interface is an operator console, not an analytics dashboard. Its purpose
 | G-001 | Complete valid review, no findings | `READY` plus profile-permitted outcome |
 | G-002 | Non-blocking findings | `READY` plus `PASS_WITH_FINDINGS` where permitted |
 | G-003 | Profile-defined critical defect | `READY` plus `FAIL` |
-| G-004 | Evidence below a profile's substantive threshold | `INSUFFICIENT_EVIDENCE` where permitted; otherwise the profile's explicit mapped outcome |
-| G-005 | Bounded research action can close the gap | `DEFER_FOR_FURTHER_RESEARCH` where permitted |
+| G-004 | Evidence below a profile's substantive threshold | `INSUFFICIENT_EVIDENCE` |
+| G-005 | Bounded research action can close the gap | `DEFER_FOR_FURTHER_RESEARCH` where permitted; otherwise `INSUFFICIENT_EVIDENCE` |
 | G-006 | Missing required report or quorum | `PROCEDURALLY_INCOMPLETE`, outcome null |
 | G-007 | Integrity or disqualifying governance defect | `BLOCKED` or `VOID`, outcome null |
 | G-008 | Duplicate command, same payload | Original result returned |
@@ -1047,9 +1056,9 @@ in CI without network access.
 
 | Versioned item | Example | Meaning |
 | --- | --- | --- |
-| Methodology | RBM-001 v1.0.0 | Governance authority |
+| Methodology | EXAMPLE-CONFORMING-PROFILE v1.0.0 | Governance authority |
 | Engine | RBE v1.0.0 | Software implementation |
-| Rule set | rbm001-decision v1.0.0 | Executable deterministic mapping |
+| Rule set | example-profile-decision v1.0.0 | Executable deterministic mapping |
 | Artifact schema | rbe.decision v1.0.0 | Machine contract |
 
 
@@ -1188,6 +1197,7 @@ This table is generated from and subordinate to `registers/state_machine.json`.
 | `APPEAL_REVIEW` | `UPHELD` | Appeal dismissed with rationale |
 | `APPEAL_REVIEW` | `SUPERSEDED` | Successor decision issued |
 | `APPEAL_REVIEW` | `REMANDED` | Further governed work specified |
+| `REMANDED` | `ASSIGNMENT` | Linked successor session, remand scope, evidence lock, and assignment prerequisites valid |
 | `UPHELD` | `FINAL` | Appeal report finalized |
 | `SUPERSEDED` | `FINAL` | Successor decision published |
 | `FINAL` | `ARCHIVED` | Retention and archive integrity checks pass |
@@ -1211,9 +1221,10 @@ hardcode SEV-to-outcome rules.
 
 ### B.3 RBM-001 Profile Boundary
 
-RBM-001 currently declares only `PASS`, `PASS_WITH_FINDINGS`, and `FAIL`. Until a named human
-approves and tags an ACTIVE RBM-001 profile, it cannot govern binding decisions. Its narrower
-outcome subset does not remove other outcomes from RBE core.
+RBM-001 currently declares only `PASS`, `PASS_WITH_FINDINGS`, and `FAIL`; it therefore fails the
+mandatory `INSUFFICIENT_EVIDENCE` outcome floor. It cannot govern binding decisions until the
+taxonomy is corrected, the profile is revalidated, and a named human authority approves and tags
+the corrected release `ACTIVE`.
 
 ## Appendix C. Canonical JSON Examples
 
@@ -1229,14 +1240,16 @@ outcome subset does not remove other outcomes from RBE core.
 
     "session_id": "RB-01J...",
 
+    "status": "PUBLISHED",
+
     "process_status": "READY",
     "outcome": "PASS_WITH_FINDINGS",
 
-    "methodology": {"id": "RBM-001", "version": "1.0.0"},
+    "methodology": {"id": "EXAMPLE-CONFORMING-PROFILE", "version": "1.0.0"},
 
     "engine_version": "1.0.0",
 
-    "rule_set": {"id": "rbm001-decision", "version": "1.0.0"},
+    "rule_set": {"id": "example-profile-decision", "version": "1.0.0"},
 
     "finding_summary": {"SEV-1": 0, "SEV-2": 0, "SEV-3": 2, "SEV-4": 1},
 
@@ -1247,6 +1260,10 @@ outcome subset does not remove other outcomes from RBE core.
     "explanation": "The review is procedurally complete. Two unresolved SEV-3 findings require tracked remediation.",
 
     "computed_at": "2026-07-18T20:00:00Z",
+
+    "signed_at": "2026-07-18T20:01:00Z",
+
+    "published_at": "2026-07-18T20:02:00Z",
 
     "published_by": {"actor_id": "actor:...", "display_name": "Accountable Publisher"}
 

@@ -2,9 +2,10 @@
 document_id: RBE-001
 title: Review Board Engine Reference Architecture
 release_version: 1.1.0
-status: normalized-architecture-release
+status: normalization-release-candidate
 publication_date: 2026-07-19
-supersedes: RBE-001-v1.0.0
+proposed_supersedes: RBE-001-v1.0.0
+supersession_effective_on: named-human-principal-architect-approval
 source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 ---
 
@@ -16,7 +17,7 @@ source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 |---|---|
 | Document identifier | RBE-001 |
 | Version | 1.1.0 |
-| Status | Normalized architecture release - ready for human approval |
+| Status | Normalization release candidate - ready for human approval |
 | Coverage | Chapters 1-23 |
 | Historical source | RBE-001 v1.0.0 controlled PDF, checksum recorded above |
 | Implementation consumer | Codex and engineering teams |
@@ -25,7 +26,7 @@ source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 
 ## Normalization Authority
 
-This release preserves the complete v1.0.0 architectural substance while resolving release
+This candidate retains the normative v1.0.0 architectural substance while resolving release
 metadata, outcome semantics, state ownership, requirement namespaces, and the relationship
 between constitutional architecture, implementation profiles, and active methodologies. The
 normalization registers are normative where they explicitly resolve a v1.0.0 conflict.
@@ -1408,12 +1409,17 @@ step rather than a generally inadequate evidence base.
 **RBE-DEC-060** A DEFER decision SHALL define the research question, required artifact or verification
 action, responsible role, and re-entry condition.
 **RBE-DEC-061** DEFER SHALL NOT be used to avoid issuing an otherwise required FAIL.
+**RBE-DEC-062** Every ACTIVE methodology profile SHALL permit `INSUFFICIENT_EVIDENCE`; if it omits
+`DEFER_FOR_FURTHER_RESEARCH`, every bounded research gap SHALL map to `INSUFFICIENT_EVIDENCE` and
+SHALL NOT map to PASS, PASS WITH FINDINGS or FAIL.
 
 <!-- Controlled source page 40 -->
 
-### 6.4.6 PROCEDURALLY INCOMPLETE / BLOCKED
-This outcome indicates that a legitimate substantive decision cannot be issued because mandatory
-process conditions are unmet. It is distinct from evidentiary insufficiency.
+### 6.4.6 Non-outcome Process Statuses
+`PROCEDURALLY_INCOMPLETE`, `BLOCKED`, and `VOID` are process statuses, not outcomes. They indicate
+that a legitimate substantive decision cannot be issued because mandatory process, authority, or
+integrity conditions are unmet. They are distinct from evidentiary insufficiency, and the
+substantive outcome must remain null.
 - Missing mandatory reviewer function.
 - Unresolved disqualifying conflict.
 - Broken evidence integrity chain.
@@ -1423,32 +1429,32 @@ process conditions are unmet. It is distinct from evidentiary insufficiency.
 ## 6.5 Deterministic Precedence
 Outcome precedence prevents commercial or evidentiary strength from masking procedural
 invalidity and prevents positive factors from offsetting critical defects.
-Priority Condition Result
+Priority Condition Decision result
 1 Session invalidated by
 integrity or governance rule.
-VOID / BLOCKED.
+Process status: VOID / BLOCKED; outcome: null.
 2 Mandatory process
 incomplete.
-PROCEDURALLY INCOMPLETE
-/ BLOCKED.
+Process status: PROCEDURALLY INCOMPLETE / BLOCKED;
+outcome: null.
 3 Critical methodology, evidence
 or reasoning defect.
-FAIL.
+Outcome: FAIL.
 4 Evidence cannot support a
 substantive judgment.
-INSUFFICIENT EVIDENCE.
+Outcome: INSUFFICIENT EVIDENCE.
 5 Defined further research can
 resolve a bounded gap.
-DEFER.
+Outcome: DEFER FOR FURTHER RESEARCH.
 6 Conclusion justified with
 material non-blocking
 findings.
-PASS WITH FINDINGS.
+Outcome: PASS WITH FINDINGS.
 7 Conclusion justified with no
 blocking or material residual
 findings.
-PASS.
-**RBE-DEC-070** Outcome precedence SHALL be encoded in the rule set and covered by automated tests.
+Outcome: PASS.
+**RBE-DEC-070** Decision precedence SHALL be encoded in the rule set and covered by automated tests.
 ## 6.6 Decision Rationale Contract
 Rationale field Requirement
 Decision statement One neutral sentence defining the outcome.
@@ -2162,7 +2168,8 @@ specified governed
 work.
 Scope of remand is
 explicit.
-Named review state.
+ASSIGNMENT through a
+linked successor session.
 FINAL No ordinary workflow
 remains.
 Read-only except
@@ -2289,6 +2296,10 @@ rationale.
 APPEAL_REVIEW SUPERSEDED Appeal panel New decision issued.
 APPEAL_REVIEW REMANDED Appeal panel Specified further
 review required.
+REMANDED ASSIGNMENT Appeal registrar Linked successor session,
+immutable remand scope,
+locked evidence baseline and
+assignment prerequisites valid.
 UPHELD FINAL System Appeal report
 finalized.
 SUPERSEDED FINAL System Successor decision
@@ -2403,6 +2414,8 @@ decision for
 restarted work.
 **RBE-STM-060** Every successor session SHALL declare why it exists and identify the prior session it
 supersedes, remands or re-examines.
+**RBE-STM-061** A remanded case SHALL re-enter through ASSIGNMENT in a linked successor session and
+SHALL NOT bypass role eligibility, conflict, independence, evidence-lock, or assignment controls.
 ## 8.10 Codex Implementation Contract
 - Implement transitions in the domain layer, not only route handlers.
 - Use enumerated states and reason codes.
@@ -6264,9 +6277,29 @@ Codex Can a coding agent implement without
 inventing policy?
 Publication Are reports verifiable, versioned and linked to
 provenance?
-## 23.16 Normalization Resolution Register
+## 23.16 Historical v1.0.0 Source Disposition
 
-The v1.1.0 normalization release resolves the master-document assembly questions as follows:
+Controlled source pages 157-159 contained the v1.0.0 master-review open items, publication
+certification, and controlled limitations. They remain historical evidence under source checksum
+`0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31` but do not transfer
+approval to this candidate.
+
+Their unresolved items are dispositioned as follows:
+
+- reviewer combination and quorum rules remain ACTIVE-methodology responsibilities;
+- retention, privacy, SLO, RPO/RTO, identity, cryptography, and publication audiences remain
+  production deployment gates;
+- requirement-to-test traceability remains an implementation acceptance artifact;
+- the cross-chapter entity/event glossary and final diagrams remain controlled publication
+  dependencies and must not be invented by implementation code;
+- the historical `APPROVED FOR CONTROLLED ENGINEERING USE` statement applies only to v1.0.0 and
+  is not a human approval record for v1.1.0.
+
+<!-- Controlled source pages 157-159: historical certification disposition -->
+
+## 23.17 Normalization Resolution Register
+
+The v1.1.0 normalization candidate resolves the master-document assembly questions as follows:
 
 - Chapter 8 is the only authoritative case state machine.
 - Chapter 6 is the canonical outcome taxonomy; process statuses are not verdicts.
@@ -6283,7 +6316,7 @@ Deployment-specific values for retention, SLO, RPO, RTO, cryptographic profiles,
 providers, publication audiences, and production topology remain controlled deployment ADRs.
 They do not alter the canonical domain semantics and must be approved before production use.
 
-## 23.17 Final Codex Constitutional Contract
+## 23.18 Final Codex Constitutional Contract
 
 Codex is an implementation capability, not a member of the Review Board. It has no desired
 case outcome and no authority to decide what should be true. It must implement the architecture
@@ -6298,20 +6331,21 @@ rejection rate, or commercial conclusion.
 **RBE-APP-052** Codex SHALL treat insufficient evidence and architecture clarification required as
 valid outputs rather than failures to complete a task.
 
-## 23.18 Release Gates
+## 23.19 Release Gates
 
 - Canonical verdict and process-status registers validate.
 - Canonical state-machine register validates.
 - Architecture and engineering requirement namespaces do not collide.
 - Every superseded v1.0.0 engineering ID has an explicit migration entry.
 - Individual Markdown sources and the deterministic ZIP contain identical bytes.
-- The independent normalization review reports no unresolved architecture blocker.
+- The principal technical review reports no unresolved architecture blocker.
 - A named human Principal Architect must approve operational activation.
 - A live Board decision additionally requires an ACTIVE methodology profile.
 
-## 23.19 Normalized Architecture Status
+## 23.20 Normalized Architecture Status
 
-RBE-001 v1.1.0 supersedes the contradictory release metadata and implementation mappings in
-v1.0.0. The v1.0.0 controlled files remain immutable historical artifacts. This normalized
-Markdown release is technically ready for human approval; it is not evidence of human approval
+RBE-001 v1.1.0 proposes to supersede the contradictory release metadata and implementation
+mappings in v1.0.0. Effective supersession begins only after named human Principal Architect
+approval. The v1.0.0 controlled files remain immutable historical artifacts. This normalized
+Markdown candidate is technically ready for human approval; it is not evidence of that approval
 and does not activate RBM-001 or authorize a live Review Board decision.

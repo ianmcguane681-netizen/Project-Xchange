@@ -3,6 +3,16 @@
 The machine-readable authority is `state_machine.json`. Reference Architecture Chapter 8 supplies
 the normative meaning and invariants.
 
+The initial state is `DRAFT`. Every non-terminal state has at least one explicit outbound
+transition, and every state is reachable from the initial state.
+
+## Remand Re-entry
+
+`APPEAL_REVIEW -> REMANDED -> ASSIGNMENT` is the only canonical remand path. The transition from
+`REMANDED` requires an immutable remand scope, a linked successor review session, a locked evidence
+baseline, and valid assignment prerequisites. Routing through `ASSIGNMENT` prevents a remand from
+bypassing independence, conflict, or role controls.
+
 ## Ownership Rule
 
 Only canonical states may be persisted as authoritative case state. Review-role phases, tasks,

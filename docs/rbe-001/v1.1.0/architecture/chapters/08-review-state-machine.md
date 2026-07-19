@@ -1,7 +1,7 @@
 ---
 document_id: RBE-001
 release_version: 1.1.0
-status: normalized-architecture-release
+status: normalization-release-candidate
 chapter: 8
 source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 ---
@@ -203,7 +203,8 @@ specified governed
 work.
 Scope of remand is
 explicit.
-Named review state.
+ASSIGNMENT through a
+linked successor session.
 FINAL No ordinary workflow
 remains.
 Read-only except
@@ -330,6 +331,10 @@ rationale.
 APPEAL_REVIEW SUPERSEDED Appeal panel New decision issued.
 APPEAL_REVIEW REMANDED Appeal panel Specified further
 review required.
+REMANDED ASSIGNMENT Appeal registrar Linked successor session,
+immutable remand scope,
+locked evidence baseline and
+assignment prerequisites valid.
 UPHELD FINAL System Appeal report
 finalized.
 SUPERSEDED FINAL System Successor decision
@@ -444,6 +449,8 @@ decision for
 restarted work.
 **RBE-STM-060** Every successor session SHALL declare why it exists and identify the prior session it
 supersedes, remands or re-examines.
+**RBE-STM-061** A remanded case SHALL re-enter through ASSIGNMENT in a linked successor session and
+SHALL NOT bypass role eligibility, conflict, independence, evidence-lock, or assignment controls.
 ## 8.10 Codex Implementation Contract
 - Implement transitions in the domain layer, not only route handlers.
 - Use enumerated states and reason codes.

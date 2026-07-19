@@ -1,12 +1,14 @@
-# RBE-001 v1.1.0 Architecture Normalisation
+# RBE-001 v1.1.0 Architecture Normalisation Candidate
 
-This release supersedes RBE-001 v1.0.0 for future implementation while preserving every v1.0.0
-controlled artifact as immutable historical evidence.
+This candidate proposes to supersede RBE-001 v1.0.0 for future implementation. Effective
+supersession requires named human Principal Architect approval. The v1.0.0 controlled artifacts
+remain immutable historical evidence.
 
 ## Status
 
 - Codex technical architecture verdict: `READY`.
 - Named human Principal Architect approval: required.
+- Effective supersession of v1.0.0: pending that approval.
 - RBM-001 operational status: not ACTIVE.
 - Binding live Review Board decisions: prohibited until an ACTIVE methodology profile is loaded.
 

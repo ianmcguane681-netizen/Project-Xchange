@@ -1,7 +1,7 @@
 ---
 document_id: RBE-001
 release_version: 1.1.0
-status: normalized-architecture-release
+status: normalization-release-candidate
 chapter: 17
 source_sha256: 0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31
 ---

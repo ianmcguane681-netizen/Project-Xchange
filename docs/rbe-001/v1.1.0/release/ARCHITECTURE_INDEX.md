@@ -1,5 +1,7 @@
 # RBE-001 v1.1.0 Architecture Index
 
+Status: normalization release candidate pending named human Principal Architect approval.
+
 | Area | Authority |
 |---|---|
 | Constitutional principles | Reference Architecture Chapters 1-2 |
