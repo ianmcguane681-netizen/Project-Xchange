@@ -222,6 +222,7 @@ def test_conflicts_are_durable_and_block_assignment_acceptance(tmp_path: Path) -
         actor="human-saa",
         has_material_conflict=False,
         conflict_basis=None,
+        human_signature_ref="SIG-SAA-IND-001",
         idempotency_key="assignment-saa",
     )
     declined = repo.record_assignment_response(
@@ -230,6 +231,7 @@ def test_conflicts_are_durable_and_block_assignment_acceptance(tmp_path: Path) -
         actor="human-qra",
         has_material_conflict=True,
         conflict_basis="Reviewer authored the test evidence under review.",
+        human_signature_ref="SIG-QRA-IND-001",
         idempotency_key="assignment-qra",
     )
     assert accepted["status"] == "ACCEPTED"
@@ -265,6 +267,7 @@ def test_report_records_are_append_only(tmp_path: Path) -> None:
         actor="human-saa",
         has_material_conflict=False,
         conflict_basis=None,
+        human_signature_ref="SIG-SAA-IND-001",
         idempotency_key="assignment-saa",
     )
     raw = {

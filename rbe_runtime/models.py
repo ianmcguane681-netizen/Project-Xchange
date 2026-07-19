@@ -52,6 +52,20 @@ class FindingStatus(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class ReadinessAssessment:
+    process_status: str
+    unmet_prerequisites: tuple[str, ...]
+    process_blockers: tuple[str, ...]
+    substantive_evidence_sufficient: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["unmet_prerequisites"] = list(self.unmet_prerequisites)
+        value["process_blockers"] = list(self.process_blockers)
+        return value
+
+
+@dataclass(frozen=True, slots=True)
 class ReviewSession:
     session_id: str
     target_type: str
@@ -148,7 +162,6 @@ class Finding:
     evidence_reference_ids: tuple[str, ...]
     status: str
     remediation_required: bool
-    remediation_plan_accepted: bool
     raw_record: dict[str, Any]
     raw_record_sha256: str
     created_at: str
@@ -161,6 +174,28 @@ class Finding:
 
 
 @dataclass(frozen=True, slots=True)
+class RemediationPlan:
+    plan_id: str
+    document_id: str
+    session_id: str
+    finding_id: str
+    owner: str
+    action: str
+    due_date: str | None
+    status: str
+    verification_evidence_ids: tuple[str, ...]
+    raw_record: dict[str, Any]
+    raw_record_sha256: str
+    created_at: str
+    supersedes_plan_id: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["verification_evidence_ids"] = list(self.verification_evidence_ids)
+        return value
+
+
+@dataclass(frozen=True, slots=True)
 class DecisionEvaluation:
     process_status: str
     outcome: str | None
@@ -168,6 +203,7 @@ class DecisionEvaluation:
     rules_applied: tuple[str, ...]
     findings_considered: tuple[str, ...]
     counter_evidence: tuple[str, ...]
+    process_blockers: tuple[str, ...]
     profile_id: str
     profile_version: str
     profile_checksum: str
@@ -182,6 +218,7 @@ class DecisionEvaluation:
             "rules_applied",
             "findings_considered",
             "counter_evidence",
+            "process_blockers",
         ):
             value[field_name] = list(value[field_name])
         return value
@@ -225,4 +262,3 @@ class AuditEntry:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-

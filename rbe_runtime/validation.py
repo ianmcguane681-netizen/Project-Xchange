@@ -7,6 +7,7 @@ from typing import Any
 
 from rbe_runtime.authority import AuthorityBundle
 from rbe_runtime.constants import RBE_RELEASE
+from rbe_runtime.canonical import canonical_hash, deterministic_id
 from rbe_runtime.errors import RBEError
 from rbe_runtime.models import (
     ExecutionMode,
@@ -14,6 +15,8 @@ from rbe_runtime.models import (
     ReviewAssignment,
     ReviewerReport,
     ReviewSession,
+    Finding,
+    RemediationPlan,
 )
 from rbe_runtime.profile import ProfilePolicy, RoleSeat
 from rbe_runtime.schemas import SchemaRegistry
@@ -214,3 +217,59 @@ def validate_finding_submission(
             "RBE-ES-DOM-002",
         )
     return reference_ids
+
+
+def validate_remediation_submission(
+    schemas: SchemaRegistry,
+    *,
+    session: ReviewSession,
+    methodology_auditor: str,
+    findings: Mapping[str, Finding],
+    raw_record: dict[str, Any],
+) -> tuple[RemediationPlan, ...]:
+    schemas.validate("tpl-rmp", raw_record)
+    mismatches: dict[str, Any] = {}
+    if raw_record["review_id"] != session.session_id:
+        mismatches["review_id"] = {
+            "expected": session.session_id,
+            "received": raw_record["review_id"],
+        }
+    if raw_record["ma_reviewer"] != methodology_auditor:
+        mismatches["ma_reviewer"] = {
+            "expected": methodology_auditor,
+            "received": raw_record["ma_reviewer"],
+        }
+    item_ids = [item["finding_id"] for item in raw_record["items"]]
+    if len(item_ids) != len(set(item_ids)):
+        mismatches["items.finding_id"] = "finding IDs must be unique"
+    unknown = sorted(set(item_ids) - set(findings))
+    if unknown:
+        mismatches["items.finding_id.unknown"] = unknown
+    if mismatches:
+        raise RBEError(
+            "RBE_REMEDIATION_CROSS_RECORD_MISMATCH",
+            "Remediation plan does not match its session, auditor, or findings",
+            "RBE-ES-DOM-002",
+            {"fields": mismatches},
+        )
+    raw_hash = canonical_hash(raw_record)
+    status = raw_record["ma_decision"]
+    return tuple(
+        RemediationPlan(
+            plan_id=deterministic_id(
+                "RMP", session.session_id, raw_record["document_id"], item["finding_id"]
+            ),
+            document_id=raw_record["document_id"],
+            session_id=session.session_id,
+            finding_id=item["finding_id"],
+            owner=item["responsible_person"],
+            action=item["planned_changes"],
+            due_date=item["target_completion_date"],
+            status=status,
+            verification_evidence_ids=(),
+            raw_record=raw_record,
+            raw_record_sha256=raw_hash,
+            created_at=raw_record["date_submitted"],
+        )
+        for item in sorted(raw_record["items"], key=lambda value: value["finding_id"])
+    )

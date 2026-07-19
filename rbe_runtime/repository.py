@@ -19,8 +19,11 @@ from rbe_runtime.constants import RUNTIME_SCHEMA_VERSION
 from rbe_runtime.errors import RBEError
 from rbe_runtime.models import (
     AuditEntry,
+    BoardDecision,
+    DecisionEvaluation,
     EvidenceReference,
     Finding,
+    RemediationPlan,
     ReviewAssignment,
     ReviewerReport,
     ReviewSession,
@@ -104,6 +107,7 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             actor TEXT NOT NULL,
             has_material_conflict INTEGER NOT NULL CHECK (has_material_conflict IN (0, 1)),
             basis TEXT,
+            human_signature_ref TEXT NOT NULL,
             declared_at TEXT NOT NULL
         );
 
@@ -143,17 +147,47 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
             evidence_reference_ids_json TEXT NOT NULL,
             status TEXT NOT NULL,
             remediation_required INTEGER NOT NULL CHECK (remediation_required IN (0, 1)),
-            remediation_plan_accepted INTEGER NOT NULL CHECK (remediation_plan_accepted IN (0, 1)),
             raw_record_json TEXT NOT NULL,
             raw_record_sha256 TEXT NOT NULL,
             created_at TEXT NOT NULL,
             supersedes_finding_id TEXT REFERENCES findings(finding_id)
         );
 
+        CREATE TABLE remediation_plans (
+            plan_id TEXT PRIMARY KEY,
+            document_id TEXT NOT NULL,
+            session_id TEXT NOT NULL REFERENCES review_sessions(session_id),
+            finding_id TEXT NOT NULL REFERENCES findings(finding_id),
+            owner TEXT NOT NULL,
+            action TEXT NOT NULL,
+            due_date TEXT,
+            status TEXT NOT NULL,
+            verification_evidence_ids_json TEXT NOT NULL,
+            raw_record_json TEXT NOT NULL,
+            raw_record_sha256 TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            supersedes_plan_id TEXT REFERENCES remediation_plans(plan_id),
+            UNIQUE (document_id, finding_id)
+        );
+
         CREATE TABLE finding_evidence_links (
             finding_id TEXT NOT NULL REFERENCES findings(finding_id),
             reference_id TEXT NOT NULL REFERENCES evidence_references(reference_id),
             PRIMARY KEY (finding_id, reference_id)
+        );
+
+        CREATE TABLE decision_candidates (
+            candidate_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES review_sessions(session_id),
+            candidate_version INTEGER NOT NULL CHECK (candidate_version > 0),
+            evaluation_json TEXT NOT NULL,
+            finding_snapshot_hash TEXT NOT NULL,
+            artifact_manifest_hash TEXT NOT NULL,
+            artifact_manifest_json TEXT NOT NULL,
+            computed_at TEXT NOT NULL,
+            computed_by TEXT NOT NULL,
+            supersedes_candidate_id TEXT REFERENCES decision_candidates(candidate_id),
+            UNIQUE (session_id, candidate_version)
         );
 
         CREATE TABLE board_decisions (
@@ -175,6 +209,27 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         );
         CREATE UNIQUE INDEX one_current_decision_per_session
             ON board_decisions(session_id) WHERE superseded = 0;
+
+        CREATE TABLE decision_ratifications (
+            decision_id TEXT PRIMARY KEY REFERENCES board_decisions(decision_id),
+            candidate_id TEXT NOT NULL UNIQUE REFERENCES decision_candidates(candidate_id),
+            session_id TEXT NOT NULL UNIQUE REFERENCES review_sessions(session_id),
+            board_chair TEXT NOT NULL,
+            board_chair_signature_ref TEXT NOT NULL,
+            governance_validator TEXT NOT NULL,
+            governance_validation_ref TEXT NOT NULL,
+            ratified_at TEXT NOT NULL
+        );
+
+        CREATE TABLE publications (
+            publication_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL UNIQUE REFERENCES review_sessions(session_id),
+            decision_id TEXT NOT NULL UNIQUE REFERENCES board_decisions(decision_id),
+            publication_authority TEXT NOT NULL,
+            indicator_json TEXT NOT NULL,
+            indicator_sha256 TEXT NOT NULL,
+            published_at TEXT NOT NULL
+        );
 
         CREATE TABLE audit_log (
             audit_id TEXT PRIMARY KEY,
@@ -221,10 +276,26 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         BEFORE UPDATE ON findings BEGIN SELECT RAISE(ABORT, 'findings are immutable'); END;
         CREATE TRIGGER findings_no_delete
         BEFORE DELETE ON findings BEGIN SELECT RAISE(ABORT, 'findings are append-only'); END;
+        CREATE TRIGGER remediation_plans_no_update
+        BEFORE UPDATE ON remediation_plans BEGIN SELECT RAISE(ABORT, 'remediation_plans are immutable'); END;
+        CREATE TRIGGER remediation_plans_no_delete
+        BEFORE DELETE ON remediation_plans BEGIN SELECT RAISE(ABORT, 'remediation_plans are append-only'); END;
+        CREATE TRIGGER decision_candidates_no_update
+        BEFORE UPDATE ON decision_candidates BEGIN SELECT RAISE(ABORT, 'decision_candidates are immutable'); END;
+        CREATE TRIGGER decision_candidates_no_delete
+        BEFORE DELETE ON decision_candidates BEGIN SELECT RAISE(ABORT, 'decision_candidates are append-only'); END;
         CREATE TRIGGER board_decisions_no_update
         BEFORE UPDATE ON board_decisions BEGIN SELECT RAISE(ABORT, 'board_decisions are immutable'); END;
         CREATE TRIGGER board_decisions_no_delete
         BEFORE DELETE ON board_decisions BEGIN SELECT RAISE(ABORT, 'board_decisions are append-only'); END;
+        CREATE TRIGGER decision_ratifications_no_update
+        BEFORE UPDATE ON decision_ratifications BEGIN SELECT RAISE(ABORT, 'decision_ratifications are immutable'); END;
+        CREATE TRIGGER decision_ratifications_no_delete
+        BEFORE DELETE ON decision_ratifications BEGIN SELECT RAISE(ABORT, 'decision_ratifications are append-only'); END;
+        CREATE TRIGGER publications_no_update
+        BEFORE UPDATE ON publications BEGIN SELECT RAISE(ABORT, 'publications are immutable'); END;
+        CREATE TRIGGER publications_no_delete
+        BEFORE DELETE ON publications BEGIN SELECT RAISE(ABORT, 'publications are append-only'); END;
         CREATE TRIGGER audit_log_no_update
         BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
         CREATE TRIGGER audit_log_no_delete
@@ -792,12 +863,14 @@ class SQLiteRepository:
         actor: str,
         has_material_conflict: bool,
         conflict_basis: str | None,
+        human_signature_ref: str,
         idempotency_key: str,
     ) -> dict[str, Any]:
         payload = {
             "assignment_id": assignment_id,
             "has_material_conflict": has_material_conflict,
             "conflict_basis": conflict_basis,
+            "human_signature_ref": human_signature_ref,
         }
 
         def operation(connection: sqlite3.Connection, now: str) -> dict[str, Any]:
@@ -833,6 +906,12 @@ class SQLiteRepository:
                     "A material conflict declaration requires a recorded basis",
                     "RBE-ES-ORC-003",
                 )
+            if not human_signature_ref.strip():
+                raise RBEError(
+                    "RBE_INDEPENDENCE_SIGNATURE_REQUIRED",
+                    "A human signature reference is required for the declaration",
+                    "RBE-ES-ORC-003",
+                )
             status = "DECLINED" if has_material_conflict else "ACCEPTED"
             declaration_id = deterministic_id(
                 "CFD", session_id, assignment_id, actor, now
@@ -841,8 +920,8 @@ class SQLiteRepository:
                 """
                 INSERT INTO conflict_declarations(
                     declaration_id, session_id, assignment_id, actor,
-                    has_material_conflict, basis, declared_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    has_material_conflict, basis, human_signature_ref, declared_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     declaration_id,
@@ -851,6 +930,7 @@ class SQLiteRepository:
                     actor,
                     int(has_material_conflict),
                     conflict_basis,
+                    human_signature_ref,
                     now,
                 ),
             )
@@ -883,6 +963,7 @@ class SQLiteRepository:
                     "declaration_id": declaration_id,
                     "status": status,
                     "has_material_conflict": has_material_conflict,
+                    "human_signature_ref": human_signature_ref,
                     "conflict_basis_hash": (
                         canonical_hash(conflict_basis) if conflict_basis else None
                     ),
@@ -988,7 +1069,7 @@ class SQLiteRepository:
                         :finding_id, :session_id, :source_report_id, :severity,
                         :category, :title, :description,
                         :evidence_reference_ids_json, :status,
-                        :remediation_required, :remediation_plan_accepted,
+                        :remediation_required,
                         :raw_record_json, :raw_record_sha256, :created_at,
                         :supersedes_finding_id
                     )
@@ -999,9 +1080,6 @@ class SQLiteRepository:
                             list(finding.evidence_reference_ids)
                         ),
                         "remediation_required": int(finding.remediation_required),
-                        "remediation_plan_accepted": int(
-                            finding.remediation_plan_accepted
-                        ),
                         "raw_record_json": canonical_json(finding.raw_record),
                     },
                 )
@@ -1046,6 +1124,75 @@ class SQLiteRepository:
             operation=operation,
         )
 
+    def submit_remediation_plans(
+        self,
+        session_id: str,
+        plans: Iterable[RemediationPlan],
+        *,
+        actor: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        plan_list = tuple(plans)
+        payload = {"plans": [plan.to_dict() for plan in plan_list]}
+
+        def operation(connection: sqlite3.Connection, now: str) -> dict[str, Any]:
+            for plan in plan_list:
+                if plan.session_id != session_id:
+                    raise RBEError(
+                        "RBE_REMEDIATION_SESSION_MISMATCH",
+                        "A remediation plan does not belong to the target session",
+                        "RBE-ES-DOM-002",
+                    )
+                connection.execute(
+                    """
+                    INSERT INTO remediation_plans VALUES (
+                        :plan_id, :document_id, :session_id, :finding_id,
+                        :owner, :action, :due_date, :status,
+                        :verification_evidence_ids_json, :raw_record_json,
+                        :raw_record_sha256, :created_at, :supersedes_plan_id
+                    )
+                    """,
+                    {
+                        **plan.to_dict(),
+                        "verification_evidence_ids_json": canonical_json(
+                            list(plan.verification_evidence_ids)
+                        ),
+                        "raw_record_json": canonical_json(plan.raw_record),
+                    },
+                )
+            self._append_audit(
+                connection,
+                session_id=session_id,
+                event_type="REMEDIATION_PLAN_SUBMITTED",
+                actor=actor,
+                occurred_at=now,
+                payload={
+                    "plan_ids": sorted(plan.plan_id for plan in plan_list),
+                    "accepted_finding_ids": sorted(
+                        plan.finding_id
+                        for plan in plan_list
+                        if plan.status == "ACCEPTED"
+                    ),
+                },
+            )
+            return {
+                "plan_ids": sorted(plan.plan_id for plan in plan_list),
+                "accepted_finding_ids": sorted(
+                    plan.finding_id
+                    for plan in plan_list
+                    if plan.status == "ACCEPTED"
+                ),
+            }
+
+        return self._run_idempotent(
+            session_id=session_id,
+            command_name="submit_remediation_plans",
+            idempotency_key=idempotency_key,
+            actor=actor,
+            payload=payload,
+            operation=operation,
+        )
+
     def get_session(self, session_id: str) -> ReviewSession:
         connection = self._connect()
         try:
@@ -1062,6 +1209,437 @@ class SQLiteRepository:
                 {"session_id": session_id},
             )
         return self._session_from_row(row)
+
+    def get_initiation(self, session_id: str) -> dict[str, Any]:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT raw_json FROM review_packages WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            raise RBEError(
+                "RBE_REVIEW_PACKAGE_NOT_FOUND",
+                "Review initiation package was not found",
+                "RBE-ES-ORC-011",
+                {"session_id": session_id},
+            )
+        return json.loads(row["raw_json"])
+
+    def save_decision_candidate(
+        self,
+        session_id: str,
+        evaluation: DecisionEvaluation,
+        artifact_manifest: dict[str, Any],
+        *,
+        actor: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        manifest_hash = canonical_hash(artifact_manifest)
+        candidate_id = deterministic_id(
+            "DCA", session_id, evaluation.snapshot_hash, manifest_hash
+        )
+        payload = {
+            "candidate_id": candidate_id,
+            "evaluation": evaluation.to_dict(),
+            "artifact_manifest": artifact_manifest,
+        }
+
+        def operation(connection: sqlite3.Connection, now: str) -> dict[str, Any]:
+            previous = connection.execute(
+                """
+                SELECT candidate_id, candidate_version FROM decision_candidates
+                WHERE session_id = ? ORDER BY candidate_version DESC LIMIT 1
+                """,
+                (session_id,),
+            ).fetchone()
+            candidate_version = (
+                1 if previous is None else previous["candidate_version"] + 1
+            )
+            supersedes = None if previous is None else previous["candidate_id"]
+            connection.execute(
+                """
+                INSERT INTO decision_candidates(
+                    candidate_id, session_id, candidate_version, evaluation_json,
+                    finding_snapshot_hash, artifact_manifest_hash,
+                    artifact_manifest_json, computed_at, computed_by,
+                    supersedes_candidate_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    candidate_id,
+                    session_id,
+                    candidate_version,
+                    canonical_json(evaluation.to_dict()),
+                    evaluation.snapshot_hash,
+                    manifest_hash,
+                    canonical_json(artifact_manifest),
+                    now,
+                    actor,
+                    supersedes,
+                ),
+            )
+            self._append_audit(
+                connection,
+                session_id=session_id,
+                event_type="DECISION_CANDIDATE_COMPUTED",
+                actor=actor,
+                occurred_at=now,
+                payload={
+                    "candidate_id": candidate_id,
+                    "candidate_version": candidate_version,
+                    "supersedes_candidate_id": supersedes,
+                    "process_status": evaluation.process_status,
+                    "outcome": evaluation.outcome,
+                    "snapshot_hash": evaluation.snapshot_hash,
+                    "artifact_manifest_hash": manifest_hash,
+                },
+            )
+            return {
+                "candidate_id": candidate_id,
+                "candidate_version": candidate_version,
+                "session_id": session_id,
+                "evaluation": evaluation.to_dict(),
+                "artifact_manifest": artifact_manifest,
+                "artifact_manifest_hash": manifest_hash,
+                "computed_at": now,
+                "computed_by": actor,
+                "supersedes_candidate_id": supersedes,
+            }
+
+        return self._run_idempotent(
+            session_id=session_id,
+            command_name="save_decision_candidate",
+            idempotency_key=idempotency_key,
+            actor=actor,
+            payload=payload,
+            operation=operation,
+        )
+
+    def get_decision_candidate(self, session_id: str) -> dict[str, Any] | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT * FROM decision_candidates
+                WHERE session_id = ? ORDER BY candidate_version DESC LIMIT 1
+                """,
+                (session_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            return None
+        return {
+            "candidate_id": row["candidate_id"],
+            "candidate_version": row["candidate_version"],
+            "session_id": row["session_id"],
+            "evaluation": self._evaluation_from_data(
+                json.loads(row["evaluation_json"])
+            ),
+            "artifact_manifest": json.loads(row["artifact_manifest_json"]),
+            "artifact_manifest_hash": row["artifact_manifest_hash"],
+            "computed_at": row["computed_at"],
+            "computed_by": row["computed_by"],
+            "supersedes_candidate_id": row["supersedes_candidate_id"],
+        }
+
+    def save_decision(
+        self,
+        decision: BoardDecision,
+        artifact_manifest: dict[str, Any],
+        candidate_id: str,
+        ratification: dict[str, str],
+        *,
+        actor: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        payload = {
+            "decision": decision.to_dict(),
+            "artifact_manifest": artifact_manifest,
+            "candidate_id": candidate_id,
+            "ratification": ratification,
+        }
+
+        def operation(connection: sqlite3.Connection, now: str) -> dict[str, Any]:
+            if canonical_hash(artifact_manifest) != decision.artifact_manifest_hash:
+                raise RBEError(
+                    "RBE_ARTIFACT_MANIFEST_HASH_MISMATCH",
+                    "Decision manifest does not match its canonical hash",
+                    "RBE-ES-PER-003",
+                )
+            candidate = connection.execute(
+                "SELECT * FROM decision_candidates WHERE candidate_id = ?",
+                (candidate_id,),
+            ).fetchone()
+            if candidate is None or candidate["session_id"] != decision.session_id:
+                raise RBEError(
+                    "RBE_DECISION_CANDIDATE_MISMATCH",
+                    "Ratification must reference the session's frozen candidate",
+                    "RBE-ES-PER-003",
+                )
+            if (
+                candidate["evaluation_json"]
+                != canonical_json(decision.evaluation.to_dict())
+                or candidate["artifact_manifest_hash"]
+                != decision.artifact_manifest_hash
+            ):
+                raise RBEError(
+                    "RBE_DECISION_CANDIDATE_CHANGED",
+                    "Ratification cannot alter the machine-computed candidate",
+                    "RBE-ES-DEC-005",
+                )
+            required_ratification = {
+                "board_chair",
+                "board_chair_signature_ref",
+                "governance_validator",
+                "governance_validation_ref",
+            }
+            if (
+                set(ratification) != required_ratification
+                or not all(value.strip() for value in ratification.values())
+                or ratification["board_chair"]
+                == ratification["governance_validator"]
+            ):
+                raise RBEError(
+                    "RBE_RATIFICATION_INVALID",
+                    "Decision ratification requires separated, signed human authorities",
+                    "RBE-ES-DEC-005",
+                )
+            if decision.status != "SIGNED" or decision.signed_at is None:
+                raise RBEError(
+                    "RBE_SIGNED_DECISION_REQUIRED",
+                    "Ratification must create a signed decision record",
+                    "RBE-ES-DEC-005",
+                )
+            connection.execute(
+                """
+                INSERT INTO board_decisions(
+                    decision_id, session_id, status, binding, merge_permitted,
+                    execution_mode, evaluation_json, finding_snapshot_hash,
+                    artifact_manifest_hash, artifact_manifest_json, computed_at,
+                    signed_at, published_at, published_by, superseded
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                """,
+                (
+                    decision.decision_id,
+                    decision.session_id,
+                    decision.status,
+                    int(decision.binding),
+                    int(decision.merge_permitted),
+                    decision.execution_mode,
+                    canonical_json(decision.evaluation.to_dict()),
+                    decision.finding_snapshot_hash,
+                    decision.artifact_manifest_hash,
+                    canonical_json(artifact_manifest),
+                    decision.computed_at,
+                    decision.signed_at,
+                    decision.published_at,
+                    decision.published_by,
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO decision_ratifications(
+                    decision_id, candidate_id, session_id, board_chair,
+                    board_chair_signature_ref, governance_validator,
+                    governance_validation_ref, ratified_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    decision.decision_id,
+                    candidate_id,
+                    decision.session_id,
+                    ratification["board_chair"],
+                    ratification["board_chair_signature_ref"],
+                    ratification["governance_validator"],
+                    ratification["governance_validation_ref"],
+                    decision.signed_at,
+                ),
+            )
+            self._append_audit(
+                connection,
+                session_id=decision.session_id,
+                event_type="DECISION_RATIFIED",
+                actor=actor,
+                occurred_at=now,
+                payload={
+                    "decision_id": decision.decision_id,
+                    "candidate_id": candidate_id,
+                    "decision_status": decision.status,
+                    "process_status": decision.evaluation.process_status,
+                    "outcome": decision.evaluation.outcome,
+                    "snapshot_hash": decision.evaluation.snapshot_hash,
+                    "artifact_manifest_hash": decision.artifact_manifest_hash,
+                    "binding": decision.binding,
+                    "merge_permitted": decision.merge_permitted,
+                },
+            )
+            return decision.to_dict()
+
+        return self._run_idempotent(
+            session_id=decision.session_id,
+            command_name="save_decision",
+            idempotency_key=idempotency_key,
+            actor=actor,
+            payload=payload,
+            operation=operation,
+        )
+
+    def get_decision(self, session_id: str) -> BoardDecision | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT * FROM board_decisions
+                WHERE session_id = ? AND superseded = 0
+                """,
+                (session_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            return None
+        evaluation = self._evaluation_from_data(json.loads(row["evaluation_json"]))
+        return BoardDecision(
+            decision_id=row["decision_id"],
+            session_id=row["session_id"],
+            status=row["status"],
+            binding=bool(row["binding"]),
+            merge_permitted=bool(row["merge_permitted"]),
+            execution_mode=row["execution_mode"],
+            evaluation=evaluation,
+            finding_snapshot_hash=row["finding_snapshot_hash"],
+            artifact_manifest_hash=row["artifact_manifest_hash"],
+            computed_at=row["computed_at"],
+            signed_at=row["signed_at"],
+            published_at=row["published_at"],
+            published_by=row["published_by"],
+        )
+
+    def get_ratification(self, session_id: str) -> dict[str, Any] | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM decision_ratifications WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        return None if row is None else dict(row)
+
+    def save_publication(
+        self,
+        session_id: str,
+        decision_id: str,
+        indicator: dict[str, Any],
+        *,
+        actor: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        payload = {"decision_id": decision_id, "indicator": indicator}
+        indicator_hash = canonical_hash(indicator)
+        publication_id = deterministic_id(
+            "PUB", session_id, decision_id, indicator_hash
+        )
+
+        def operation(connection: sqlite3.Connection, now: str) -> dict[str, Any]:
+            ratification = connection.execute(
+                """
+                SELECT * FROM decision_ratifications
+                WHERE session_id = ? AND decision_id = ?
+                """,
+                (session_id, decision_id),
+            ).fetchone()
+            if ratification is None:
+                raise RBEError(
+                    "RBE_RATIFIED_DECISION_REQUIRED",
+                    "Publication requires a ratified decision",
+                    "RBE-ES-API-003",
+                )
+            if actor in {
+                ratification["board_chair"],
+                ratification["governance_validator"],
+            }:
+                raise RBEError(
+                    "RBE_PUBLICATION_ROLE_CONFLICT",
+                    "Publication authority must differ from decision authorities",
+                    "RBE-ES-ORC-003",
+                )
+            if indicator.get("publication_authority") != actor:
+                raise RBEError(
+                    "RBE_PUBLICATION_ACTOR_MISMATCH",
+                    "Indicator publication authority does not match the actor",
+                    "RBE-ES-API-003",
+                )
+            connection.execute(
+                """
+                INSERT INTO publications(
+                    publication_id, session_id, decision_id,
+                    publication_authority, indicator_json,
+                    indicator_sha256, published_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    publication_id,
+                    session_id,
+                    decision_id,
+                    actor,
+                    canonical_json(indicator),
+                    indicator_hash,
+                    indicator["published_at"],
+                ),
+            )
+            self._append_audit(
+                connection,
+                session_id=session_id,
+                event_type="DECISION_PUBLISHED",
+                actor=actor,
+                occurred_at=now,
+                payload={
+                    "publication_id": publication_id,
+                    "decision_id": decision_id,
+                    "indicator_sha256": indicator_hash,
+                },
+            )
+            return {
+                "publication_id": publication_id,
+                "decision_id": decision_id,
+                "indicator": indicator,
+                "indicator_sha256": indicator_hash,
+            }
+
+        return self._run_idempotent(
+            session_id=session_id,
+            command_name="save_publication",
+            idempotency_key=idempotency_key,
+            actor=actor,
+            payload=payload,
+            operation=operation,
+        )
+
+    def get_publication(self, session_id: str) -> dict[str, Any] | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM publications WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            return None
+        return {
+            "publication_id": row["publication_id"],
+            "session_id": row["session_id"],
+            "decision_id": row["decision_id"],
+            "publication_authority": row["publication_authority"],
+            "indicator": json.loads(row["indicator_json"]),
+            "indicator_sha256": row["indicator_sha256"],
+            "published_at": row["published_at"],
+        }
 
     def list_assignments(self, session_id: str) -> tuple[ReviewAssignment, ...]:
         connection = self._connect()
@@ -1150,6 +1728,41 @@ class SQLiteRepository:
             connection.close()
         return tuple(self._finding_from_row(row) for row in rows)
 
+    def list_remediation_plans(
+        self, session_id: str
+    ) -> tuple[RemediationPlan, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT * FROM remediation_plans
+                WHERE session_id = ? ORDER BY plan_id
+                """,
+                (session_id,),
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(
+            RemediationPlan(
+                plan_id=row["plan_id"],
+                document_id=row["document_id"],
+                session_id=row["session_id"],
+                finding_id=row["finding_id"],
+                owner=row["owner"],
+                action=row["action"],
+                due_date=row["due_date"],
+                status=row["status"],
+                verification_evidence_ids=tuple(
+                    json.loads(row["verification_evidence_ids_json"])
+                ),
+                raw_record=json.loads(row["raw_record_json"]),
+                raw_record_sha256=row["raw_record_sha256"],
+                created_at=row["created_at"],
+                supersedes_plan_id=row["supersedes_plan_id"],
+            )
+            for row in rows
+        )
+
     def list_audit(self, session_id: str) -> tuple[AuditEntry, ...]:
         connection = self._connect()
         try:
@@ -1229,6 +1842,24 @@ class SQLiteRepository:
             self.verify_audit(session_id)
 
     @staticmethod
+    def _evaluation_from_data(evaluation_data: dict[str, Any]) -> DecisionEvaluation:
+        return DecisionEvaluation(
+            process_status=evaluation_data["process_status"],
+            outcome=evaluation_data["outcome"],
+            reason_codes=tuple(evaluation_data["reason_codes"]),
+            rules_applied=tuple(evaluation_data["rules_applied"]),
+            findings_considered=tuple(evaluation_data["findings_considered"]),
+            counter_evidence=tuple(evaluation_data["counter_evidence"]),
+            process_blockers=tuple(evaluation_data.get("process_blockers", [])),
+            profile_id=evaluation_data["profile_id"],
+            profile_version=evaluation_data["profile_version"],
+            profile_checksum=evaluation_data["profile_checksum"],
+            engine_version=evaluation_data["engine_version"],
+            snapshot_hash=evaluation_data["snapshot_hash"],
+            explanation=evaluation_data["explanation"],
+        )
+
+    @staticmethod
     def _session_from_row(row: sqlite3.Row) -> ReviewSession:
         return ReviewSession(
             session_id=row["session_id"],
@@ -1305,7 +1936,6 @@ class SQLiteRepository:
             ),
             status=row["status"],
             remediation_required=bool(row["remediation_required"]),
-            remediation_plan_accepted=bool(row["remediation_plan_accepted"]),
             raw_record=json.loads(row["raw_record_json"]),
             raw_record_sha256=row["raw_record_sha256"],
             created_at=row["created_at"],
