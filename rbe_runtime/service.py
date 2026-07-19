@@ -335,6 +335,19 @@ class RBERuntime:
     ) -> dict[str, Any]:
         session = self.repository.get_session(session_id)
         initiation = self.repository.get_initiation(session_id)
+        if self.repository.get_decision_candidate(session_id) is not None:
+            raise RBEError(
+                "RBE_DECISION_INPUTS_FROZEN",
+                "Remediation cannot be added after a decision candidate is frozen",
+                "RBE-ES-DEC-001",
+            )
+        if session.status not in {"CHALLENGE", "CONSOLIDATION"}:
+            raise RBEError(
+                "RBE_REMEDIATION_SUBMISSION_NOT_OPEN",
+                "Remediation is accepted only before decision preparation",
+                "RBE-ES-ORC-005",
+                {"session_state": session.status},
+            )
         if actor != initiation["methodology_auditor"]:
             raise RBEError(
                 "RBE_REMEDIATION_ACTOR_MISMATCH",
