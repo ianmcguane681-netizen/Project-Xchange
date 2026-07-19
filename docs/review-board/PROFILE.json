@@ -1,0 +1,182 @@
+{
+  "profile_id": "RBM-001",
+  "version": "2.0.0",
+  "status": "RELEASE_CANDIDATE",
+  "architecture_authority": {
+    "document_id": "RBE-001",
+    "minimum_compatible_version": "1.1.0",
+    "named_human_approval_required": true
+  },
+  "owner": "Provena Foundry Governance",
+  "human_approval_record": null,
+  "checksum": "sha256:ba5c0f2277180d74cb156b3b3ccdc3896d56933d74ec39c7ee1d1c05a113e899",
+  "manifest": "MANIFEST.json",
+  "binding": false,
+  "permitted_outcomes": [
+    "PASS",
+    "PASS_WITH_FINDINGS",
+    "FAIL",
+    "INSUFFICIENT_EVIDENCE"
+  ],
+  "omitted_outcome_mapping": {
+    "DEFER_FOR_FURTHER_RESEARCH": "INSUFFICIENT_EVIDENCE"
+  },
+  "process_statuses": [
+    "READY",
+    "PROCEDURALLY_INCOMPLETE",
+    "BLOCKED",
+    "VOID"
+  ],
+  "unresolved_finding_statuses": [
+    "OPEN",
+    "CONTESTED",
+    "UNDER_REVIEW"
+  ],
+  "decision_precedence": [
+    {
+      "priority": 1,
+      "rule_id": "RBM-DEC-001",
+      "condition": "unresolved_sev1 >= 1",
+      "outcome": "FAIL"
+    },
+    {
+      "priority": 2,
+      "rule_id": "RBM-DEC-002",
+      "condition": "unresolved_sev2 >= 2",
+      "outcome": "FAIL"
+    },
+    {
+      "priority": 3,
+      "rule_id": "RBM-DEC-003",
+      "condition": "unresolved_sev2 == 1 and accepted_sev2_remediation == 0",
+      "outcome": "FAIL"
+    },
+    {
+      "priority": 4,
+      "rule_id": "RBM-DEC-004",
+      "condition": "substantive_evidence_sufficient == false",
+      "outcome": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+      "priority": 5,
+      "rule_id": "RBM-DEC-005",
+      "condition": "unresolved_sev2 == 1 and accepted_sev2_remediation == 1",
+      "outcome": "PASS_WITH_FINDINGS"
+    },
+    {
+      "priority": 6,
+      "rule_id": "RBM-DEC-006",
+      "condition": "unresolved_sev1 == 0 and unresolved_sev2 == 0 and substantive_evidence_sufficient == true",
+      "outcome": "PASS"
+    }
+  ],
+  "role_policy": {
+    "distinct_human_per_board_role": true,
+    "ai_counts_toward_quorum": false,
+    "board_chair_may_hold_other_role": false,
+    "methodology_auditor_may_hold_other_role": false,
+    "board_chair_and_governance_validator_must_differ": true,
+    "decision_assembler_and_publication_control_must_differ": true,
+    "governance_validator_and_publication_control_must_differ": true
+  },
+  "quorum": {
+    "tier_1": {
+      "required_roles": [
+        "BC",
+        "MA",
+        "SR"
+      ],
+      "specialists_required": 2,
+      "specialist_pool": [
+        "SAA",
+        "QRA",
+        "POA"
+      ]
+    },
+    "tier_2": {
+      "required_roles": [
+        "BC",
+        "MA",
+        "SR"
+      ],
+      "specialists_required": 4,
+      "specialist_pool": [
+        "SAA",
+        "BCA",
+        "DEA",
+        "QRA",
+        "SPA",
+        "POA"
+      ]
+    },
+    "tier_3": {
+      "required_roles": [
+        "BC",
+        "MA",
+        "SAA",
+        "BCA",
+        "DEA",
+        "QRA",
+        "SPA",
+        "POA",
+        "SR"
+      ],
+      "specialists_required": 6,
+      "specialist_pool": [
+        "SAA",
+        "BCA",
+        "DEA",
+        "QRA",
+        "SPA",
+        "POA"
+      ]
+    }
+  },
+  "canonical_lifecycle_mapping": {
+    "pre_review": [
+      "DRAFT",
+      "SUBMITTED",
+      "INTAKE_VALIDATION",
+      "RETURNED",
+      "ACCEPTED",
+      "EVIDENCE_LOCKED",
+      "ASSIGNMENT"
+    ],
+    "specialist_review": [
+      "INDEPENDENT_REVIEW"
+    ],
+    "challenge": [
+      "CHALLENGE",
+      "CLARIFICATION"
+    ],
+    "decision": [
+      "CONSOLIDATION",
+      "GOVERNANCE_VALIDATION",
+      "BLOCKED",
+      "DECIDED",
+      "PUBLISHED"
+    ],
+    "appeal": [
+      "APPEALED",
+      "APPEAL_REVIEW",
+      "UPHELD",
+      "SUPERSEDED",
+      "REMANDED"
+    ],
+    "terminal": [
+      "FINAL",
+      "ARCHIVED",
+      "VOID",
+      "WITHDRAWN"
+    ]
+  },
+  "activation_requirements": [
+    "approved_rbe_release",
+    "valid_profile_checksum",
+    "valid_package_manifest",
+    "named_human_principal_architect_approval",
+    "named_human_methodology_owner_approval",
+    "active_status_commit",
+    "immutable_release_tag"
+  ]
+}

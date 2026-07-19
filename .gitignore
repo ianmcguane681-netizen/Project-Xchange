@@ -1,3 +1,4 @@
+# Python
 .env
 .venv/
 __pycache__/
@@ -9,3 +10,11 @@ data/exports/
 examples/sv_engine/*.db
 *.log
 .DS_Store
+
+# Node.js
+node_modules/
+
+# TypeScript build outputs — generated files; must not be committed
+*.tsbuildinfo
+dist/
+*.d.ts.map
