@@ -1,0 +1,35 @@
+{
+  "architecture_release": "1.1.0",
+  "rules": {
+    "non_ready_outcome_must_be_null": true,
+    "profile_mapping_must_be_deterministic_and_total": true,
+    "ready_requires_exactly_one_permitted_outcome": true
+  },
+  "schema_id": "rbe.verdict-taxonomy",
+  "schema_version": "1.0.0",
+  "process_statuses": [
+    {
+      "allows_outcome": true,
+      "id": "READY"
+    },
+    {
+      "allows_outcome": false,
+      "id": "PROCEDURALLY_INCOMPLETE"
+    },
+    {
+      "allows_outcome": false,
+      "id": "BLOCKED"
+    },
+    {
+      "allows_outcome": false,
+      "id": "VOID"
+    }
+  ],
+  "substantive_outcomes": [
+    "PASS",
+    "PASS_WITH_FINDINGS",
+    "FAIL",
+    "INSUFFICIENT_EVIDENCE",
+    "DEFER_FOR_FURTHER_RESEARCH"
+  ]
+}

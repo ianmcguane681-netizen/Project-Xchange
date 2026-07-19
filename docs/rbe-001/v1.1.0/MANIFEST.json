@@ -1,0 +1,223 @@
+{
+  "files": [
+    {
+      "path": "architecture/chapters/01-executive-summary-and-architecture-mandate.md",
+      "sha256": "2a6c0068cb1be2ddb4fc0a9e83a0fb992ab6ed491269df2f005abf1429cd290c",
+      "size_bytes": 6399
+    },
+    {
+      "path": "architecture/chapters/02-architectural-principles-and-board-constitution.md",
+      "sha256": "1514cad1a93a25157fed35003a13c4179026b2ef4124d973263a727911fad575",
+      "size_bytes": 9352
+    },
+    {
+      "path": "architecture/chapters/03-system-context-trust-boundaries-and-c4-architecture.md",
+      "sha256": "88364ab5d8047481bb9b8721f5c5311e8b51b118684120181303f4920c1d84b0",
+      "size_bytes": 11676
+    },
+    {
+      "path": "architecture/chapters/04-governance-framework.md",
+      "sha256": "d31a0fb72b3a3d6655033398d01bb21a445f6012d6762dac6139ff4f3fb417bf",
+      "size_bytes": 12938
+    },
+    {
+      "path": "architecture/chapters/05-review-lifecycle.md",
+      "sha256": "aef25d9aed2f7840de5f23aef6e0af179c1b1e73aafdb818f908d5672cc2434a",
+      "size_bytes": 13073
+    },
+    {
+      "path": "architecture/chapters/06-decision-framework.md",
+      "sha256": "8a156c0e62fb9b9247fae4ed0ee04ef804bb90b8c8ee79b6e09673d1b1e504ac",
+      "size_bytes": 12363
+    },
+    {
+      "path": "architecture/chapters/07-domain-model.md",
+      "sha256": "dc22bfe0ae7517dc76e373de27865643365d1a314491d6271857172642bbb4de",
+      "size_bytes": 16860
+    },
+    {
+      "path": "architecture/chapters/08-review-state-machine.md",
+      "sha256": "f4080e5820fd5147c996ed9385a3ad50c33f2f2867acc7c91b21d6be0dda5a56",
+      "size_bytes": 12266
+    },
+    {
+      "path": "architecture/chapters/09-roles-permissions-and-separation-of-duties.md",
+      "sha256": "ca2c9468dc9ab380a7bdc93b4248d213a1a40638dbc323d98017652b5c17d038",
+      "size_bytes": 11478
+    },
+    {
+      "path": "architecture/chapters/10-audit-traceability-and-provenance.md",
+      "sha256": "3d70638541fcfabc0fb2529c68654ebb20fbfcb82936e5976c1553ebbedb9f5b",
+      "size_bytes": 10732
+    },
+    {
+      "path": "architecture/chapters/11-review-reports-and-decision-outputs.md",
+      "sha256": "78cc27250c3583ac63870436057bfdda0987e059378ed74651c37899bee62c26",
+      "size_bytes": 13082
+    },
+    {
+      "path": "architecture/chapters/12-system-and-service-architecture.md",
+      "sha256": "2c8ecd697d255f398d2087a68b9117d470d7c2681860d617fb0302cf3f7e4ef5",
+      "size_bytes": 10385
+    },
+    {
+      "path": "architecture/chapters/13-api-and-command-architecture.md",
+      "sha256": "e0e8043edbbe084292661c08edacdf15eeb058c029c55883bcb69582ee2a3f35",
+      "size_bytes": 8707
+    },
+    {
+      "path": "architecture/chapters/14-persistence-and-data-architecture.md",
+      "sha256": "ace7599e02bff557ba1a6ccda4e836ff5498255357eeab6b3f2f3e934f5b1b93",
+      "size_bytes": 9080
+    },
+    {
+      "path": "architecture/chapters/15-event-integration-and-orchestration-architecture.md",
+      "sha256": "0ebfa6eb2c794f169f456327acc7a52b6ff12b02ffe5003b422d16ed156b63fe",
+      "size_bytes": 10876
+    },
+    {
+      "path": "architecture/chapters/16-security-architecture.md",
+      "sha256": "afe041512872da7540394e734456e4955867e3ad9156b65ee17eca611d405b45",
+      "size_bytes": 14410
+    },
+    {
+      "path": "architecture/chapters/17-ai-and-automation-architecture.md",
+      "sha256": "80bae6bace436440de464c0aeccc9d1202113a4ba911a810b5d21569560b4375",
+      "size_bytes": 11193
+    },
+    {
+      "path": "architecture/chapters/18-performance-scalability-and-reliability-architecture.md",
+      "sha256": "3867f715d7b3e17678ed332d1dcd77d1d5d04574ec0f42cba73bacd89ee04400",
+      "size_bytes": 9923
+    },
+    {
+      "path": "architecture/chapters/19-deployment-and-infrastructure-architecture.md",
+      "sha256": "81bb26c809fc880cb605763dac6dfb34ba97d9169da4ef029401c743c56cedc4",
+      "size_bytes": 13578
+    },
+    {
+      "path": "architecture/chapters/20-testing-and-quality-assurance-architecture.md",
+      "sha256": "efcd6088b5002b25d12ac257b22acb31d5d659165534d90f7d536121b8a182c0",
+      "size_bytes": 17093
+    },
+    {
+      "path": "architecture/chapters/21-operational-procedures-and-service-governance.md",
+      "sha256": "5547bb5082220dbcc1ff2ec25c941e1672f89c3e3df961545f0bdac46ae00ccd",
+      "size_bytes": 14759
+    },
+    {
+      "path": "architecture/chapters/22-implementation-guidance-and-codex-build-contract.md",
+      "sha256": "8299acc43b90f3d05342cd458b2f7198ac5220e8202a427428fe6b391e88b8e7",
+      "size_bytes": 15838
+    },
+    {
+      "path": "architecture/chapters/23-appendices-and-normative-reference-material.md",
+      "sha256": "9c24390d4fdc6680e0ea96197a27f932e2db39c35797f5cd0b4de09579e2e070",
+      "size_bytes": 16121
+    },
+    {
+      "path": "architecture/RBE-001_Reference_Architecture_v1.1.0.md",
+      "sha256": "0cd3fffe17b5f3b756036f0575b7e1c181b16455cdc816bd7fae3d7503e6bb15",
+      "size_bytes": 279155
+    },
+    {
+      "path": "CODEX_REVIEW_INSTRUCTIONS.md",
+      "sha256": "9b4614d3721ae3b6b2ca6e99704244bf8ce0c940eaf136e3d0f87157ff4a3d6a",
+      "size_bytes": 1647
+    },
+    {
+      "path": "engineering/RBE-001_Engineering_Specification_v1.1.0.md",
+      "sha256": "61af53ad7c5bd0c4f0268a36376ad0dd56901ee2b430d789e424c16ddca4a686",
+      "size_bytes": 52038
+    },
+    {
+      "path": "README.md",
+      "sha256": "b0599eff5cb48f59ef9cd135a6c2a0bf2d41cb9df07e41cc8dc8d74950b30c6d",
+      "size_bytes": 1702
+    },
+    {
+      "path": "registers/AUTHORITY_AND_CONFORMANCE.md",
+      "sha256": "985cfa8f4b5ca73d793a916ebf2390b03c3ead345fefb8e2b610515ead6bbca8",
+      "size_bytes": 2407
+    },
+    {
+      "path": "registers/NORMALISATION_DECISIONS.md",
+      "sha256": "e22b304714284b67fca0f400efe5a4eeece9c175949419fda6cea88eee5c5e92",
+      "size_bytes": 2640
+    },
+    {
+      "path": "registers/requirement_id_migration.csv",
+      "sha256": "90a00f7cb1965daced1b38080dc21b8fb4c798a4a00728bc95dbef5d3b7775f7",
+      "size_bytes": 20586
+    },
+    {
+      "path": "registers/requirement_register.json",
+      "sha256": "0a445135514688e774eba1924199c2a8219fed8f8f3ea38d928692cc3ec6fd4e",
+      "size_bytes": 151200
+    },
+    {
+      "path": "registers/state_machine.json",
+      "sha256": "2acdf7c2d7b269e092e176157e9264687e51e182ea594860836ca6c8a803a99b",
+      "size_bytes": 2840
+    },
+    {
+      "path": "registers/STATE_MACHINE.md",
+      "sha256": "ee2deeda9706fd27d385436030ffc87f19c98ac972ecfb6fa55e6d2c25328b4c",
+      "size_bytes": 1660
+    },
+    {
+      "path": "registers/verdict_taxonomy.json",
+      "sha256": "b6dae0be192f45a65c6e1f5c92be630310fe4e7ef3f7a67cc419f479238aba1b",
+      "size_bytes": 733
+    },
+    {
+      "path": "registers/VERDICT_TAXONOMY.md",
+      "sha256": "c18d763f68aa5fc7afa04693a41db8c87cf8fe6881985f45615047c30bbbe01e",
+      "size_bytes": 1610
+    },
+    {
+      "path": "release/ARCHITECTURE_INDEX.md",
+      "sha256": "916ea5c43044a4dd67d7d7b029378cbb3c7ea8b03898bfc47e6dc28232961867",
+      "size_bytes": 1022
+    },
+    {
+      "path": "release/CHANGELOG.md",
+      "sha256": "f2bf1ddab7a15acfaf33ef52cfac244090e8f3d565f728eecbba9b659ee9b7d2",
+      "size_bytes": 980
+    },
+    {
+      "path": "release/RELEASE_NOTES.md",
+      "sha256": "3294fc9a76590a713e36ce26e395986ab4a1c376d38854f4d5a470c8ffcc3bb2",
+      "size_bytes": 1197
+    },
+    {
+      "path": "review/RBE-001_Architecture_Normalisation_Review_v1.1.0.md",
+      "sha256": "68f72a4e12a7cc23b883d7c1914fcc1dc5b71788c35764a50f827c5a39d24c0d",
+      "size_bytes": 2431
+    }
+  ],
+  "package_id": "RBE-001-AI-READER",
+  "package_version": "1.1.0",
+  "publication_date": "2026-07-19",
+  "root_hash": "8c3858f4c1e0712dea01421a507714a12617065150668146a91eb1cbd30832ac",
+  "schema_id": "rbe.ai-reader-manifest",
+  "schema_version": "1.0.0",
+  "source_artifacts": [
+    {
+      "name": "RBE-001_Review_Board_Engine_Reference_Architecture_v1.0.0_FINAL.pdf",
+      "sha256": "0b919c70c7a9b6991b329546b02de7d6d2cd42266e674caa361c867abee18d31"
+    },
+    {
+      "name": "RBE-001_Review_Board_Engine_Engineering_Specification_v1.0.0.docx",
+      "sha256": "92e159f084ab91d458e57f98d405b7a6146dd6f98db04af76d159b8e09b45ca4"
+    },
+    {
+      "name": "RBE-001_Architecture_Consistency_and_Principal_Review_Report_v1.0.0.pdf",
+      "sha256": "df09ffa514ac2fad2f98791e979ba372115c7e4e1b664ac5dc1773ff1b5877d1"
+    },
+    {
+      "name": "RBE-001_Architecture_Consistency_and_Principal_Review_Report_v1.0.0.docx",
+      "sha256": "923b62bc16be91a216349acc776bad12e717dcf955741571a0bdc9bf0f989c17"
+    }
+  ]
+}
