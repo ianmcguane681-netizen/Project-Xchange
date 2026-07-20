@@ -61,6 +61,13 @@ class PackageValidationError(ValueError):
     """Raised when the RBM-001 package is stale or internally inconsistent."""
 
 
+def package_path_sort_key(path: Path) -> tuple[str, str]:
+    """Match the controlled package's canonical case-insensitive path order."""
+
+    relative = path.relative_to(PACKAGE_ROOT).as_posix()
+    return relative.casefold(), relative
+
+
 def canonical_json(value: Any) -> bytes:
     return json.dumps(
         value,
@@ -92,9 +99,12 @@ def calculate_profile_checksum(profile: dict[str, Any]) -> str:
 
 def controlled_files() -> list[Path]:
     return sorted(
-        path
-        for path in PACKAGE_ROOT.rglob("*")
-        if path.is_file() and path != MANIFEST_PATH
+        (
+            path
+            for path in PACKAGE_ROOT.rglob("*")
+            if path.is_file() and path != MANIFEST_PATH
+        ),
+        key=package_path_sort_key,
     )
 
 
@@ -488,7 +498,10 @@ def _validate_documents() -> None:
     if missing:
         raise PackageValidationError(f"Methodology terms missing: {missing}")
 
-    specs = sorted((PACKAGE_ROOT / "specs").glob("RBS-*.md"))
+    specs = sorted(
+        (PACKAGE_ROOT / "specs").glob("RBS-*.md"),
+        key=package_path_sort_key,
+    )
     if len(specs) != 8:
         raise PackageValidationError("Expected exactly eight reviewer specifications")
     for spec in specs:
@@ -543,4 +556,3 @@ def validate_package() -> None:
     actual_manifest = load_json(MANIFEST_PATH)
     if actual_manifest != expected_manifest:
         raise PackageValidationError("Package manifest is stale or invalid")
-

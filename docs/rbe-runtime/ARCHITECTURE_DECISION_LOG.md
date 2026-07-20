@@ -36,7 +36,9 @@ methodology-profile validation are prerequisites to runtime execution; tooling
 location is an implementation concern.
 
 **Consequences:** There is one package-validation implementation. Tooling cannot
-become an undeclared runtime dependency.
+become an undeclared runtime dependency. Controlled file ordering uses an
+explicit canonical POSIX-path key rather than operating-system `Path` ordering,
+so package roots remain stable across Windows and Linux runners.
 
 **Verification:** RBE/RBM package validators and
 `test_runtime_does_not_import_engineering_scripts`.

@@ -75,6 +75,13 @@ class RequirementRecord(TypedDict):
     statement: str
 
 
+def package_path_sort_key(path: Path) -> tuple[str, str]:
+    """Match the controlled package's canonical case-insensitive path order."""
+
+    relative = path.relative_to(PACKAGE_ROOT).as_posix()
+    return relative.casefold(), relative
+
+
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
@@ -89,8 +96,14 @@ def canonical_json(value: object) -> bytes:
 
 
 def source_documents() -> list[Path]:
-    chapters = sorted((PACKAGE_ROOT / "architecture" / "chapters").glob("*.md"))
-    engineering = sorted((PACKAGE_ROOT / "engineering").glob("*.md"))
+    chapters = sorted(
+        (PACKAGE_ROOT / "architecture" / "chapters").glob("*.md"),
+        key=package_path_sort_key,
+    )
+    engineering = sorted(
+        (PACKAGE_ROOT / "engineering").glob("*.md"),
+        key=package_path_sort_key,
+    )
     return chapters + engineering
 
 
@@ -129,7 +142,11 @@ between constitutional architecture, implementation profiles, and active methodo
 normalization registers are normative where they explicitly resolve a v1.0.0 conflict.
 """
     parts = [header.rstrip()]
-    for chapter in sorted((PACKAGE_ROOT / "architecture" / "chapters").glob("*.md")):
+    chapters = sorted(
+        (PACKAGE_ROOT / "architecture" / "chapters").glob("*.md"),
+        key=package_path_sort_key,
+    )
+    for chapter in chapters:
         text = chapter.read_text(encoding="utf-8")
         if not text.startswith("---\n"):
             raise PackageValidationError(f"Chapter lacks front matter: {chapter.name}")
@@ -312,9 +329,12 @@ def migration_register_bytes(requirements: list[RequirementRecord]) -> bytes:
 def inventory_paths() -> list[Path]:
     excluded = {ARCHIVE_NAME, CHECKSUM_NAME, MANIFEST_NAME}
     return sorted(
-        path
-        for path in PACKAGE_ROOT.rglob("*")
-        if path.is_file() and path.name not in excluded
+        (
+            path
+            for path in PACKAGE_ROOT.rglob("*")
+            if path.is_file() and path.name not in excluded
+        ),
+        key=package_path_sort_key,
     )
 
 
@@ -379,7 +399,10 @@ def archive_bytes(paths: list[Path], manifest: bytes) -> bytes:
 
 
 def validate_source_documents() -> None:
-    chapters = sorted((PACKAGE_ROOT / "architecture" / "chapters").glob("*.md"))
+    chapters = sorted(
+        (PACKAGE_ROOT / "architecture" / "chapters").glob("*.md"),
+        key=package_path_sort_key,
+    )
     if len(chapters) != 23:
         raise PackageValidationError(f"Expected 23 architecture chapters, found {len(chapters)}")
     expected_prefixes = [f"{number:02d}-" for number in range(1, 24)]
@@ -547,4 +570,3 @@ def check() -> None:
     if (PACKAGE_ROOT / CHECKSUM_NAME).read_bytes() != expected_checksum:
         raise PackageValidationError("Archive checksum file is stale")
     validate_archive(actual_archive, actual_manifest)
-
