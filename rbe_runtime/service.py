@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -28,9 +29,9 @@ from rbe_runtime.models import (
     ReviewSession,
 )
 from rbe_runtime.profile import ProfilePolicy
-from rbe_runtime.repository import SQLiteRepository
 from rbe_runtime.schemas import SchemaRegistry
 from rbe_runtime.state_machine import CanonicalStateMachine
+from rbe_runtime.storage import ReviewStore, open_sqlite_store
 from rbe_runtime.validation import (
     validate_finding_submission,
     validate_initiation,
@@ -45,10 +46,11 @@ class RBERuntime:
 
     def __init__(
         self,
-        database_path: str | Path,
+        database_path: str | Path | None = None,
         *,
         authority: AuthorityBundle | None = None,
-        clock=utc_now,
+        clock: Callable[[], str] = utc_now,
+        repository: ReviewStore | None = None,
     ) -> None:
         self.authority = authority or AuthorityBundle.load()
         self.schemas = SchemaRegistry.from_authority(self.authority)
@@ -57,11 +59,17 @@ class RBERuntime:
             self.authority.state_machine
         )
         self.decisions = DecisionEngine(self.authority.profile)
-        self.repository = SQLiteRepository(
-            database_path,
-            self.state_machine,
-            clock=clock,
-        )
+        if repository is not None and database_path is not None:
+            raise TypeError("Provide either database_path or repository, not both")
+        if repository is None:
+            if database_path is None:
+                raise TypeError("database_path is required when repository is not provided")
+            repository = open_sqlite_store(
+                database_path,
+                self.state_machine,
+                clock=clock,
+            )
+        self.repository: ReviewStore = repository
         self.clock = clock
 
     def initiate_review(

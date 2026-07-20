@@ -10,7 +10,8 @@ It also includes `COMP-001 Prompt Engine` for storing, versioning, approving, te
 
 The repository includes a headless, deterministic RBE Foundation runtime under
 `rbe_runtime/`. It consumes RBE-001 v1.1.0 and RBM-001 v2.0.0 directly, uses
-SQLite for durable review records, enforces the canonical lifecycle, preserves
+the backend-neutral `ReviewStore` contract with SQLite as its Foundation adapter,
+enforces the canonical lifecycle, preserves
 evidence and provenance, computes profile-driven outcomes, records separated
 human ratification and publication, and exports verifiable JSON/Markdown
 bundles.

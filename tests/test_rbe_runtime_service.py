@@ -9,10 +9,31 @@ import pytest
 from rbe_runtime.authority import AuthorityBundle
 from rbe_runtime.errors import RBEError
 from rbe_runtime.models import ExecutionMode
+from rbe_runtime.repository import SQLiteRepository
 from rbe_runtime.service import RBERuntime
+from rbe_runtime.state_machine import CanonicalStateMachine
+from rbe_runtime.storage import ReviewStore
 
 
 NOW = "2026-07-20T12:00:00Z"
+
+
+def test_runtime_accepts_repository_through_storage_port(tmp_path: Path) -> None:
+    authority = AuthorityBundle.load()
+    state_machine = CanonicalStateMachine.from_register(authority.state_machine)
+    repository = SQLiteRepository(
+        tmp_path / "injected.sqlite3",
+        state_machine,
+        clock=lambda: NOW,
+    )
+
+    assert isinstance(repository, ReviewStore)
+    runtime = RBERuntime(
+        authority=authority,
+        clock=lambda: NOW,
+        repository=repository,
+    )
+    assert runtime.repository is repository
 
 
 def initiation(authority: AuthorityBundle, review_id: str) -> dict[str, Any]:

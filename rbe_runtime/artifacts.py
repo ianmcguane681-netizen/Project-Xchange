@@ -10,7 +10,7 @@ from typing import Any
 from rbe_runtime.authority import AuthorityBundle
 from rbe_runtime.canonical import canonical_hash, canonical_json, sha256_digest
 from rbe_runtime.errors import RBEError
-from rbe_runtime.repository import SQLiteRepository
+from rbe_runtime.storage import ReviewStore
 
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -40,7 +40,7 @@ def _markdown_text(value: Any) -> str:
 class ArtifactExporter:
     def __init__(
         self,
-        repository: SQLiteRepository,
+        repository: ReviewStore,
         authority: AuthorityBundle,
     ) -> None:
         self.repository = repository

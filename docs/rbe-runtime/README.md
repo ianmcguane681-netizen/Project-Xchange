@@ -17,6 +17,9 @@ merge.
 The runtime loads and validates the controlled packages on startup. It does not
 copy their lifecycle or outcome tables into a second configuration:
 
+- Shared package integrity rules live in `controlled_authority/`; the runtime
+  and the two CLI scripts consume that library, and runtime code never imports
+  from `scripts/`.
 - Lifecycle states and transitions come from
   `docs/rbe-001/v1.1.0/registers/state_machine.json`.
 - Process and outcome taxonomy comes from
@@ -39,7 +42,8 @@ The two specifications are not modified by this runtime.
 | `state_machine.py` | Canonical lifecycle guard |
 | `validation.py` | Initiation, report, finding, evidence, and remediation cross-record checks |
 | `decision.py` | Pure safe interpretation of RBM decision precedence |
-| `repository.py` | SQLite migrations, durable records, idempotency, append-only audit |
+| `storage.py` | Backend-neutral `ReviewStore` persistence contract and adapter factory |
+| `repository.py` | Foundation SQLite adapter: migrations, idempotency, append-only audit |
 | `service.py` | Lifecycle prerequisites, review orchestration, ratification, publication |
 | `artifacts.py` | Deterministic JSON/Markdown export and checksum validation |
 | `cli.py` | Headless authority, audit, export, and bundle commands |
@@ -86,6 +90,21 @@ Recommendations, timestamps, row order, votes, and commercial preference do
 not influence the outcome.
 
 ## Persistence
+
+Review orchestration and artifact export depend on the structural `ReviewStore`
+protocol in `storage.py`. They do not depend on SQLite types. `open_sqlite_store`
+selects the local Foundation adapter when `RBERuntime` receives a database path.
+A future durable backend must implement the same record, atomicity, idempotency,
+immutability, and audit-verification contract, then can be injected without
+changing business logic:
+
+```python
+runtime = RBERuntime(repository=review_store_adapter)
+```
+
+Supplying both `database_path` and `repository` is rejected so backend ownership
+is unambiguous. This is an implementation boundary, not permission to weaken any
+RBE/RBM persistence or audit requirement.
 
 SQLite foreign keys are enabled on every runtime connection. Migrations are
 ordered and checksum-verified. Startup refuses a newer or checksum-mismatched
