@@ -136,6 +136,10 @@ runtime.initiate_review(
 All write methods require an accountable actor and idempotency key. See
 `tests/test_rbe_runtime_service.py` for complete governed scenarios.
 
+Implementation choices and their authority basis are recorded in
+`ARCHITECTURE_DECISION_LOG.md`. That log is non-normative and does not amend the
+controlled RBE or RBM packages.
+
 ## Headless Commands
 
 ```powershell

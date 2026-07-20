@@ -56,6 +56,20 @@ contracts without weakening or modifying either schema.
 No critical or high-severity implementation finding remains within Issue #5's
 approved Foundation scope.
 
+### Principal Architect review actions
+
+- **PA-001 Runtime/Script Separation:** shared validation moved to
+  `controlled_authority/`; runtime imports from `scripts/` are prohibited by test.
+- **PA-002 Repository CI:** pull requests run controlled-package validation,
+  lint/compile, focused runtime tests, and the full repository suite as separate
+  GitHub Actions jobs.
+- **PA-003 Persistence Abstraction:** orchestration and artifact export now depend
+  on the backend-neutral `ReviewStore` protocol; SQLite remains the Foundation
+  adapter.
+- **PA-004 Architecture Decision Log:** existing implementation decisions,
+  authority bases, consequences, and verification are recorded in
+  `ARCHITECTURE_DECISION_LOG.md` without claiming normative authority.
+
 ### Accepted non-production limitations
 
 1. Human signatures are accountable references, not cryptographically verified
