@@ -9,6 +9,9 @@ data/sv_engine.db
 data/exports/
 examples/sv_engine/*.db
 *.log
+*.sqlite3
+.pytest-tmp-rbe/
+rbe-bundles/
 .DS_Store
 
 # Node.js

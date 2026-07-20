@@ -5,7 +5,17 @@ import json
 
 import pytest
 
-from scripts import validate_rbm001_package as rbm
+from controlled_authority import rbm_package as rbm
+
+
+def test_manifest_uses_canonical_cross_platform_path_order() -> None:
+    paths = [
+        path.relative_to(rbm.PACKAGE_ROOT).as_posix()
+        for path in rbm.controlled_files()
+    ]
+    manifest = json.loads(rbm.MANIFEST_PATH.read_text(encoding="utf-8"))
+    assert paths == sorted(paths, key=lambda value: (value.casefold(), value))
+    assert [item["path"] for item in manifest["files"]] == paths
 
 
 def _decision_bundle(

@@ -5,11 +5,23 @@ import io
 import json
 import zipfile
 
-from scripts import build_rbe001_v1_1_package as package
+from controlled_authority import rbe_package as package
 
 
 def test_package_is_current_and_valid() -> None:
     package.check()
+
+
+def test_manifest_uses_canonical_cross_platform_path_order() -> None:
+    paths = [
+        path.relative_to(package.PACKAGE_ROOT).as_posix()
+        for path in package.inventory_paths()
+    ]
+    manifest = json.loads(
+        (package.PACKAGE_ROOT / package.MANIFEST_NAME).read_text(encoding="utf-8")
+    )
+    assert paths == sorted(paths, key=lambda value: (value.casefold(), value))
+    assert [item["path"] for item in manifest["files"]] == paths
 
 
 def test_outcome_and_process_status_are_separate() -> None:
