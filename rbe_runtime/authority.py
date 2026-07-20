@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from controlled_authority.rbe_package import check as validate_rbe_package
+from controlled_authority.rbm_package import validate_package as validate_rbm_package
 from rbe_runtime.constants import RBE_RELEASE, RBM_PROFILE_ID, RBM_PROFILE_VERSION
 from rbe_runtime.errors import RBEError
 from rbe_runtime.models import ExecutionMode
-from scripts import build_rbe001_v1_1_package, validate_rbm001_package
 
 
 def _semver(value: str) -> tuple[int, int, int]:
@@ -39,8 +40,8 @@ class AuthorityBundle:
     def load(cls, repo_root: str | Path | None = None) -> "AuthorityBundle":
         root = Path(repo_root) if repo_root else Path(__file__).resolve().parents[1]
         try:
-            build_rbe001_v1_1_package.check()
-            validate_rbm001_package.validate_package()
+            validate_rbe_package()
+            validate_rbm_package()
         except Exception as exc:
             raise RBEError(
                 "RBE_AUTHORITY_PACKAGE_INVALID",

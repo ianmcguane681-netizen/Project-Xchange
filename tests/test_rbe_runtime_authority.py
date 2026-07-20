@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 import pytest
 
 from rbe_runtime.authority import AuthorityBundle
 from rbe_runtime.errors import RBEError
 from rbe_runtime.models import ExecutionMode
 from rbe_runtime.state_machine import CanonicalStateMachine
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="module")
@@ -23,6 +29,22 @@ def test_authoritative_packages_load_without_reinterpretation(
     assert authority.profile["binding"] is False
     assert len(authority.reviewer_specs) == 8
     assert len(authority.schemas) == 7
+
+
+def test_runtime_does_not_import_engineering_scripts() -> None:
+    violations: list[str] = []
+    for path in sorted((REPO_ROOT / "rbe_runtime").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                names = [node.module or ""]
+            else:
+                continue
+            if any(name == "scripts" or name.startswith("scripts.") for name in names):
+                violations.append(f"{path.name}:{node.lineno}")
+    assert violations == []
 
 
 def test_release_candidate_is_advisory_only(authority: AuthorityBundle) -> None:

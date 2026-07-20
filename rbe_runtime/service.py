@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from controlled_authority.rbm_package import validate_decision_bundle
 from rbe_runtime.authority import AuthorityBundle
 from rbe_runtime.canonical import (
     canonical_hash,
@@ -36,9 +37,6 @@ from rbe_runtime.validation import (
     validate_remediation_submission,
     validate_report_submission,
 )
-from scripts.validate_rbm001_package import validate_decision_bundle
-
-
 UTC = timezone.utc
 
 
