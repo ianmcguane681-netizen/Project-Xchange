@@ -10,11 +10,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from controlled_authority.rbm_package import (
+from controlled_authority.rbm_package import (  # noqa: E402
     PROFILE_VERSION,
     validate_package,
     write_control_files,
-)  # noqa: E402
+)
 
 
 def main() -> int:

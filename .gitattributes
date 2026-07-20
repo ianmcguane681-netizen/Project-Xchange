@@ -17,3 +17,5 @@ controlled_authority/** text eol=lf
 rbe_runtime/** text eol=lf
 tests/test_rbe_runtime*.py text eol=lf
 docs/rbe-runtime/** text eol=lf
+.github/workflows/** text eol=lf
+requirements-dev.txt text eol=lf

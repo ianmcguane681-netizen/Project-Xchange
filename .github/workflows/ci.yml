@@ -1,0 +1,75 @@
+name: Repository CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  authority-packages:
+    name: Authority package validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate RBE-001 package
+        run: python scripts/build_rbe001_v1_1_package.py --check
+      - name: Validate RBM-001 package
+        run: python scripts/validate_rbm001_package.py --check
+
+  quality:
+    name: Lint and compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Lint RBE runtime and authority boundary
+        run: python -m ruff check controlled_authority rbe_runtime scripts tests/test_rbe_runtime_*.py
+      - name: Compile Python modules
+        run: python -m compileall -q controlled_authority rbe_runtime scripts
+
+  runtime-tests:
+    name: RBE runtime tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Run focused runtime suite
+        run: python -m pytest -p no:cacheprovider tests/test_rbe_runtime_*.py -q
+
+  repository-tests:
+    name: Repository tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Run complete repository suite
+        run: python -m pytest -p no:cacheprovider -q
