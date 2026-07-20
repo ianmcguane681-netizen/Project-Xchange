@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from scripts import validate_rbm001_package as rbm
+from controlled_authority import rbm_package as rbm
 
 
 def _decision_bundle(

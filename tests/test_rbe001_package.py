@@ -5,7 +5,7 @@ import io
 import json
 import zipfile
 
-from scripts import build_rbe001_v1_1_package as package
+from controlled_authority import rbe_package as package
 
 
 def test_package_is_current_and_valid() -> None:
