@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "GS-P001-DOC-016",
+  "title": "GS-P001 Provenance Chain",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["provenance_id", "evidence_id", "source_id", "collection_event", "verification_events", "custody_events", "current_integrity_status"],
+    "properties": {
+      "provenance_id": {"type": "string", "pattern": "^GS-P001-PROV-[0-9]{4}$"},
+      "evidence_id": {"type": "string", "pattern": "^GS-P001-EV-[0-9]{4}$"},
+      "source_id": {"type": "string", "pattern": "^GS-P001-SRC-[0-9]{4}$"},
+      "collection_event": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["collected_at", "collector_type", "method", "canonical_url", "raw_artifact_path", "raw_sha256"],
+        "properties": {
+          "collected_at": {"type": "string", "format": "date-time"},
+          "collector_type": {"type": "string", "enum": ["human", "automation_assisted"]},
+          "method": {"type": "string", "minLength": 1},
+          "canonical_url": {"type": "string", "format": "uri"},
+          "raw_artifact_path": {"type": "string", "minLength": 1},
+          "raw_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      },
+      "verification_events": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verified_at", "method", "result"],
+          "properties": {
+            "verified_at": {"type": "string", "format": "date-time"},
+            "method": {"type": "string", "minLength": 1},
+            "result": {"type": "string", "enum": ["verified", "failed", "inconclusive"]},
+            "notes": {"type": ["string", "null"]}
+          }
+        }
+      },
+      "custody_events": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["event_at", "action", "artifact_path", "sha256"],
+          "properties": {
+            "event_at": {"type": "string", "format": "date-time"},
+            "action": {"type": "string", "enum": ["collected", "copied", "normalised", "hashed", "reviewed", "exported"]},
+            "artifact_path": {"type": "string", "minLength": 1},
+            "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+          }
+        }
+      },
+      "current_integrity_status": {"type": "string", "enum": ["intact", "mismatch", "unverified"]},
+      "normalisation_notes": {"type": ["string", "null"]}
+    }
+  }
+}
