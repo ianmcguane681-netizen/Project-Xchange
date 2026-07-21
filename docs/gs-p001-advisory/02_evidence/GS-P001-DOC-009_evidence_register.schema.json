@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "GS-P001-DOC-009",
+  "title": "GS-P001 Evidence Register",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "evidence_id",
+      "source_id",
+      "evidence_type",
+      "title",
+      "summary",
+      "jurisdiction",
+      "retrieved_at",
+      "verification_status",
+      "independence_status",
+      "integrity",
+      "admission_status"
+    ],
+    "properties": {
+      "evidence_id": {"type": "string", "pattern": "^GS-P001-EV-[0-9]{4}$"},
+      "source_id": {"type": "string", "pattern": "^GS-P001-SRC-[0-9]{4}$"},
+      "complaint_id": {"type": ["string", "null"], "pattern": "^GS-P001-CMP-[0-9]{4}$"},
+      "evidence_type": {
+        "type": "string",
+        "enum": ["government_record", "regulatory_record", "court_record", "consumer_complaint", "software_review", "industry_report", "research_publication", "operational_document", "other"]
+      },
+      "title": {"type": "string", "minLength": 1},
+      "summary": {"type": "string", "minLength": 1},
+      "problem_categories": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["status_visibility", "response_delay", "incomplete_information", "handoff_failure", "duplicate_contact", "contractor_coordination", "resident_manager_misalignment", "system_fragmentation", "closure_failure", "other"]
+        },
+        "uniqueItems": true
+      },
+      "jurisdiction": {"type": "string", "const": "United States"},
+      "state_or_territory": {"type": ["string", "null"]},
+      "event_date": {"type": ["string", "null"], "format": "date"},
+      "published_at": {"type": ["string", "null"], "format": "date-time"},
+      "retrieved_at": {"type": "string", "format": "date-time"},
+      "verification_status": {
+        "type": "string",
+        "enum": ["verified", "pending_verification", "rejected", "unavailable"]
+      },
+      "verification_method": {"type": ["string", "null"]},
+      "independence_status": {
+        "type": "string",
+        "enum": ["independent", "partially_independent", "vendor_controlled", "unknown"]
+      },
+      "integrity": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["content_sha256", "canonical_url", "archived_copy_path"],
+        "properties": {
+          "content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "canonical_url": {"type": "string", "format": "uri"},
+          "archived_copy_path": {"type": "string", "minLength": 1},
+          "screenshot_path": {"type": ["string", "null"]}
+        }
+      },
+      "duplicate_of": {"type": ["string", "null"], "pattern": "^GS-P001-EV-[0-9]{4}$"},
+      "admission_status": {
+        "type": "string",
+        "enum": ["admitted", "excluded", "pending"]
+      },
+      "exclusion_reason": {"type": ["string", "null"]},
+      "notes": {"type": ["string", "null"]}
+    },
+    "allOf": [
+      {
+        "if": {"properties": {"admission_status": {"const": "admitted"}}},
+        "then": {
+          "properties": {
+            "verification_status": {"const": "verified"},
+            "independence_status": {"enum": ["independent", "partially_independent"]},
+            "duplicate_of": {"type": "null"}
+          }
+        }
+      },
+      {
+        "if": {"properties": {"admission_status": {"const": "excluded"}}},
+        "then": {"required": ["exclusion_reason"]}
+      }
+    ]
+  }
+}
