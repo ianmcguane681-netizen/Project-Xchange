@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "GS-P001-DOC-010",
+  "title": "GS-P001 Source Register",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["source_id", "source_name", "source_class", "owner", "canonical_url", "jurisdiction", "independence_status", "availability_status", "retrieved_at"],
+    "properties": {
+      "source_id": {"type": "string", "pattern": "^GS-P001-SRC-[0-9]{4}$"},
+      "source_name": {"type": "string", "minLength": 1},
+      "source_class": {"type": "string", "enum": ["government", "regulator", "court", "consumer_platform", "software_marketplace", "industry_body", "research_publisher", "property_manager", "vendor", "other"]},
+      "owner": {"type": "string", "minLength": 1},
+      "canonical_url": {"type": "string", "format": "uri"},
+      "jurisdiction": {"type": "string", "const": "United States"},
+      "state_or_territory": {"type": ["string", "null"]},
+      "independence_status": {"type": "string", "enum": ["independent", "partially_independent", "vendor_controlled", "unknown"]},
+      "availability_status": {"type": "string", "enum": ["available", "partially_available", "unavailable"]},
+      "retrieved_at": {"type": "string", "format": "date-time"},
+      "terms_or_access_notes": {"type": ["string", "null"]},
+      "archive_method": {"type": ["string", "null"]},
+      "notes": {"type": ["string", "null"]}
+    }
+  }
+}
