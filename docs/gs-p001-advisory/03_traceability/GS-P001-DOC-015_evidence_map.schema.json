@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "GS-P001-DOC-015",
+  "title": "GS-P001 Evidence Map",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["study_id", "generated_from", "nodes", "edges"],
+  "properties": {
+    "study_id": {"type": "string", "const": "GS-P001"},
+    "generated_from": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"type": "string"}
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["node_id", "node_type", "label"],
+        "properties": {
+          "node_id": {"type": "string", "minLength": 1},
+          "node_type": {"type": "string", "enum": ["source", "evidence", "complaint", "claim", "government_record", "software_record"]},
+          "label": {"type": "string", "minLength": 1},
+          "admission_status": {"type": ["string", "null"], "enum": ["admitted", "excluded", "pending", null]}
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "relationship"],
+        "properties": {
+          "from": {"type": "string", "minLength": 1},
+          "to": {"type": "string", "minLength": 1},
+          "relationship": {"type": "string", "enum": ["published_by", "derived_from", "supports", "partially_supports", "contradicts", "describes", "duplicates", "contextualises"]}
+        }
+      }
+    }
+  }
+}
