@@ -1,0 +1,66 @@
+{
+  "document_id": "GS-P001-DOC-001",
+  "document_type": "case_manifest",
+  "document_version": "1.0.0",
+  "package_id": "GS-P001-AEP",
+  "package_version": "1.0.0",
+  "study": {
+    "id": "GS-P001",
+    "title": "U.S. Residential Property Management Maintenance Communication",
+    "product": "GS-P001",
+    "study_type": "Golden Study",
+    "status": "ADVISORY_DRY_RUN_PREPARATION"
+  },
+  "authority": {
+    "methodology_profile": "RBM-001",
+    "profile_status": "RELEASE_CANDIDATE",
+    "runtime_baseline": "RBE runtime v0.1",
+    "binding": false,
+    "merge_permitted": false
+  },
+  "research_question": "Is there enough verified, independent operational pain in U.S. residential property management maintenance communication to justify building a reusable software component?",
+  "decision_scope": "Determine whether the verified evidence justifies progression from research into component definition. This package does not authorize software construction, investment, deployment, or commercial claims.",
+  "scope": {
+    "geography": ["United States"],
+    "sector": "Residential property management",
+    "problem_domain": "Maintenance communication",
+    "evidence_focus": [
+      "operational pain",
+      "independence",
+      "verification",
+      "repeatability",
+      "commercial relevance",
+      "traceability"
+    ]
+  },
+  "required_phase_a_documents": [
+    "GS-P001-DOC-001",
+    "GS-P001-DOC-002",
+    "GS-P001-DOC-003",
+    "GS-P001-DOC-004",
+    "GS-P001-DOC-005",
+    "GS-P001-DOC-006",
+    "GS-P001-DOC-007",
+    "GS-P001-DOC-008"
+  ],
+  "required_review_inputs": [
+    "verified evidence register",
+    "source register",
+    "claim-to-evidence mapping",
+    "provenance records",
+    "review request"
+  ],
+  "required_runtime_outputs": [
+    "review findings",
+    "deterministic advisory outcome",
+    "audit bundle",
+    "artifact checksum register"
+  ],
+  "success_conditions": [
+    "all admitted evidence is verified and traceable",
+    "no synthetic evidence or fabricated human action is present",
+    "the advisory outcome is reproducible from the same inputs and rules",
+    "the complete audit bundle verifies successfully",
+    "the result remains explicitly non-binding"
+  ]
+}
