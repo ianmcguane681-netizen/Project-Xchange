@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "GS-P001-DOC-011",
+  "title": "GS-P001 Complaint Register",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["complaint_id", "evidence_id", "source_id", "actor_type", "complaint_text_summary", "problem_categories", "verification_status", "admission_status"],
+    "properties": {
+      "complaint_id": {"type": "string", "pattern": "^GS-P001-CMP-[0-9]{4}$"},
+      "evidence_id": {"type": "string", "pattern": "^GS-P001-EV-[0-9]{4}$"},
+      "source_id": {"type": "string", "pattern": "^GS-P001-SRC-[0-9]{4}$"},
+      "actor_type": {"type": "string", "enum": ["resident", "property_manager", "maintenance_coordinator", "contractor", "owner", "regulator", "unknown"]},
+      "organisation_or_product_named": {"type": ["string", "null"]},
+      "complaint_text_summary": {"type": "string", "minLength": 1},
+      "problem_categories": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {"type": "string", "enum": ["status_visibility", "response_delay", "incomplete_information", "handoff_failure", "duplicate_contact", "contractor_coordination", "resident_manager_misalignment", "system_fragmentation", "closure_failure", "other"]}
+      },
+      "severity": {"type": "string", "enum": ["low", "moderate", "high", "critical", "not_assessed"]},
+      "event_date": {"type": ["string", "null"], "format": "date"},
+      "verification_status": {"type": "string", "enum": ["verified", "pending_verification", "rejected", "unavailable"]},
+      "corroboration_count": {"type": "integer", "minimum": 0},
+      "duplicate_of": {"type": ["string", "null"], "pattern": "^GS-P001-CMP-[0-9]{4}$"},
+      "admission_status": {"type": "string", "enum": ["admitted", "excluded", "pending"]},
+      "exclusion_reason": {"type": ["string", "null"]},
+      "notes": {"type": ["string", "null"]}
+    },
+    "allOf": [
+      {
+        "if": {"properties": {"admission_status": {"const": "admitted"}}},
+        "then": {
+          "properties": {
+            "verification_status": {"const": "verified"},
+            "duplicate_of": {"type": "null"}
+          }
+        }
+      },
+      {
+        "if": {"properties": {"admission_status": {"const": "excluded"}}},
+        "then": {"required": ["exclusion_reason"]}
+      }
+    ]
+  }
+}
