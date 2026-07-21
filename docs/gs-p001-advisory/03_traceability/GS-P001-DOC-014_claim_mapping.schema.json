@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "GS-P001-DOC-014",
+  "title": "GS-P001 Claim-to-Evidence Mapping",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["claim_id", "claim_text", "claim_type", "evidence_ids", "support_status", "review_status"],
+    "properties": {
+      "claim_id": {"type": "string", "pattern": "^GS-P001-CLM-[0-9]{4}$"},
+      "claim_text": {"type": "string", "minLength": 1},
+      "claim_type": {"type": "string", "enum": ["existence", "frequency", "severity", "repeatability", "independence", "commercial_relevance", "process_failure", "market_implication", "other"]},
+      "evidence_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^GS-P001-EV-[0-9]{4}$"}},
+      "support_status": {"type": "string", "enum": ["supported", "partially_supported", "unsupported", "contested"]},
+      "counterevidence_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^GS-P001-EV-[0-9]{4}$"}},
+      "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}},
+      "review_status": {"type": "string", "enum": ["not_reviewed", "accepted", "accepted_with_findings", "rejected"]},
+      "notes": {"type": ["string", "null"]}
+    }
+  }
+}
