@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "GS-P001-DOC-012",
+  "title": "GS-P001 Government Source Register",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["government_record_id", "source_id", "agency", "record_type", "title", "canonical_url", "published_or_effective_date", "retrieved_at", "jurisdiction", "relevance_summary", "verification_status"],
+    "properties": {
+      "government_record_id": {"type": "string", "pattern": "^GS-P001-GOV-[0-9]{4}$"},
+      "source_id": {"type": "string", "pattern": "^GS-P001-SRC-[0-9]{4}$"},
+      "evidence_ids": {"type": "array", "items": {"type": "string", "pattern": "^GS-P001-EV-[0-9]{4}$"}, "uniqueItems": true},
+      "agency": {"type": "string", "minLength": 1},
+      "record_type": {"type": "string", "enum": ["statute", "regulation", "guidance", "inspection_record", "complaint_data", "enforcement_action", "report", "dataset", "other"]},
+      "title": {"type": "string", "minLength": 1},
+      "canonical_url": {"type": "string", "format": "uri"},
+      "published_or_effective_date": {"type": ["string", "null"], "format": "date"},
+      "retrieved_at": {"type": "string", "format": "date-time"},
+      "jurisdiction": {"type": "string", "const": "United States"},
+      "state_or_territory": {"type": ["string", "null"]},
+      "relevance_summary": {"type": "string", "minLength": 1},
+      "verification_status": {"type": "string", "enum": ["verified", "pending_verification", "rejected", "unavailable"]},
+      "content_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+      "archived_copy_path": {"type": "string", "minLength": 1},
+      "notes": {"type": ["string", "null"]}
+    }
+  }
+}
