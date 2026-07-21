@@ -1,0 +1,85 @@
+{
+  "document_id": "GS-P001-DOC-003",
+  "document_type": "execution_parameters",
+  "document_version": "1.0.0",
+  "study_id": "GS-P001",
+  "execution_mode": "ADVISORY_DRY_RUN",
+  "binding": false,
+  "merge_permitted": false,
+  "methodology": {
+    "profile": "RBM-001",
+    "profile_status": "RELEASE_CANDIDATE",
+    "runtime": "RBE runtime v0.1"
+  },
+  "review_sequence": [
+    "package_validation",
+    "authority_validation",
+    "evidence_admission",
+    "traceability_validation",
+    "reviewer_eligibility_and_conflict_checks",
+    "human_report_submission",
+    "quorum_validation",
+    "deterministic_outcome_calculation",
+    "artifact_generation",
+    "bundle_verification"
+  ],
+  "human_governance": {
+    "human_reviewers_required": true,
+    "minimum_quorum": 7,
+    "conflict_declarations_required": true,
+    "independence_checks_required": true,
+    "ai_may_hold_review_seat": false,
+    "ai_may_sign_or_ratify": false,
+    "ai_may_publish_authoritative_decision": false
+  },
+  "evidence_rules": {
+    "verified_only": true,
+    "synthetic_evidence_prohibited": true,
+    "demo_evidence_prohibited": true,
+    "unattributed_evidence_prohibited": true,
+    "duplicate_evidence_rejected": true,
+    "complete_provenance_required": true,
+    "scope_conformance_required": true,
+    "raw_source_preservation_required": true
+  },
+  "traceability_rules": {
+    "all_material_claims_require_evidence_links": true,
+    "all_evidence_requires_source_links": true,
+    "normalization_must_not_replace_raw_record": true,
+    "broken_traceability_fails_validation": true
+  },
+  "failure_conditions": [
+    "missing_required_phase_a_document",
+    "invalid_or_uncontrolled_methodology_reference",
+    "unverified_or_out_of_scope_evidence",
+    "missing_provenance",
+    "duplicate_evidence",
+    "fabricated_human_action",
+    "reviewer_conflict_or_failed_independence_check",
+    "quorum_not_met",
+    "broken_audit_chain",
+    "merge_permitted_set_true"
+  ],
+  "advisory_outcomes": [
+    "PROCEED",
+    "PROCEED_WITH_FINDINGS",
+    "FURTHER_EVIDENCE_REQUIRED",
+    "DO_NOT_PROCEED",
+    "PROCEDURALLY_INCOMPLETE"
+  ],
+  "artifact_requirements": {
+    "json_audit_bundle": true,
+    "markdown_audit_bundle": true,
+    "checksum_register": true,
+    "append_only_review_record": true,
+    "decision_versioning": true,
+    "explicit_advisory_label": true
+  },
+  "execution_constraints": {
+    "headless": true,
+    "backend_neutral": true,
+    "external_service_dependency": false,
+    "production_deployment": false,
+    "ui_in_scope": false
+  }
+}
