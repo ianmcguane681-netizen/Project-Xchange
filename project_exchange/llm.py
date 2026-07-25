@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Protocol
 
 from project_exchange.provider_modules.openai_provider import OpenAIReasoningProvider
+
+logger = logging.getLogger(__name__)
 
 
 class LLMProvider(Protocol):
@@ -14,9 +17,20 @@ class LLMProvider(Protocol):
         """Return structured reasoning from an LLM provider."""
 
 
+HEURISTIC_ENGINE = "Local Heuristic"
+
+
 @dataclass(frozen=True)
 class HeuristicLLMProvider:
-    name: str = "Local Heuristic"
+    """Deterministic local reasoning.
+
+    `name` records which provider was *requested*; the returned `provider` field
+    always reports the engine that actually produced the result. Stamping the
+    requested name onto heuristic output previously produced records that claimed
+    an inference source which never ran.
+    """
+
+    name: str = HEURISTIC_ENGINE
 
     def reason(self, prompt: str, payload: dict[str, object]) -> dict[str, object]:
         text = json.dumps(payload, ensure_ascii=False).lower()
@@ -32,7 +46,8 @@ class HeuristicLLMProvider:
         if "duplicate" in text:
             recommendation = "needs_review"
         return {
-            "provider": self.name,
+            "provider": HEURISTIC_ENGINE,
+            "requested_provider": self.name,
             "credibility": credibility,
             "source_quality": "strong" if source_count >= 3 else "limited",
             "evidence_quality": "strong" if evidence_score >= 75 else "moderate" if evidence_score >= 50 else "weak",
@@ -44,17 +59,19 @@ class HeuristicLLMProvider:
         }
 
 
+@dataclass(frozen=True)
 class OpenAIProvider(HeuristicLLMProvider):
-    name = "OpenAI"
+    name: str = "OpenAI"
 
     def reason(self, prompt: str, payload: dict[str, object]) -> dict[str, object]:
         provider = OpenAIReasoningProvider()
         if provider.status().status != "connected":
-            return HeuristicLLMProvider(self.name).reason(prompt, payload)
+            return self._fallback(prompt, payload, "provider is not connected")
         try:
             result = provider.reason(prompt, payload)
-        except Exception:
-            return HeuristicLLMProvider(self.name).reason(prompt, payload)
+        except Exception as exc:
+            logger.warning("OpenAI reasoning failed, falling back to local heuristic: %s", exc)
+            return self._fallback(prompt, payload, f"{type(exc).__name__}: {exc}")
         return {
             "credibility": int(result.get("credibility") or result.get("confidence") or 70),
             "source_quality": str(result.get("source_quality") or "unknown"),
@@ -64,24 +81,39 @@ class OpenAIProvider(HeuristicLLMProvider):
             "confidence": int(result.get("confidence") or 70),
             "recommendation": str(result.get("recommendation") or "needs_review"),
             "reasoning": str(result.get("reasoning") or "OpenAI reasoning completed."),
+            # self.name, not a hardcoded label: a real OpenAI result must not be
+            # recorded as local heuristic output.
             "provider": self.name,
+            "requested_provider": self.name,
         }
 
+    def _fallback(self, prompt: str, payload: dict[str, object], why: str) -> dict[str, object]:
+        result = HeuristicLLMProvider(self.name).reason(prompt, payload)
+        result["fallback_reason"] = why
+        return result
 
+
+# Not yet implemented. These select the local heuristic engine, and the result
+# records provider="Local Heuristic" with requested_provider set to the name
+# below, so a record never claims an inference source that did not run.
+@dataclass(frozen=True)
 class AnthropicProvider(HeuristicLLMProvider):
-    name = "Anthropic"
+    name: str = "Anthropic"
 
 
+@dataclass(frozen=True)
 class OllamaProvider(HeuristicLLMProvider):
-    name = "Ollama"
+    name: str = "Ollama"
 
 
+@dataclass(frozen=True)
 class GeminiProvider(HeuristicLLMProvider):
-    name = "Gemini"
+    name: str = "Gemini"
 
 
+@dataclass(frozen=True)
 class AzureOpenAIProvider(HeuristicLLMProvider):
-    name = "Azure OpenAI"
+    name: str = "Azure OpenAI"
 
 
 def get_llm_provider(name: str = "") -> LLMProvider:

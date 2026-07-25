@@ -38,7 +38,19 @@ class AuthorityBundle:
 
     @classmethod
     def load(cls, repo_root: str | Path | None = None) -> "AuthorityBundle":
-        root = Path(repo_root) if repo_root else Path(__file__).resolve().parents[1]
+        canonical_root = Path(__file__).resolve().parents[1]
+        root = Path(repo_root).resolve() if repo_root else canonical_root
+        # validate_rbe_package/validate_rbm_package derive their own package roots
+        # from controlled_authority.__file__ and cannot be pointed elsewhere, so a
+        # different repo_root would load documents that were never validated.
+        # Refuse it rather than silently trusting unvalidated authority material.
+        if root != canonical_root:
+            raise RBEError(
+                "RBE_AUTHORITY_ROOT_NOT_VALIDATABLE",
+                "Authority packages can only be validated at the canonical repository root",
+                "RBE-ES-DEC-002",
+                {"requested_root": str(root), "canonical_root": str(canonical_root)},
+            )
         try:
             validate_rbe_package()
             validate_rbm_package()
