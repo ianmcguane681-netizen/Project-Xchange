@@ -26,6 +26,38 @@ python -m pytest tests/test_rbe_runtime_*.py
 
 See `docs/rbe-runtime/README.md` for the developer contract and commands.
 
+## Golden Study Bridge
+
+`study_bridge/` joins the two audit chains that previously ran side by side. A
+Golden Study proves its own integrity per run through a proof bundle and checksum
+file; the RBE runtime proves its own through a hash-chained, append-only audit log.
+Nothing linked them, so no single verifiable thread ran from a raw source record to
+a board decision.
+
+`StudyBundle.load()` verifies a bundle before it is trusted: every file must match
+its recorded checksum, nothing may be missing, nothing may be present that the
+checksum file does not vouch for, and the manifest must name the study, the run and
+the exact commit that produced it. A bundle whose manifest cannot resolve its own
+commit is refused rather than silently admitted. The verified bundle reduces to one
+deterministic `bundle_root_hash`.
+
+`ingest_study_bundle()` then registers each file as evidence on a review session
+through the runtime's ordinary evidence path, carrying study identity as
+provenance. The board's audit chain therefore commits to the study contents and the
+code that produced them, and the runtime's lifecycle still applies - a study re-run
+cannot be added after the evidence lock.
+
+The dependency runs one way only: `study_bridge` imports `rbe_runtime`, never the
+reverse, so the runtime stays methodology-neutral. CI enforces this.
+
+```python
+from rbe_runtime.service import RBERuntime
+from study_bridge import StudyBundle, ingest_study_bundle
+
+bundle = StudyBundle.load("../GS-CF001/proof_bundle")
+result = ingest_study_bundle(runtime, review_id, bundle, actor="human-chair")
+```
+
 ## Provena Solution Validation Engine v1
 
 The repository now includes a separate, local `sv_engine/` package that evaluates whether a proposed solution has earned investment in a bounded prototype. It implements the methodology in `docs/sv_engine_methodology_specification.md` without coupling the decision rules to Streamlit or external AI services.
