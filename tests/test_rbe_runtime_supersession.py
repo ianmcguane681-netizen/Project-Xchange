@@ -194,8 +194,9 @@ def test_v1_database_upgrades_in_place(tmp_path: Path):
         "SELECT sql FROM sqlite_master WHERE name = 'decision_ratifications'"
     ).fetchone()[0]
     connection.close()
-    assert versions == [1, 2]
-    # Per-session uniqueness is gone; per-decision uniqueness remains.
+    assert versions == [1, 2, 3]
+    # Per-session uniqueness is gone; per-decision uniqueness remains, and the
+    # governance validator is nullable for single-authority ratification.
     assert "session_id TEXT NOT NULL UNIQUE" not in ratification_sql
 
 

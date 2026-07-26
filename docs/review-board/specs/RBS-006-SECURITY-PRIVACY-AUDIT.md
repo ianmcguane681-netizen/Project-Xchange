@@ -1,10 +1,10 @@
 # Reviewer Specification: Security and Privacy Audit
 
 **Document ID:** RBS-006
-**Version:** 2.1.0
+**Version:** 2.2.0
 **Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
 **Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
-**Governing Methodology:** RBM-001 v2.1.0
+**Governing Methodology:** RBM-001 v2.2.0
 **Reviewer Role:** Security and Privacy Auditor (SPA)
 **Last Updated:** 2026-07-19
 

@@ -1,6 +1,6 @@
 {
   "profile_id": "RBM-001",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "status": "RELEASE_CANDIDATE",
   "architecture_authority": {
     "document_id": "RBE-001",
@@ -9,7 +9,7 @@
   },
   "owner": "Provena Foundry Governance",
   "human_approval_record": null,
-  "checksum": "sha256:417d55b96e7997eb40b626d33c5b1d3e979d65da7430a2e742b423e209cd2936",
+  "checksum": "sha256:9d6cd7cf305b3a415d664ec61ebe691e06439591257a2e86617880c39b7f8461",
   "manifest": "MANIFEST.json",
   "binding": false,
   "permitted_outcomes": [
@@ -180,8 +180,8 @@
     "active_status_commit",
     "immutable_release_tag"
   ],
-  "supersedes": "RBM-001 v2.0.0",
-  "amendment_rationale": "v2.0.0 required a distinct accountable human in every board seat, so the board could not be seated by an organisation with fewer humans than seats and was never convened. v2.1.0 permits designated reviewer seats to be held by governed agents while accountability, ratification and publication remain human. A review using any agent-held seat is advisory and cannot be binding.",
+  "supersedes": "RBM-001 v2.1.0",
+  "amendment_rationale": "v2.1.0 let agents hold reviewer seats but kept ratification human, and ratification requires two separated humans. An organisation with one human could therefore conduct a complete review and never sign the result, leaving governed decisions permanently unratified. v2.2.0 permits a single named human to ratify while the profile is non-binding, recording the decision as single-authority so it is never mistaken for a two-signature decision. It cannot be used once the profile is ACTIVE.",
   "agent_seat_policy": {
     "agent_seats_permitted": true,
     "permitted_agent_roles": [
@@ -210,5 +210,16 @@
       "record_model_and_instruction_version_per_seat": true,
       "shared_model_across_seats_must_be_recorded": true
     }
+  },
+  "single_authority_policy": {
+    "single_authority_permitted": true,
+    "permitted_only_when_profile_non_binding": true,
+    "never_binding": true,
+    "never_merge_permitted": true,
+    "authority_must_be_human": true,
+    "authority_must_be_board_chair": true,
+    "recorded_flag": "single_authority",
+    "supersedable_by_two_signature_decision": true,
+    "rationale_required": true
   }
 }

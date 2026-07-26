@@ -240,6 +240,10 @@ class BoardDecision:
     published_at: str | None = None
     published_by: str | None = None
     superseded: bool = False
+    # True when one human ratified alone because the four-eyes control could not
+    # be satisfied. Recorded permanently so the decision is never mistaken for a
+    # two-signature one.
+    single_authority: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)

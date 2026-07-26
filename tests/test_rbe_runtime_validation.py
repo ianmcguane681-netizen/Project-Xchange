@@ -40,7 +40,7 @@ def policy(authority: AuthorityBundle) -> ProfilePolicy:
 def valid_initiation(authority: AuthorityBundle) -> dict[str, object]:
     profile = authority.profile
     return {
-        "schema_version": "2.1.0",
+        "schema_version": "2.2.0",
         "review_id": "REV-RUNTIME-001",
         "review_date": "2026-07-19T09:00:00Z",
         "trigger": "RBE runtime v0.1 implementation review",
@@ -78,7 +78,7 @@ def valid_session(authority: AuthorityBundle) -> ReviewSession:
         target_id="ianmcguane681-netizen/Project-Xchange",
         target_version="abcdef1234567890",
         methodology_id="RBM-001",
-        methodology_version="2.1.0",
+        methodology_version="2.2.0",
         methodology_checksum=authority.profile["checksum"],
         engine_version="0.1.0",
         schema_version="1.0.0",
@@ -125,13 +125,13 @@ def valid_evidence() -> dict[str, EvidenceReference]:
 
 def valid_report_record() -> dict[str, object]:
     return {
-        "schema_version": "2.1.0",
+        "schema_version": "2.2.0",
         "report_id": "RPT-001",
         "review_id": "REV-RUNTIME-001",
         "reviewer": "human-saa",
         "reviewer_role": "SAA",
         "reviewer_spec_id": "RBS-002",
-        "reviewer_spec_version": "2.1.0",
+        "reviewer_spec_version": "2.2.0",
         "artefact_sha": "abcdef1234567890",
         "finding_ids": ["FND-001"],
         "evidence_sufficiency": "SUFFICIENT",
@@ -167,7 +167,7 @@ def normalized_report() -> ReviewerReport:
 
 def valid_finding_record() -> dict[str, object]:
     return {
-        "schema_version": "2.1.0",
+        "schema_version": "2.2.0",
         "finding_id": "FND-001",
         "review_id": "REV-RUNTIME-001",
         "reviewer": "human-saa",

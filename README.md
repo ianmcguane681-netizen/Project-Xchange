@@ -29,8 +29,25 @@ evidence and provenance, computes profile-driven outcomes, records separated
 human ratification and publication, and exports verifiable JSON/Markdown
 bundles.
 
-RBM-001 remains `RELEASE_CANDIDATE`. Runtime outputs are therefore advisory,
-non-binding, and always `merge_permitted=false`.
+RBM-001 v2.2.0 remains `RELEASE_CANDIDATE`. Runtime outputs are therefore
+advisory, non-binding, and always `merge_permitted=false`.
+
+Ratification normally requires two separated humans. Where only one exists, the
+Board Chair may ratify alone under `--single-authority`: the decision is recorded
+permanently as `single_authority: true`, is never binding or merge-permitted, and
+is refused outright once the methodology becomes ACTIVE. The outcome still comes
+from the deterministic gates, so a single authority attests to the process rather
+than choosing the result. A two-signature decision can supersede it later without
+losing it.
+
+Two real reviews are on record under `data/`:
+
+| Review | Outcome | Signature |
+|---|---|---|
+| `review_0001_failed` | `FAIL` | unsigned - the board rejected a stale single-source bundle |
+| `review_0004_passed_with_findings` | `PASS_WITH_FINDINGS` | single-authority, published |
+
+Both verify with `python -m rbe_runtime verify-bundle --bundle <dir>`.
 
 The appeal path is fully recordable. A published decision can be superseded
 during `APPEAL_REVIEW`: the original is flagged `SUPERSEDED` — the single legal

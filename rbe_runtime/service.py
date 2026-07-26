@@ -603,10 +603,19 @@ class RBERuntime:
         *,
         actor: str,
         board_chair_signature_ref: str,
-        governance_validator: str,
-        governance_validation_ref: str,
+        governance_validator: str | None = None,
+        governance_validation_ref: str | None = None,
         idempotency_key: str,
+        single_authority_rationale: str = "",
     ) -> dict[str, Any]:
+        """Sign the decision.
+
+        Passing a governance validator ratifies under the ordinary four-eyes
+        control. Omitting it ratifies under single authority, which the profile
+        permits only while non-binding and which is recorded permanently on the
+        decision so it is never mistaken for a two-signature one.
+        """
+
         session = self.repository.get_session(session_id)
         initiation = self.repository.get_initiation(session_id)
         if session.status != "GOVERNANCE_VALIDATION":
@@ -615,7 +624,10 @@ class RBERuntime:
                 "Ratification is available only in GOVERNANCE_VALIDATION",
                 "RBE-ES-ORC-005",
             )
-        if actor != initiation["board_chair"] or governance_validator != initiation[
+        single_authority = governance_validator is None
+        if single_authority:
+            self._require_single_authority_permitted(actor, initiation)
+        elif actor != initiation["board_chair"] or governance_validator != initiation[
             "methodology_auditor"
         ]:
             raise RBEError(
@@ -623,7 +635,8 @@ class RBERuntime:
                 "Ratification actors must match the initiated Board Chair and MA",
                 "RBE-ES-ORC-004",
             )
-        self._require_human_ratifiers(actor, governance_validator)
+        else:
+            self._require_human_ratifiers(actor, governance_validator)
         candidate = self.repository.get_decision_candidate(session_id)
         if candidate is None:
             raise RBEError(
@@ -644,6 +657,7 @@ class RBERuntime:
             profile["status"] == "ACTIVE"
             and profile["binding"]
             and evaluation.outcome in {"PASS", "PASS_WITH_FINDINGS"}
+            and not single_authority
         )
         decision = BoardDecision(
             decision_id=deterministic_id(
@@ -659,6 +673,7 @@ class RBERuntime:
             artifact_manifest_hash=candidate["artifact_manifest_hash"],
             computed_at=candidate["computed_at"],
             signed_at=signed_at,
+            single_authority=single_authority,
         )
         return self.repository.save_decision(
             decision,
@@ -669,10 +684,54 @@ class RBERuntime:
                 "board_chair_signature_ref": board_chair_signature_ref,
                 "governance_validator": governance_validator,
                 "governance_validation_ref": governance_validation_ref,
+                "single_authority_rationale": single_authority_rationale,
             },
             actor=actor,
             idempotency_key=idempotency_key,
         )
+
+    def _require_single_authority_permitted(
+        self, actor: str, initiation: dict[str, Any]
+    ) -> None:
+        """Single authority is a labelled reduction, not a relaxation.
+
+        It exists so a one-human organisation can sign a decision at all. It is
+        refused once the methodology is binding, because a binding decision signed
+        by one person is exactly what the four-eyes control prevents.
+        """
+
+        policy = self.authority.profile.get("single_authority_policy") or {}
+        if policy.get("single_authority_permitted") is not True:
+            raise RBEError(
+                "RBE_SINGLE_AUTHORITY_NOT_PERMITTED",
+                "This methodology does not permit single-authority ratification",
+                "RBE-ES-DEC-005",
+            )
+        profile = self.authority.profile
+        if policy.get("permitted_only_when_profile_non_binding") is True and (
+            profile["status"] == "ACTIVE" or profile["binding"]
+        ):
+            raise RBEError(
+                "RBE_SINGLE_AUTHORITY_FORBIDDEN_WHEN_BINDING",
+                "A binding methodology requires two separated human authorities",
+                "RBE-ES-DEC-005",
+                {"profile_status": profile["status"], "binding": profile["binding"]},
+            )
+        if is_agent_actor(actor):
+            raise RBEError(
+                "RBE_RATIFICATION_AUTHORITY_NOT_HUMAN",
+                "Ratification requires human authorities; an agent may review but not sign",
+                "RBE-ES-DES-002",
+                {"actors": [actor]},
+            )
+        if policy.get("authority_must_be_board_chair") is True and actor != initiation[
+            "board_chair"
+        ]:
+            raise RBEError(
+                "RBE_SINGLE_AUTHORITY_MUST_BE_CHAIR",
+                "Only the named Board Chair may ratify under single authority",
+                "RBE-ES-ORC-004",
+            )
 
     def _require_human_ratifiers(self, chair: str, validator: str) -> None:
         """Ratification is a human authority, whoever did the reviewing.
@@ -928,9 +987,10 @@ class RBERuntime:
             "merge_permitted": decision.merge_permitted,
             "board_chair": ratification["board_chair"],
             "governance_validator": ratification["governance_validator"],
+            "single_authority": decision.single_authority,
         }
         board_record = {
-            "schema_version": "2.1.0",
+            "schema_version": "2.2.0",
             **common,
             "tier": initiation["tier"],
             "finding_snapshot": snapshot,
@@ -953,7 +1013,7 @@ class RBERuntime:
             timespec="seconds"
         ).replace("+00:00", "Z")
         indicator = {
-            "schema_version": "2.1.0",
+            "schema_version": "2.2.0",
             **common,
             "review_risk_tier": initiation["tier"],
             "publication_authority": actor,

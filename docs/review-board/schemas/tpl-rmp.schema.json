@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "provena-foundry/review-board/tpl-rmp/2.1.0",
+  "$id": "provena-foundry/review-board/tpl-rmp/2.2.0",
   "title": "TPL-RMP Remediation Plan",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "document_id", "review_id", "authoring_team_contact", "date_submitted", "items", "ma_reviewer", "ma_decision", "ma_signature_ref"],
   "properties": {
-    "schema_version": {"const": "2.1.0"},
+    "schema_version": {"const": "2.2.0"},
     "document_id": {"type": "string", "minLength": 1},
     "review_id": {"type": "string", "minLength": 1},
     "authoring_team_contact": {"type": "string", "minLength": 1},

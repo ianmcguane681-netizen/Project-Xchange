@@ -384,6 +384,71 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         BEFORE DELETE ON publications BEGIN SELECT RAISE(ABORT, 'publications are append-only'); END;
         """,
     ),
+    (
+        3,
+        """
+        -- Single-authority advisory ratification. An organisation with one human
+        -- cannot satisfy the four-eyes control, so previously it could conduct a
+        -- full review and never sign the result. This records a one-signature
+        -- decision as exactly that, permanently, rather than inventing a second
+        -- signatory or quietly relaxing the control.
+        ALTER TABLE board_decisions
+            ADD COLUMN single_authority INTEGER NOT NULL DEFAULT 0
+            CHECK (single_authority IN (0, 1));
+
+        -- The supersession trigger enumerates the columns that must not change.
+        -- It has to learn about the new one, or a supersession could silently flip
+        -- a two-signature decision into a single-authority one.
+        DROP TRIGGER board_decisions_no_update;
+        CREATE TRIGGER board_decisions_no_update
+        BEFORE UPDATE ON board_decisions
+        WHEN NOT (
+            OLD.superseded = 0 AND NEW.superseded = 1
+            AND OLD.status = 'SIGNED' AND NEW.status = 'SUPERSEDED'
+            AND NEW.decision_id = OLD.decision_id
+            AND NEW.session_id = OLD.session_id
+            AND NEW.binding = OLD.binding
+            AND NEW.merge_permitted = OLD.merge_permitted
+            AND NEW.execution_mode = OLD.execution_mode
+            AND NEW.evaluation_json = OLD.evaluation_json
+            AND NEW.finding_snapshot_hash = OLD.finding_snapshot_hash
+            AND NEW.artifact_manifest_hash = OLD.artifact_manifest_hash
+            AND NEW.artifact_manifest_json = OLD.artifact_manifest_json
+            AND NEW.computed_at = OLD.computed_at
+            AND NEW.signed_at IS OLD.signed_at
+            AND NEW.published_at IS OLD.published_at
+            AND NEW.published_by IS OLD.published_by
+            AND NEW.single_authority = OLD.single_authority
+        )
+        BEGIN SELECT RAISE(ABORT, 'board_decisions permit only recording supersession'); END;
+
+        -- A single-authority ratification has no governance validator. Recording
+        -- the chair in that column instead would fabricate a second signatory, so
+        -- the column becomes nullable and is left empty.
+        CREATE TABLE decision_ratifications_v3 (
+            decision_id TEXT PRIMARY KEY REFERENCES board_decisions(decision_id),
+            candidate_id TEXT NOT NULL UNIQUE REFERENCES decision_candidates(candidate_id),
+            session_id TEXT NOT NULL REFERENCES review_sessions(session_id),
+            board_chair TEXT NOT NULL,
+            board_chair_signature_ref TEXT NOT NULL,
+            governance_validator TEXT,
+            governance_validation_ref TEXT,
+            ratified_at TEXT NOT NULL,
+            CHECK (
+                (governance_validator IS NULL AND governance_validation_ref IS NULL)
+                OR (governance_validator IS NOT NULL AND governance_validation_ref IS NOT NULL)
+            )
+        );
+        INSERT INTO decision_ratifications_v3 SELECT * FROM decision_ratifications;
+        DROP TABLE decision_ratifications;
+        ALTER TABLE decision_ratifications_v3 RENAME TO decision_ratifications;
+        CREATE INDEX ratifications_by_session ON decision_ratifications(session_id);
+        CREATE TRIGGER decision_ratifications_no_update
+        BEFORE UPDATE ON decision_ratifications BEGIN SELECT RAISE(ABORT, 'decision_ratifications are immutable'); END;
+        CREATE TRIGGER decision_ratifications_no_delete
+        BEFORE DELETE ON decision_ratifications BEGIN SELECT RAISE(ABORT, 'decision_ratifications are append-only'); END;
+        """,
+    ),
 )
 
 
@@ -1571,17 +1636,29 @@ class SQLiteRepository:
                 "Ratification cannot alter the machine-computed candidate",
                 "RBE-ES-DEC-005",
             )
-        required_ratification = {
-            "board_chair",
-            "board_chair_signature_ref",
-            "governance_validator",
-            "governance_validation_ref",
-        }
-        if (
-            set(ratification) != required_ratification
-            or not all(value.strip() for value in ratification.values())
-            or ratification["board_chair"]
-            == ratification["governance_validator"]
+        if not str(ratification.get("board_chair") or "").strip() or not str(
+            ratification.get("board_chair_signature_ref") or ""
+        ).strip():
+            raise RBEError(
+                "RBE_RATIFICATION_INVALID",
+                "Decision ratification requires a signed Board Chair",
+                "RBE-ES-DEC-005",
+            )
+        validator = ratification.get("governance_validator")
+        validation_ref = ratification.get("governance_validation_ref")
+        if decision.single_authority:
+            # A single-authority record must leave the validator empty rather than
+            # naming the chair twice, which would fabricate a second signatory.
+            if validator or validation_ref:
+                raise RBEError(
+                    "RBE_SINGLE_AUTHORITY_HAS_VALIDATOR",
+                    "A single-authority decision must not name a governance validator",
+                    "RBE-ES-DEC-005",
+                )
+        elif (
+            not str(validator or "").strip()
+            or not str(validation_ref or "").strip()
+            or ratification["board_chair"] == validator
         ):
             raise RBEError(
                 "RBE_RATIFICATION_INVALID",
@@ -1609,8 +1686,8 @@ class SQLiteRepository:
                 decision_id, session_id, status, binding, merge_permitted,
                 execution_mode, evaluation_json, finding_snapshot_hash,
                 artifact_manifest_hash, artifact_manifest_json, computed_at,
-                signed_at, published_at, published_by, superseded
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                signed_at, published_at, published_by, superseded, single_authority
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
             """,
             (
                 decision.decision_id,
@@ -1627,6 +1704,7 @@ class SQLiteRepository:
                 decision.signed_at,
                 decision.published_at,
                 decision.published_by,
+                int(decision.single_authority),
             ),
         )
         connection.execute(
@@ -1643,8 +1721,8 @@ class SQLiteRepository:
                 decision.session_id,
                 ratification["board_chair"],
                 ratification["board_chair_signature_ref"],
-                ratification["governance_validator"],
-                ratification["governance_validation_ref"],
+                ratification.get("governance_validator"),
+                ratification.get("governance_validation_ref"),
                 decision.signed_at,
             ),
         )
@@ -1735,6 +1813,7 @@ class SQLiteRepository:
             published_at=row["published_at"],
             published_by=row["published_by"],
             superseded=bool(row["superseded"]),
+            single_authority=bool(row["single_authority"]),
         )
 
     def get_decision_history(self, session_id: str) -> tuple[BoardDecision, ...]:
@@ -1924,10 +2003,25 @@ class SQLiteRepository:
                     "Publication requires a ratified decision",
                     "RBE-ES-API-003",
                 )
-            if actor in {
-                ratification["board_chair"],
-                ratification["governance_validator"],
-            }:
+            decision_row = connection.execute(
+                "SELECT single_authority FROM board_decisions WHERE decision_id = ?",
+                (decision_id,),
+            ).fetchone()
+            single_authority = bool(decision_row and decision_row["single_authority"])
+            conflicting = {
+                actor_name
+                for actor_name in (
+                    ratification["board_chair"],
+                    ratification["governance_validator"],
+                )
+                if actor_name
+            }
+            # Publication normally requires someone other than the decision
+            # authorities. A single-authority decision was signed by one human
+            # precisely because no second human exists, so the same separation
+            # cannot be met here either; it is permitted and stays recorded on the
+            # decision rather than being quietly waived.
+            if actor in conflicting and not single_authority:
                 raise RBEError(
                     "RBE_PUBLICATION_ROLE_CONFLICT",
                     "Publication authority must differ from decision authorities",

@@ -78,7 +78,7 @@ def create_review(repo: SQLiteRepository) -> dict[str, object]:
     authority = AuthorityBundle.load()
     return repo.create_review(
         make_session(authority),
-        {"schema_version": "2.1.0", "review_id": "REV-PERSIST-001"},
+        {"schema_version": "2.2.0", "review_id": "REV-PERSIST-001"},
         make_assignments(),
         actor="human-chair",
         idempotency_key="create-001",
@@ -134,7 +134,7 @@ def test_create_review_is_idempotent_and_audited(tmp_path: Path) -> None:
     with pytest.raises(RBEError, match="different payload"):
         repo.create_review(
             make_session(authority),
-            {"schema_version": "2.1.0", "review_id": "CHANGED"},
+            {"schema_version": "2.2.0", "review_id": "CHANGED"},
             make_assignments(),
             actor="human-chair",
             idempotency_key="create-001",
@@ -271,7 +271,7 @@ def test_report_records_are_append_only(tmp_path: Path) -> None:
         idempotency_key="assignment-saa",
     )
     raw = {
-        "schema_version": "2.1.0",
+        "schema_version": "2.2.0",
         "report_id": "RPT-PERSIST-001",
         "review_id": "REV-PERSIST-001",
     }

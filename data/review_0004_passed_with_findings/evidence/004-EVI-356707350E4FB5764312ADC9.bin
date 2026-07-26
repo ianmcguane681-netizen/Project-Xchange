@@ -1,0 +1,78 @@
+{
+  "run_id": "RUN-BD4CC608D917",
+  "study_id": "GS-CF001-C",
+  "code_commit_hash": "11ec72b53fcadd1ddb63f150c7330c11c98906ac",
+  "configuration_version": "GS-CF001-CONFIG-001",
+  "methodology_version": "PROVENA-EOS-METHOD-001",
+  "rule_versions": {
+    "normalisation": "NORM-CFPB-001",
+    "verification": "VER-CFPB-001",
+    "findings": "FIND-CFPB-001",
+    "opportunity_assessment": "OPP-ASSESS-001",
+    "proof_gates": "PG-001",
+    "evidence_ceiling": "CEILING-001",
+    "ai_governance": "AI-GOV-001"
+  },
+  "ai_model_configuration": "AI disabled; deterministic rules only.",
+  "source_access_method": "official_cfpb_search_api",
+  "retrieval_timestamps": [
+    "2026-07-26T02:38:43Z"
+  ],
+  "input_record_identifiers": [
+    "9999997",
+    "9999996",
+    "9999995",
+    "9999994",
+    "9999989"
+  ],
+  "artifact_checksums": {
+    "data/raw/cfpb_credit_reporting_raw_20260726T023843079263Z.json": "35765094369b929bf898a7ea7c7486bcf509deeb6b48f3e38c830f06424cfc61",
+    "data/exports/access_diagnostics_20260726T023843079263Z.json": "252d73b8a7b5695924bf49f8d2d5c866734132a11b189124b2b5d09e4941bb12",
+    "data/exports/source_reliability_20260726T023843079263Z.json": "89c881b17e3492c17b104a135e82982724a04cff7bcb20dcba84bc63503cf91e",
+    "data/exports/analysis_artifacts_20260726T023843079263Z.json": "51ab61a1b84e76e92b264bcf8f8f4cc77499c102baf58c5992078a0526d74623",
+    "data/exports/verification_artifacts_20260726T023843079263Z.json": "dfe91a21ca2d91dca697aa3e93045de1dcf5eda00a309235ccd33047cf11cd32",
+    "data/exports/proof_gate_results_20260726T023843079263Z.json": "ab5bdc71e3ba8fd2d76f15ef4ae4b3d20a5ffe857c90e4d824f96c6dfe67671c",
+    "data/exports/audit_trail_20260726T023843079263Z.json": "deede0068a9487a6035b29926966933d7ec749c5d2024842ac5ea836ab06e381",
+    "data/exports/normalised_candidates_20260726T023843079263Z.json": "c4073baee48655b4eff9c4e0915e20a202b146b87d5904f802f4a2b6c1ad4b00",
+    "data/exports/findings_20260726T023843079263Z.json": "9dd34d03f4c73a97fb630e4a70d29d9bd4eb092ac291a4dd66c3ebe291476948",
+    "data/exports/opportunities_20260726T023843079263Z.json": "e162bda6f92616426f15abc9ceb3a1bee5e8f420f923bd305ea64388fd586e24",
+    "data/exports/mechanism_classifications_20260726T023843079263Z.json": "fd7585e2df13a41b0a12da6e84f03864e28a7c5d72b2be1899da374f96c1f159",
+    "data/processed/gs_cf001_c_processed_20260726T023843079263Z.json": "dabdc38c11f18c97c04cec8b55603329ca94b6f237f3cd2dca3d3894608594b1",
+    "data/exports/gs_cf001_c_report_20260726T023843079263Z.json": "dabdc38c11f18c97c04cec8b55603329ca94b6f237f3cd2dca3d3894608594b1",
+    "data/exports/gs_cf001_c_report_20260726T023843079263Z.md": "a356d39070fd71a9648d1eb46290ec1f83288cee0899d62188020d9bc415630e"
+  },
+  "output_artifact_list": [
+    "data/raw/cfpb_credit_reporting_raw_20260726T023843079263Z.json",
+    "data/exports/access_diagnostics_20260726T023843079263Z.json",
+    "data/exports/source_reliability_20260726T023843079263Z.json",
+    "data/exports/analysis_artifacts_20260726T023843079263Z.json",
+    "data/exports/verification_artifacts_20260726T023843079263Z.json",
+    "data/exports/proof_gate_results_20260726T023843079263Z.json",
+    "data/exports/audit_trail_20260726T023843079263Z.json",
+    "data/exports/normalised_candidates_20260726T023843079263Z.json",
+    "data/exports/findings_20260726T023843079263Z.json",
+    "data/exports/opportunities_20260726T023843079263Z.json",
+    "data/exports/mechanism_classifications_20260726T023843079263Z.json",
+    "data/processed/gs_cf001_c_processed_20260726T023843079263Z.json",
+    "data/exports/gs_cf001_c_report_20260726T023843079263Z.json",
+    "data/exports/gs_cf001_c_report_20260726T023843079263Z.md"
+  ],
+  "final_verdict": "CONTINUE RESEARCH",
+  "evidence_ceiling": "BUILD CANDIDATE",
+  "errors": [],
+  "warnings": [
+    "budget owner",
+    "commercial urgency",
+    "confirmed buyer",
+    "counter-evidence review",
+    "economic impact",
+    "evidence across at least 2 companies",
+    "existing solution maturity research",
+    "independent regulatory, enforcement, judicial, audit, company, or examination evidence",
+    "market evidence",
+    "operational mechanism definition",
+    "procurement context",
+    "repeated mechanism across CFPB records",
+    "software-addressability evidence"
+  ]
+}

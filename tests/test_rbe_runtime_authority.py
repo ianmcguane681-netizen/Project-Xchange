@@ -24,7 +24,7 @@ def test_authoritative_packages_load_without_reinterpretation(
 ) -> None:
     assert authority.state_machine["architecture_release"] == "1.1.0"
     assert authority.profile["profile_id"] == "RBM-001"
-    assert authority.profile["version"] == "2.1.0"
+    assert authority.profile["version"] == "2.2.0"
     assert authority.profile["status"] == "RELEASE_CANDIDATE"
     assert authority.profile["binding"] is False
     assert len(authority.reviewer_specs) == 8

@@ -224,9 +224,23 @@ def cmd_decide(args: argparse.Namespace) -> int:
 
 
 def cmd_ratify(args: argparse.Namespace) -> int:
-    """Sign the decision. Human authority, never an agent."""
+    """Sign the decision. Human authority, never an agent.
+
+    With --validator this is ordinary four-eyes ratification. With
+    --single-authority the Board Chair signs alone, which the profile permits only
+    while non-binding and which is recorded permanently on the decision.
+    """
 
     runtime = _runtime(args)
+    if args.single_authority and args.validator:
+        print("Refused: choose either --validator or --single-authority, not both.")
+        return 2
+    if not args.single_authority and not args.validator:
+        print(
+            "Refused: ratification needs --validator <name> --validator-signature <ref>,\n"
+            "or --single-authority if you are signing alone."
+        )
+        return 2
     result = runtime.ratify_decision(
         args.review,
         actor=args.actor,
@@ -234,8 +248,16 @@ def cmd_ratify(args: argparse.Namespace) -> int:
         governance_validator=args.validator,
         governance_validation_ref=args.validator_signature,
         idempotency_key=f"ratify-{args.review}",
+        single_authority_rationale=args.rationale,
     )
-    print(f"Decision {result['decision_id']} signed by {args.actor} and {args.validator}.")
+    if result.get("single_authority"):
+        print(f"Decision {result['decision_id']} signed by {args.actor} alone.")
+        print("  single authority: true  <-- recorded permanently on this decision")
+        print("  the four-eyes control was not satisfied; a two-signature decision")
+        print("  can supersede this one later without losing it.")
+    else:
+        print(f"Decision {result['decision_id']} signed by {args.actor} and {args.validator}.")
+    print(f"  outcome:         {result['evaluation']['outcome'] if isinstance(result.get('evaluation'), dict) else ''}")
     print(f"  binding:         {result['binding']}")
     print(f"  merge permitted: {result['merge_permitted']}")
     _print_next("board advance --to DECIDED, then board publish")
@@ -327,8 +349,14 @@ def build_parser() -> argparse.ArgumentParser:
     ratify.add_argument("--review", required=True)
     ratify.add_argument("--actor", required=True)
     ratify.add_argument("--signature", required=True)
-    ratify.add_argument("--validator", required=True)
-    ratify.add_argument("--validator-signature", required=True)
+    ratify.add_argument("--validator", help="Governance validator (four-eyes ratification)")
+    ratify.add_argument("--validator-signature", help="Governance validator signature ref")
+    ratify.add_argument(
+        "--single-authority",
+        action="store_true",
+        help="Sign alone. Permitted only while the methodology is non-binding, and recorded as such.",
+    )
+    ratify.add_argument("--rationale", default="", help="Why a single authority signed")
     ratify.set_defaults(func=cmd_ratify)
 
     publish = sub.add_parser("publish", help="Publish the decision")

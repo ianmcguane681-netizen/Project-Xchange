@@ -111,7 +111,7 @@ def test_an_agent_seat_report_must_declare_ai_and_name_its_model(tmp_path: Path)
     )
     accepted = replace(assignment, status="ACCEPTED")
     raw = {
-        "schema_version": "2.1.0",
+        "schema_version": "2.2.0",
         "report_id": "RPT-1",
         "review_id": "REV-DECLARE",
         "reviewer": assignment.reviewer_actor,
@@ -170,8 +170,12 @@ def test_two_humans_may_ratify(tmp_path: Path):
 
 
 def test_the_first_real_review_bundle_is_present_and_failed():
-    """The board's first act was to reject, and the artefact records it."""
-    manifest = Path("data/review_export/bundle-manifest.json")
+    """The board's first act was to reject, and the artefact records it.
+
+    Preserved as run under RBM-001 v2.1.0, before single-authority ratification
+    existed. It was never signed, which is why the second review exists.
+    """
+    manifest = Path("data/review_0001_failed/bundle-manifest.json")
     if not manifest.is_file():  # pragma: no cover - only present after a live run
         pytest.skip("no exported review bundle in this checkout")
     data = json.loads(manifest.read_text(encoding="utf-8"))

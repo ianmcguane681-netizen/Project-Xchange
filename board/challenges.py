@@ -151,7 +151,7 @@ def to_finding_record(
 
     remediating = sheet.severity in {"SEV-1", "SEV-2"}
     return {
-        "schema_version": "2.1.0",
+        "schema_version": "2.2.0",
         "finding_id": finding_id,
         "review_id": review_id,
         "reviewer": reviewer,

@@ -17,7 +17,7 @@ SCHEMA_ROOT = PACKAGE_ROOT / "schemas"
 CONTROLLED_TEXT_SUFFIXES = {".json", ".md"}
 
 PROFILE_ID = "RBM-001"
-PROFILE_VERSION = "2.1.0"
+PROFILE_VERSION = "2.2.0"
 PROCESS_STATUSES = {"READY", "PROCEDURALLY_INCOMPLETE", "BLOCKED", "VOID"}
 OUTCOMES = {"PASS", "PASS_WITH_FINDINGS", "FAIL", "INSUFFICIENT_EVIDENCE"}
 CANONICAL_RBE_STATES = {
@@ -352,6 +352,25 @@ def validate_decision_bundle(
         raise PackageValidationError("Board roles are not held by distinct humans")
     if decision["board_chair"] != initiation["board_chair"]:
         raise PackageValidationError("Board Chair identity mismatch")
+    if decision.get("single_authority"):
+        # A single-authority decision has no governance validator by construction.
+        # It must also be non-binding and never merge-permitted; the profile
+        # forbids the mode outright once ACTIVE.
+        if decision.get("governance_validator") or indicator.get("governance_validator"):
+            raise PackageValidationError(
+                "Single-authority decision must not name a governance validator"
+            )
+        if decision.get("merge_permitted") or indicator.get("merge_permitted"):
+            raise PackageValidationError("Single-authority decision cannot permit merge")
+        if active_profile.get("status") == "ACTIVE" or active_profile.get("binding"):
+            raise PackageValidationError(
+                "Single-authority decision is not permitted under a binding methodology"
+            )
+        if decision["board_chair"] != initiation["board_chair"]:
+            raise PackageValidationError(
+                "Single-authority decision must be signed by the initiated Board Chair"
+            )
+        return
     if decision["governance_validator"] != initiation["methodology_auditor"]:
         raise PackageValidationError("Governance validator must be the assigned MA")
     if indicator["board_chair"] != decision["board_chair"]:

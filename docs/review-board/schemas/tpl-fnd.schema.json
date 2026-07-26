@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "provena-foundry/review-board/tpl-fnd/2.1.0",
+  "$id": "provena-foundry/review-board/tpl-fnd/2.2.0",
   "title": "TPL-FND Finding Record",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "finding_id", "review_id", "reviewer", "reviewer_role", "artefact_version", "date_raised", "severity", "spec_reference", "title", "detail", "evidence_tier", "evidence_reference", "status", "ai_assistance"],
   "properties": {
-    "schema_version": {"const": "2.1.0"},
+    "schema_version": {"const": "2.2.0"},
     "finding_id": {"type": "string", "minLength": 1},
     "review_id": {"type": "string", "minLength": 1},
     "reviewer": {"type": "string", "minLength": 1},

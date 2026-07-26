@@ -1,7 +1,7 @@
 # Provena Foundry Review Board — Governing Methodology
 
 **Document ID:** RBM-001
-**Version:** 2.1.0
+**Version:** 2.2.0
 **Status:** RELEASE-CANDIDATE — Pending named human Principal Architect and Methodology Owner approval before first operational use
 **Applicability:** Provena Foundry releases only. This document does not govern GS-P001 or any other Provena product line.
 **Architecture Authority:** RBE-001 v1.1.0 or a later approved compatible release
@@ -1225,7 +1225,48 @@ following are required and recorded:
 
 **Interpretation.** A board of agents that never dissents is not providing
 assurance. Dissent rate is a health signal for the board, not a defect in it.
+| 2.2.0 | 2026-07-26 | Provena Foundry Governance | Single-authority advisory ratification. v2.1.0 permitted agent-held reviewer seats but kept ratification human, and ratification requires two separated humans, so a one-human organisation could complete a review and never sign the result. A single named human Board Chair may now ratify while the profile is non-binding, recorded permanently as single_authority so it is never mistaken for a two-signature decision. Refused once the profile is ACTIVE. The deterministic gates still compute the outcome, so the signatory attests to the process rather than choosing the result. Supersedable by a two-signature decision. Status remains RELEASE-CANDIDATE pending named human approval. |
+
+## 22. Single-Authority Advisory Ratification
+
+Ratification requires two separated humans. An organisation with one human can
+therefore conduct a complete review and never sign the result, leaving governed
+decisions permanently unratified. This section permits a single named human to
+ratify, and states exactly what is given up by doing so.
+
+**Permitted only while non-binding.** Single-authority ratification is available
+only while the profile is not ACTIVE. It is refused the moment the methodology
+becomes binding, so it can never become a route to a binding decision signed by
+one person.
+
+**The authority is the Board Chair, and must be human.** No agent may ratify,
+under any configuration.
+
+**Publication is covered by the same allowance.** Publication normally requires an
+authority separate from those who decided. A single-authority decision was signed
+by one human because no second human exists, so that separation cannot be met
+either. The Board Chair may publish their own single-authority decision, and the
+decision remains marked single-authority in the published indicator.
+
+**Recorded permanently.** The decision carries `single_authority: true` through
+the decision record, the published indicator, and the exported bundle. No reader
+can mistake it for a two-signature decision.
+
+**The outcome is still not the signatory's to choose.** The deterministic gates
+compute the outcome from the frozen findings. A single authority attests that the
+process ran and accepts the recorded result; it cannot alter it. This is what
+makes single-authority ratification defensible rather than a rubber stamp.
+
+**What is genuinely given up.** The four-eyes control exists so that nobody
+approves their own work. A single authority attests to a review it commissioned.
+The residual risk is not a falsified outcome, which the gates prevent, but a
+favourably framed question: the choice of evidence admitted and seats staffed. No
+signature scheme addresses that. Only a second human does.
+
+**Upgrade path.** A two-signature decision supersedes a single-authority one
+through the ordinary appeal and supersession process. The original remains in the
+history, marked superseded, beside the stronger decision that replaced it.
 
 ---
 
-*End of Governing Methodology — RBM-001 v2.1.0*
+*End of Governing Methodology — RBM-001 v2.2.0*

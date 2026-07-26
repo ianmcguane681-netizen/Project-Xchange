@@ -23,4 +23,4 @@ dist/
 *.d.ts.map
 
 # Live review board store (the exported bundle is committed, the database is not)
-data/review_board.sqlite3
+data/review_board*.sqlite3

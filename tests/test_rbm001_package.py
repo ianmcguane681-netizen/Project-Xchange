@@ -33,7 +33,7 @@ def _decision_bundle(
         "review_id": "REV-001",
         "artefact_sha": "abcdef1234567890",
         "methodology_profile_id": "RBM-001",
-        "methodology_version": "2.1.0",
+        "methodology_version": "2.2.0",
         "methodology_status": profile["status"],
         "methodology_checksum": profile["checksum"],
         "binding": profile["binding"],
