@@ -132,6 +132,21 @@ class ReviewStore(Protocol):
 
     def get_decision(self, session_id: str) -> BoardDecision | None: ...
 
+    def get_decision_history(self, session_id: str) -> tuple[BoardDecision, ...]: ...
+
+    def supersede_decision(
+        self,
+        successor: BoardDecision,
+        artifact_manifest: dict[str, Any],
+        candidate_id: str,
+        ratification: dict[str, str],
+        *,
+        superseded_decision_id: str,
+        appeal_reference: str,
+        actor: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]: ...
+
     def get_ratification(self, session_id: str) -> dict[str, Any] | None: ...
 
     def save_publication(

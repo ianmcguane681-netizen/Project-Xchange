@@ -19,6 +19,15 @@ bundles.
 RBM-001 remains `RELEASE_CANDIDATE`. Runtime outputs are therefore advisory,
 non-binding, and always `merge_permitted=false`.
 
+The appeal path is fully recordable. A published decision can be superseded
+during `APPEAL_REVIEW`: the original is flagged `SUPERSEDED` — the single legal
+mutation the schema permits, with every other column frozen and the flip
+irreversible — and the appeal panel's successor is computed, ratified and
+published through the same machinery as any other decision. Both records stay in
+the history, the lifecycle refuses `SUPERSEDED` and `FINAL` transitions whose
+successor metadata does not name real stored records, and the hash-chained audit
+log carries the `DECISION_SUPERSEDED` event.
+
 ```powershell
 python -m rbe_runtime validate-authority
 python -m pytest tests/test_rbe_runtime_*.py

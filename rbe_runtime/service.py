@@ -673,6 +673,163 @@ class RBERuntime:
             idempotency_key=idempotency_key,
         )
 
+    def supersede_published_decision(
+        self,
+        session_id: str,
+        *,
+        actor: str,
+        board_chair_signature_ref: str,
+        governance_validator: str,
+        governance_validation_ref: str,
+        appeal_reference: str,
+        idempotency_key: str,
+        process_blockers: tuple[str, ...] = (),
+        counter_evidence_reference_ids: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        """Replace a published decision with an appeal panel's successor.
+
+        The original record is never rewritten: it is flagged SUPERSEDED, stays in
+        the history, and the successor is computed, ratified and recorded through
+        the same machinery as any other decision. The appeal reference enters the
+        successor's decision-input manifest, so the successor is content-addressed
+        to the appeal that produced it and cannot collide with the original.
+        """
+
+        session = self.repository.get_session(session_id)
+        initiation = self.repository.get_initiation(session_id)
+        if session.status != "APPEAL_REVIEW":
+            raise RBEError(
+                "RBE_SUPERSESSION_NOT_OPEN",
+                "A decision is superseded only during APPEAL_REVIEW",
+                "RBE-ES-ORC-005",
+                {"session_state": session.status},
+            )
+        if actor != initiation["board_chair"] or governance_validator != initiation[
+            "methodology_auditor"
+        ]:
+            raise RBEError(
+                "RBE_RATIFICATION_ACTOR_MISMATCH",
+                "Ratification actors must match the initiated Board Chair and MA",
+                "RBE-ES-ORC-004",
+            )
+        if not appeal_reference.strip():
+            raise RBEError(
+                "RBE_APPEAL_REFERENCE_REQUIRED",
+                "Supersession must cite the appeal it resolves",
+                "RBE-ES-DEC-005",
+            )
+        current = self.repository.get_decision(session_id)
+        history = self.repository.get_decision_history(session_id)
+        recorded = [item for item in history if item.superseded]
+        if recorded:
+            # A replay arrives after the original has already been flipped, so
+            # the repository's idempotency cache is unreachable from here; the
+            # service must recognise the recorded supersession itself. A session
+            # sees at most one supersession, so any different appeal is a conflict.
+            latest_candidate = self.repository.get_decision_candidate(session_id)
+            if (
+                current is None
+                or latest_candidate is None
+                or latest_candidate["artifact_manifest"].get("appeal_reference")
+                != appeal_reference
+            ):
+                raise RBEError(
+                    "RBE_SUPERSESSION_ALREADY_RECORDED",
+                    "This session's decision has already been superseded by a different appeal",
+                    "RBE-ES-LIF-005",
+                    {"superseded_decision_id": recorded[-1].decision_id},
+                )
+            return {
+                "superseded_decision_id": recorded[-1].decision_id,
+                "successor": current.to_dict(),
+            }
+        if current is None or self.repository.get_publication(session_id) is None:
+            raise RBEError(
+                "RBE_UNPUBLISHED_DECISION_CANNOT_BE_SUPERSEDED",
+                "Only a published decision can be superseded on appeal",
+                "RBE-ES-DEC-005",
+            )
+        evidence = self.repository.list_evidence(session_id)
+        unknown_counter = sorted(set(counter_evidence_reference_ids) - set(evidence))
+        if unknown_counter:
+            raise RBEError(
+                "RBE_UNKNOWN_EVIDENCE_REFERENCE",
+                "Decision inputs reference evidence outside the session",
+                "RBE-ES-ORC-007",
+                {"counter_evidence": unknown_counter},
+            )
+        readiness = self.assess_readiness(
+            session_id, additional_blockers=process_blockers
+        )
+        findings = self.repository.list_findings(session_id)
+        accepted_remediation = tuple(
+            sorted(
+                plan.finding_id
+                for plan in self.repository.list_remediation_plans(session_id)
+                if plan.status == "ACCEPTED"
+            )
+        )
+        evaluation = self.decisions.evaluate(
+            findings=findings,
+            process_status=readiness.process_status,
+            substantive_evidence_sufficient=readiness.substantive_evidence_sufficient,
+            accepted_remediation_finding_ids=accepted_remediation,
+            counter_evidence=tuple(sorted(counter_evidence_reference_ids)),
+            process_blockers=readiness.process_blockers,
+        )
+        if evaluation.process_status != "READY":
+            raise RBEError(
+                "RBE_NON_READY_DECISION_CANNOT_BE_RATIFIED",
+                "Only a READY candidate may become a signed decision",
+                "RBE-ES-DEC-004",
+            )
+        manifest = self._decision_input_manifest(session_id, readiness, ())
+        manifest["appeal_reference"] = appeal_reference
+        candidate = self.repository.save_decision_candidate(
+            session_id,
+            evaluation,
+            manifest,
+            actor=actor,
+            idempotency_key=f"{idempotency_key}-candidate",
+        )
+        signed_at = self.clock()
+        profile = self.authority.profile
+        merge_permitted = bool(
+            profile["status"] == "ACTIVE"
+            and profile["binding"]
+            and evaluation.outcome in {"PASS", "PASS_WITH_FINDINGS"}
+        )
+        successor = BoardDecision(
+            decision_id=deterministic_id(
+                "DEC", session_id, candidate["candidate_id"], evaluation.snapshot_hash
+            ),
+            session_id=session_id,
+            status="SIGNED",
+            binding=bool(profile["binding"]),
+            merge_permitted=merge_permitted,
+            execution_mode=session.execution_mode,
+            evaluation=evaluation,
+            finding_snapshot_hash=evaluation.snapshot_hash,
+            artifact_manifest_hash=candidate["artifact_manifest_hash"],
+            computed_at=candidate["computed_at"],
+            signed_at=signed_at,
+        )
+        return self.repository.supersede_decision(
+            successor,
+            candidate["artifact_manifest"],
+            candidate["candidate_id"],
+            {
+                "board_chair": actor,
+                "board_chair_signature_ref": board_chair_signature_ref,
+                "governance_validator": governance_validator,
+                "governance_validation_ref": governance_validation_ref,
+            },
+            superseded_decision_id=current.decision_id,
+            appeal_reference=appeal_reference,
+            actor=actor,
+            idempotency_key=idempotency_key,
+        )
+
     def publish_decision(
         self,
         session_id: str,
@@ -681,7 +838,9 @@ class RBERuntime:
         idempotency_key: str,
     ) -> dict[str, Any]:
         session = self.repository.get_session(session_id)
-        if session.status != "DECIDED":
+        # SUPERSEDED is included because the successor decision must be published
+        # before the session can reach FINAL with a successor_publication_id.
+        if session.status not in {"DECIDED", "SUPERSEDED"}:
             raise RBEError(
                 "RBE_PUBLICATION_NOT_OPEN",
                 "Publication is available only after DECIDED",
@@ -997,6 +1156,31 @@ class RBERuntime:
         if required_metadata and not metadata.get(required_metadata):
             self._prerequisite_error(
                 f"{required_metadata.upper()}_REQUIRED"
+            )
+        # These two transitions previously checked only that the metadata field
+        # was non-empty, so any string passed as a successor. They now have to
+        # name records that actually exist in the store.
+        if (source, target) == ("APPEAL_REVIEW", "SUPERSEDED"):
+            history = self.repository.get_decision_history(session.session_id)
+            superseded_recorded = any(item.superseded for item in history)
+            if (
+                decision is None
+                or not superseded_recorded
+                or metadata.get("successor_decision_id") != decision.decision_id
+            ):
+                self._prerequisite_error(
+                    "SUCCESSOR_DECISION_NOT_RECORDED",
+                    successor_decision_id=metadata.get("successor_decision_id"),
+                    current_decision_id=None if decision is None else decision.decision_id,
+                )
+        if (source, target) == ("SUPERSEDED", "FINAL") and (
+            publication is None
+            or metadata.get("successor_publication_id")
+            != publication["publication_id"]
+        ):
+            self._prerequisite_error(
+                "SUCCESSOR_PUBLICATION_NOT_RECORDED",
+                successor_publication_id=metadata.get("successor_publication_id"),
             )
 
     def _decision_input_manifest(

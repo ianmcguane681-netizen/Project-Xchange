@@ -310,6 +310,80 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         CREATE INDEX audit_by_session ON audit_log(session_id, sequence);
         """,
     ),
+    (
+        2,
+        """
+        -- Appeal supersession. RBM-001 declares APPEAL_REVIEW -> SUPERSEDED, but
+        -- version 1 made it unrecordable: board_decisions rejected every UPDATE,
+        -- the partial unique index blocked a second decision while superseded
+        -- stayed 0, and ratifications/publications were unique per session.
+        --
+        -- The immutability model is preserved. Exactly one mutation becomes legal:
+        -- flipping a signed decision to SUPERSEDED with every other column
+        -- unchanged. Nullable columns are compared with IS so NULLs match.
+        DROP TRIGGER board_decisions_no_update;
+        CREATE TRIGGER board_decisions_no_update
+        BEFORE UPDATE ON board_decisions
+        WHEN NOT (
+            OLD.superseded = 0 AND NEW.superseded = 1
+            AND OLD.status = 'SIGNED' AND NEW.status = 'SUPERSEDED'
+            AND NEW.decision_id = OLD.decision_id
+            AND NEW.session_id = OLD.session_id
+            AND NEW.binding = OLD.binding
+            AND NEW.merge_permitted = OLD.merge_permitted
+            AND NEW.execution_mode = OLD.execution_mode
+            AND NEW.evaluation_json = OLD.evaluation_json
+            AND NEW.finding_snapshot_hash = OLD.finding_snapshot_hash
+            AND NEW.artifact_manifest_hash = OLD.artifact_manifest_hash
+            AND NEW.artifact_manifest_json = OLD.artifact_manifest_json
+            AND NEW.computed_at = OLD.computed_at
+            AND NEW.signed_at IS OLD.signed_at
+            AND NEW.published_at IS OLD.published_at
+            AND NEW.published_by IS OLD.published_by
+        )
+        BEGIN SELECT RAISE(ABORT, 'board_decisions permit only recording supersession'); END;
+
+        -- A session may now hold one ratification and one publication per
+        -- decision, not one ever. Uniqueness moves from session_id to the
+        -- decision, which the partial index already limits to one current row.
+        CREATE TABLE decision_ratifications_v2 (
+            decision_id TEXT PRIMARY KEY REFERENCES board_decisions(decision_id),
+            candidate_id TEXT NOT NULL UNIQUE REFERENCES decision_candidates(candidate_id),
+            session_id TEXT NOT NULL REFERENCES review_sessions(session_id),
+            board_chair TEXT NOT NULL,
+            board_chair_signature_ref TEXT NOT NULL,
+            governance_validator TEXT NOT NULL,
+            governance_validation_ref TEXT NOT NULL,
+            ratified_at TEXT NOT NULL
+        );
+        INSERT INTO decision_ratifications_v2 SELECT * FROM decision_ratifications;
+        DROP TABLE decision_ratifications;
+        ALTER TABLE decision_ratifications_v2 RENAME TO decision_ratifications;
+        CREATE INDEX ratifications_by_session ON decision_ratifications(session_id);
+        CREATE TRIGGER decision_ratifications_no_update
+        BEFORE UPDATE ON decision_ratifications BEGIN SELECT RAISE(ABORT, 'decision_ratifications are immutable'); END;
+        CREATE TRIGGER decision_ratifications_no_delete
+        BEFORE DELETE ON decision_ratifications BEGIN SELECT RAISE(ABORT, 'decision_ratifications are append-only'); END;
+
+        CREATE TABLE publications_v2 (
+            publication_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES review_sessions(session_id),
+            decision_id TEXT NOT NULL UNIQUE REFERENCES board_decisions(decision_id),
+            publication_authority TEXT NOT NULL,
+            indicator_json TEXT NOT NULL,
+            indicator_sha256 TEXT NOT NULL,
+            published_at TEXT NOT NULL
+        );
+        INSERT INTO publications_v2 SELECT * FROM publications;
+        DROP TABLE publications;
+        ALTER TABLE publications_v2 RENAME TO publications;
+        CREATE INDEX publications_by_session ON publications(session_id);
+        CREATE TRIGGER publications_no_update
+        BEFORE UPDATE ON publications BEGIN SELECT RAISE(ABORT, 'publications are immutable'); END;
+        CREATE TRIGGER publications_no_delete
+        BEFORE DELETE ON publications BEGIN SELECT RAISE(ABORT, 'publications are append-only'); END;
+        """,
+    ),
 )
 
 
@@ -1462,6 +1536,119 @@ class SQLiteRepository:
             "supersedes_candidate_id": row["supersedes_candidate_id"],
         }
 
+    def _require_valid_signed_decision(
+        self,
+        connection: sqlite3.Connection,
+        decision: BoardDecision,
+        artifact_manifest: dict[str, Any],
+        candidate_id: str,
+        ratification: dict[str, str],
+    ) -> None:
+        if canonical_hash(artifact_manifest) != decision.artifact_manifest_hash:
+            raise RBEError(
+                "RBE_ARTIFACT_MANIFEST_HASH_MISMATCH",
+                "Decision manifest does not match its canonical hash",
+                "RBE-ES-PER-003",
+            )
+        candidate = connection.execute(
+            "SELECT * FROM decision_candidates WHERE candidate_id = ?",
+            (candidate_id,),
+        ).fetchone()
+        if candidate is None or candidate["session_id"] != decision.session_id:
+            raise RBEError(
+                "RBE_DECISION_CANDIDATE_MISMATCH",
+                "Ratification must reference the session's frozen candidate",
+                "RBE-ES-PER-003",
+            )
+        if (
+            candidate["evaluation_json"]
+            != canonical_json(decision.evaluation.to_dict())
+            or candidate["artifact_manifest_hash"]
+            != decision.artifact_manifest_hash
+        ):
+            raise RBEError(
+                "RBE_DECISION_CANDIDATE_CHANGED",
+                "Ratification cannot alter the machine-computed candidate",
+                "RBE-ES-DEC-005",
+            )
+        required_ratification = {
+            "board_chair",
+            "board_chair_signature_ref",
+            "governance_validator",
+            "governance_validation_ref",
+        }
+        if (
+            set(ratification) != required_ratification
+            or not all(value.strip() for value in ratification.values())
+            or ratification["board_chair"]
+            == ratification["governance_validator"]
+        ):
+            raise RBEError(
+                "RBE_RATIFICATION_INVALID",
+                "Decision ratification requires separated, signed human authorities",
+                "RBE-ES-DEC-005",
+            )
+        if decision.status != "SIGNED" or decision.signed_at is None:
+            raise RBEError(
+                "RBE_SIGNED_DECISION_REQUIRED",
+                "Ratification must create a signed decision record",
+                "RBE-ES-DEC-005",
+            )
+
+    def _insert_signed_decision(
+        self,
+        connection: sqlite3.Connection,
+        decision: BoardDecision,
+        artifact_manifest: dict[str, Any],
+        candidate_id: str,
+        ratification: dict[str, str],
+    ) -> None:
+        connection.execute(
+            """
+            INSERT INTO board_decisions(
+                decision_id, session_id, status, binding, merge_permitted,
+                execution_mode, evaluation_json, finding_snapshot_hash,
+                artifact_manifest_hash, artifact_manifest_json, computed_at,
+                signed_at, published_at, published_by, superseded
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            """,
+            (
+                decision.decision_id,
+                decision.session_id,
+                decision.status,
+                int(decision.binding),
+                int(decision.merge_permitted),
+                decision.execution_mode,
+                canonical_json(decision.evaluation.to_dict()),
+                decision.finding_snapshot_hash,
+                decision.artifact_manifest_hash,
+                canonical_json(artifact_manifest),
+                decision.computed_at,
+                decision.signed_at,
+                decision.published_at,
+                decision.published_by,
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO decision_ratifications(
+                decision_id, candidate_id, session_id, board_chair,
+                board_chair_signature_ref, governance_validator,
+                governance_validation_ref, ratified_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                decision.decision_id,
+                candidate_id,
+                decision.session_id,
+                ratification["board_chair"],
+                ratification["board_chair_signature_ref"],
+                ratification["governance_validator"],
+                ratification["governance_validation_ref"],
+                decision.signed_at,
+            ),
+        )
+
     def save_decision(
         self,
         decision: BoardDecision,
@@ -1480,100 +1667,11 @@ class SQLiteRepository:
         }
 
         def operation(connection: sqlite3.Connection, now: str) -> dict[str, Any]:
-            if canonical_hash(artifact_manifest) != decision.artifact_manifest_hash:
-                raise RBEError(
-                    "RBE_ARTIFACT_MANIFEST_HASH_MISMATCH",
-                    "Decision manifest does not match its canonical hash",
-                    "RBE-ES-PER-003",
-                )
-            candidate = connection.execute(
-                "SELECT * FROM decision_candidates WHERE candidate_id = ?",
-                (candidate_id,),
-            ).fetchone()
-            if candidate is None or candidate["session_id"] != decision.session_id:
-                raise RBEError(
-                    "RBE_DECISION_CANDIDATE_MISMATCH",
-                    "Ratification must reference the session's frozen candidate",
-                    "RBE-ES-PER-003",
-                )
-            if (
-                candidate["evaluation_json"]
-                != canonical_json(decision.evaluation.to_dict())
-                or candidate["artifact_manifest_hash"]
-                != decision.artifact_manifest_hash
-            ):
-                raise RBEError(
-                    "RBE_DECISION_CANDIDATE_CHANGED",
-                    "Ratification cannot alter the machine-computed candidate",
-                    "RBE-ES-DEC-005",
-                )
-            required_ratification = {
-                "board_chair",
-                "board_chair_signature_ref",
-                "governance_validator",
-                "governance_validation_ref",
-            }
-            if (
-                set(ratification) != required_ratification
-                or not all(value.strip() for value in ratification.values())
-                or ratification["board_chair"]
-                == ratification["governance_validator"]
-            ):
-                raise RBEError(
-                    "RBE_RATIFICATION_INVALID",
-                    "Decision ratification requires separated, signed human authorities",
-                    "RBE-ES-DEC-005",
-                )
-            if decision.status != "SIGNED" or decision.signed_at is None:
-                raise RBEError(
-                    "RBE_SIGNED_DECISION_REQUIRED",
-                    "Ratification must create a signed decision record",
-                    "RBE-ES-DEC-005",
-                )
-            connection.execute(
-                """
-                INSERT INTO board_decisions(
-                    decision_id, session_id, status, binding, merge_permitted,
-                    execution_mode, evaluation_json, finding_snapshot_hash,
-                    artifact_manifest_hash, artifact_manifest_json, computed_at,
-                    signed_at, published_at, published_by, superseded
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-                """,
-                (
-                    decision.decision_id,
-                    decision.session_id,
-                    decision.status,
-                    int(decision.binding),
-                    int(decision.merge_permitted),
-                    decision.execution_mode,
-                    canonical_json(decision.evaluation.to_dict()),
-                    decision.finding_snapshot_hash,
-                    decision.artifact_manifest_hash,
-                    canonical_json(artifact_manifest),
-                    decision.computed_at,
-                    decision.signed_at,
-                    decision.published_at,
-                    decision.published_by,
-                ),
+            self._require_valid_signed_decision(
+                connection, decision, artifact_manifest, candidate_id, ratification
             )
-            connection.execute(
-                """
-                INSERT INTO decision_ratifications(
-                    decision_id, candidate_id, session_id, board_chair,
-                    board_chair_signature_ref, governance_validator,
-                    governance_validation_ref, ratified_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    decision.decision_id,
-                    candidate_id,
-                    decision.session_id,
-                    ratification["board_chair"],
-                    ratification["board_chair_signature_ref"],
-                    ratification["governance_validator"],
-                    ratification["governance_validation_ref"],
-                    decision.signed_at,
-                ),
+            self._insert_signed_decision(
+                connection, decision, artifact_manifest, candidate_id, ratification
             )
             self._append_audit(
                 connection,
@@ -1618,6 +1716,9 @@ class SQLiteRepository:
             connection.close()
         if row is None:
             return None
+        return self._decision_from_row(row)
+
+    def _decision_from_row(self, row: sqlite3.Row) -> BoardDecision:
         evaluation = self._evaluation_from_data(json.loads(row["evaluation_json"]))
         return BoardDecision(
             decision_id=row["decision_id"],
@@ -1633,13 +1734,161 @@ class SQLiteRepository:
             signed_at=row["signed_at"],
             published_at=row["published_at"],
             published_by=row["published_by"],
+            superseded=bool(row["superseded"]),
+        )
+
+    def get_decision_history(self, session_id: str) -> tuple[BoardDecision, ...]:
+        """Every decision the session has held, superseded ones included.
+
+        The overturned record stays readable on purpose: the point of an appeal
+        trail is that both the original and its successor remain in evidence.
+        """
+
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT * FROM board_decisions
+                WHERE session_id = ? ORDER BY superseded DESC, rowid
+                """,
+                (session_id,),
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(self._decision_from_row(row) for row in rows)
+
+    def supersede_decision(
+        self,
+        successor: BoardDecision,
+        artifact_manifest: dict[str, Any],
+        candidate_id: str,
+        ratification: dict[str, str],
+        *,
+        superseded_decision_id: str,
+        appeal_reference: str,
+        actor: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        payload = {
+            "successor": successor.to_dict(),
+            "artifact_manifest": artifact_manifest,
+            "candidate_id": candidate_id,
+            "ratification": ratification,
+            "superseded_decision_id": superseded_decision_id,
+            "appeal_reference": appeal_reference,
+        }
+
+        def operation(connection: sqlite3.Connection, now: str) -> dict[str, Any]:
+            current = connection.execute(
+                """
+                SELECT decision_id FROM board_decisions
+                WHERE session_id = ? AND superseded = 0
+                """,
+                (successor.session_id,),
+            ).fetchone()
+            if current is None or current["decision_id"] != superseded_decision_id:
+                raise RBEError(
+                    "RBE_SUPERSEDED_DECISION_MISMATCH",
+                    "Supersession must name the session's current decision",
+                    "RBE-ES-DEC-005",
+                    {
+                        "current_decision_id": None if current is None else current["decision_id"],
+                        "superseded_decision_id": superseded_decision_id,
+                    },
+                )
+            published = connection.execute(
+                "SELECT 1 FROM publications WHERE decision_id = ?",
+                (superseded_decision_id,),
+            ).fetchone()
+            if published is None:
+                raise RBEError(
+                    "RBE_UNPUBLISHED_DECISION_CANNOT_BE_SUPERSEDED",
+                    "Only a published decision can be superseded on appeal",
+                    "RBE-ES-DEC-005",
+                )
+            if successor.decision_id == superseded_decision_id:
+                raise RBEError(
+                    "RBE_SUCCESSOR_DECISION_IDENTICAL",
+                    "A decision cannot supersede itself",
+                    "RBE-ES-DEC-005",
+                )
+            if not appeal_reference.strip():
+                raise RBEError(
+                    "RBE_APPEAL_REFERENCE_REQUIRED",
+                    "Supersession must cite the appeal it resolves",
+                    "RBE-ES-DEC-005",
+                )
+            self._require_valid_signed_decision(
+                connection, successor, artifact_manifest, candidate_id, ratification
+            )
+            # The one legal mutation: the trigger permits exactly this flip and
+            # aborts anything else, so the original record cannot be rewritten.
+            connection.execute(
+                """
+                UPDATE board_decisions
+                SET superseded = 1, status = 'SUPERSEDED'
+                WHERE decision_id = ? AND superseded = 0
+                """,
+                (superseded_decision_id,),
+            )
+            self._insert_signed_decision(
+                connection, successor, artifact_manifest, candidate_id, ratification
+            )
+            self._append_audit(
+                connection,
+                session_id=successor.session_id,
+                event_type="DECISION_SUPERSEDED",
+                actor=actor,
+                occurred_at=now,
+                payload={
+                    "superseded_decision_id": superseded_decision_id,
+                    "successor_decision_id": successor.decision_id,
+                    "appeal_reference": appeal_reference,
+                    "successor_candidate_id": candidate_id,
+                    "successor_snapshot_hash": successor.evaluation.snapshot_hash,
+                },
+            )
+            self._append_audit(
+                connection,
+                session_id=successor.session_id,
+                event_type="DECISION_RATIFIED",
+                actor=actor,
+                occurred_at=now,
+                payload={
+                    "decision_id": successor.decision_id,
+                    "candidate_id": candidate_id,
+                    "decision_status": successor.status,
+                    "process_status": successor.evaluation.process_status,
+                    "outcome": successor.evaluation.outcome,
+                    "snapshot_hash": successor.evaluation.snapshot_hash,
+                    "artifact_manifest_hash": successor.artifact_manifest_hash,
+                    "binding": successor.binding,
+                    "merge_permitted": successor.merge_permitted,
+                },
+            )
+            return {
+                "superseded_decision_id": superseded_decision_id,
+                "successor": successor.to_dict(),
+            }
+
+        return self._run_idempotent(
+            session_id=successor.session_id,
+            command_name="supersede_decision",
+            idempotency_key=idempotency_key,
+            actor=actor,
+            payload=payload,
+            operation=operation,
         )
 
     def get_ratification(self, session_id: str) -> dict[str, Any] | None:
         connection = self._connect()
         try:
             row = connection.execute(
-                "SELECT * FROM decision_ratifications WHERE session_id = ?",
+                """
+                SELECT r.* FROM decision_ratifications r
+                JOIN board_decisions d ON d.decision_id = r.decision_id
+                WHERE r.session_id = ? AND d.superseded = 0
+                """,
                 (session_id,),
             ).fetchone()
         finally:
@@ -1737,10 +1986,17 @@ class SQLiteRepository:
         )
 
     def get_publication(self, session_id: str) -> dict[str, Any] | None:
+        # The publication of the *current* decision. After a supersession this is
+        # None until the successor is published, which is exactly what the
+        # SUPERSEDED -> FINAL prerequisite needs to observe.
         connection = self._connect()
         try:
             row = connection.execute(
-                "SELECT * FROM publications WHERE session_id = ?",
+                """
+                SELECT p.* FROM publications p
+                JOIN board_decisions d ON d.decision_id = p.decision_id
+                WHERE p.session_id = ? AND d.superseded = 0
+                """,
                 (session_id,),
             ).fetchone()
         finally:

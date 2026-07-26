@@ -239,6 +239,7 @@ class BoardDecision:
     signed_at: str | None = None
     published_at: str | None = None
     published_by: str | None = None
+    superseded: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
