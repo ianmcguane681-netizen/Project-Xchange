@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "provena-foundry/review-board/tpl-rir/2.0.0",
+  "$id": "provena-foundry/review-board/tpl-rir/2.1.0",
   "title": "TPL-RIR Review Initiation Record",
   "type": "object",
   "additionalProperties": false,
@@ -28,7 +28,7 @@
     "input_process_status"
   ],
   "properties": {
-    "schema_version": {"const": "2.0.0"},
+    "schema_version": {"const": "2.1.0"},
     "review_id": {"type": "string", "minLength": 1},
     "review_date": {"type": "string", "format": "date-time"},
     "trigger": {"type": "string", "minLength": 1},
@@ -38,7 +38,7 @@
     "repository": {"type": "string", "minLength": 1},
     "architecture_authority": {"type": "string", "minLength": 1},
     "methodology_profile_id": {"const": "RBM-001"},
-    "methodology_version": {"const": "2.0.0"},
+    "methodology_version": {"const": "2.1.0"},
     "methodology_status": {"enum": ["RELEASE_CANDIDATE", "ACTIVE", "RETIRED"]},
     "methodology_checksum": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "manifest_root_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},

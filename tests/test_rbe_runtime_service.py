@@ -39,7 +39,7 @@ def test_runtime_accepts_repository_through_storage_port(tmp_path: Path) -> None
 def initiation(authority: AuthorityBundle, review_id: str) -> dict[str, Any]:
     profile = authority.profile
     return {
-        "schema_version": "2.0.0",
+        "schema_version": "2.1.0",
         "review_id": review_id,
         "review_date": NOW,
         "trigger": "RBE runtime golden scenario",
@@ -80,13 +80,13 @@ def report_record(
     evidence_sufficiency: str = "SUFFICIENT",
 ) -> dict[str, Any]:
     return {
-        "schema_version": "2.0.0",
+        "schema_version": "2.1.0",
         "report_id": f"RPT-{review_id}-{role}",
         "review_id": review_id,
         "reviewer": actor,
         "reviewer_role": role,
         "reviewer_spec_id": spec_id,
-        "reviewer_spec_version": "2.0.0",
+        "reviewer_spec_version": "2.1.0",
         "artefact_sha": "abcdef1234567890",
         "finding_ids": list(finding_ids),
         "evidence_sufficiency": evidence_sufficiency,
@@ -106,7 +106,7 @@ def report_record(
 
 def finding_record(review_id: str, finding_id: str, severity: str) -> dict[str, Any]:
     return {
-        "schema_version": "2.0.0",
+        "schema_version": "2.1.0",
         "finding_id": finding_id,
         "review_id": review_id,
         "reviewer": "human-saa",
@@ -300,7 +300,7 @@ def test_pass_with_findings_requires_validated_remediation(tmp_path: Path) -> No
     runtime.submit_remediation_plan(
         review_id,
         {
-            "schema_version": "2.0.0",
+            "schema_version": "2.1.0",
             "document_id": "RMP-DOC-PWF-001",
             "review_id": review_id,
             "authoring_team_contact": "human-owner",

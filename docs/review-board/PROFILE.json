@@ -1,6 +1,6 @@
 {
   "profile_id": "RBM-001",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "status": "RELEASE_CANDIDATE",
   "architecture_authority": {
     "document_id": "RBE-001",
@@ -9,7 +9,7 @@
   },
   "owner": "Provena Foundry Governance",
   "human_approval_record": null,
-  "checksum": "sha256:ba5c0f2277180d74cb156b3b3ccdc3896d56933d74ec39c7ee1d1c05a113e899",
+  "checksum": "sha256:417d55b96e7997eb40b626d33c5b1d3e979d65da7430a2e742b423e209cd2936",
   "manifest": "MANIFEST.json",
   "binding": false,
   "permitted_outcomes": [
@@ -77,7 +77,8 @@
     "methodology_auditor_may_hold_other_role": false,
     "board_chair_and_governance_validator_must_differ": true,
     "decision_assembler_and_publication_control_must_differ": true,
-    "governance_validator_and_publication_control_must_differ": true
+    "governance_validator_and_publication_control_must_differ": true,
+    "distinct_actor_per_board_role": true
   },
   "quorum": {
     "tier_1": {
@@ -178,5 +179,36 @@
     "named_human_methodology_owner_approval",
     "active_status_commit",
     "immutable_release_tag"
-  ]
+  ],
+  "supersedes": "RBM-001 v2.0.0",
+  "amendment_rationale": "v2.0.0 required a distinct accountable human in every board seat, so the board could not be seated by an organisation with fewer humans than seats and was never convened. v2.1.0 permits designated reviewer seats to be held by governed agents while accountability, ratification and publication remain human. A review using any agent-held seat is advisory and cannot be binding.",
+  "agent_seat_policy": {
+    "agent_seats_permitted": true,
+    "permitted_agent_roles": [
+      "MA",
+      "SAA",
+      "BCA",
+      "DEA",
+      "QRA",
+      "SPA",
+      "POA",
+      "SR"
+    ],
+    "prohibited_agent_roles": [
+      "BC"
+    ],
+    "agent_actor_prefixes": [
+      "agent:"
+    ],
+    "named_human_verifier_required": true,
+    "ratification_authority_must_be_human": true,
+    "publication_authority_must_be_human": true,
+    "agent_seat_review_is_advisory_only": true,
+    "independence_requirements": {
+      "distinct_instruction_version_per_seat": true,
+      "sceptical_seat_is_blind_to_proposed_outcome": true,
+      "record_model_and_instruction_version_per_seat": true,
+      "shared_model_across_seats_must_be_recorded": true
+    }
+  }
 }

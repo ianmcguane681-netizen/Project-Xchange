@@ -13,12 +13,23 @@ from rbe_runtime.errors import RBEError
 _ROLE_LINE = re.compile(r"^\*\*Reviewer Role:\*\* .*\(([A-Z]{2,3})\)$", re.MULTILINE)
 
 
+# Any actor carrying one of these prefixes is automation, however it is named.
+# Treating them all as agents stops a seat dodging the agent rules by choosing a
+# different prefix, or dodging the human rules by choosing "agent:".
+AUTOMATION_PREFIXES = ("agent:", "ai:", "model:", "automation:")
+
+
+def is_agent_actor(actor: str) -> bool:
+    return actor.lower().startswith(AUTOMATION_PREFIXES)
+
+
 @dataclass(frozen=True, slots=True)
 class RoleSeat:
     role: str
     actor: str
     reviewer_spec_id: str
     sequence: int
+    is_agent: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,24 +99,35 @@ class ProfilePolicy:
                 {"roles": missing},
             )
         actors = list(role_actors.values())
-        non_human = sorted(
-            role
-            for role, actor in role_actors.items()
-            if actor.lower().startswith(("ai:", "model:", "automation:"))
-        )
-        if non_human:
-            raise RBEError(
-                "RBE_NON_HUMAN_BOARD_ROLE",
-                "AI or automation actors cannot hold accountable board roles",
-                "RBE-ES-DES-002",
-                {"roles": non_human},
-            )
+        agent_roles = {
+            role for role, actor in role_actors.items() if is_agent_actor(actor)
+        }
+        policy = self.profile.get("agent_seat_policy")
+        if agent_roles:
+            if not policy or policy.get("agent_seats_permitted") is not True:
+                raise RBEError(
+                    "RBE_NON_HUMAN_BOARD_ROLE",
+                    "AI or automation actors cannot hold accountable board roles",
+                    "RBE-ES-DES-002",
+                    {"roles": sorted(agent_roles)},
+                )
+            permitted = set(policy.get("permitted_agent_roles", []))
+            forbidden = sorted(agent_roles - permitted)
+            if forbidden:
+                raise RBEError(
+                    "RBE_NON_HUMAN_BOARD_ROLE",
+                    "This board role is accountable and must be held by a human",
+                    "RBE-ES-DES-002",
+                    {"roles": forbidden},
+                )
+        # Distinct actors regardless of kind. One agent holding two seats would
+        # produce two identical reviews and destroy the independence the board exists for.
         if self.profile["role_policy"]["distinct_human_per_board_role"] and len(
             actors
         ) != len(set(actors)):
             raise RBEError(
                 "RBE_ROLE_CONFLICT",
-                "Board roles must be held by distinct human actors",
+                "Board roles must be held by distinct actors",
                 "RBE-ES-ORC-003",
             )
 
@@ -116,6 +138,7 @@ class ProfilePolicy:
                 actor=role_actors[role],
                 reviewer_spec_id=self.role_to_spec[role],
                 sequence=index,
+                is_agent=is_agent_actor(role_actors[role]),
             )
             for index, role in enumerate(review_roles, start=1)
         )

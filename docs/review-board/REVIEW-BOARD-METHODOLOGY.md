@@ -1,7 +1,7 @@
 # Provena Foundry Review Board — Governing Methodology
 
 **Document ID:** RBM-001
-**Version:** 2.0.0
+**Version:** 2.1.0
 **Status:** RELEASE-CANDIDATE — Pending named human Principal Architect and Methodology Owner approval before first operational use
 **Applicability:** Provena Foundry releases only. This document does not govern GS-P001 or any other Provena product line.
 **Architecture Authority:** RBE-001 v1.1.0 or a later approved compatible release
@@ -1194,7 +1194,38 @@ The following specifications define the scope, inputs, evidence requirements, ch
 | 1.0.0 | 2026-07-18 | Provena Foundry Governance | Initial release |
 | 1.1.0 | 2026-07-18 | Provena Foundry Governance | Principal Architect review: (1) Status set to RELEASE-CANDIDATE; (2) Decision outcomes made mutually exclusive with explicit evaluation order; (3) Quorum role count corrected to six specialist auditors; (4) Board Chair role description corrected — decisions are deterministic, not voted; (5) AI execution boundaries and mandatory human sign-off table added (§4.4); (6) Review Risk Tiers introduced (§6A) with Tier 1 lightweight, Tier 2 standard, Tier 3 full-board paths; (7) T3-AUTHORITATIVE-EXTERNAL evidence exception for SEV-1 findings added (§8.2); (8) Milestone-completion gate scope limitation added — Board decision is not warranty of commercial readiness (§18.2); (9) Versioned machine-readable JSON schemas added for TPL-RIR, TPL-FND, TPL-BDR, TPL-MRI, TPL-COR (§17.9); (10) Appeal and Correction Mechanism added (§18A) with append-only lineage and TPL-COR template |
 | 2.0.0 | 2026-07-19 | Provena Foundry Governance | RBE-001 conformance correction: separated process status from substantive outcome; added mandatory `INSUFFICIENT_EVIDENCE`; closed unresolved-finding decision gaps; added architecture authority, canonical lifecycle mapping, activation gate, profile checksum/manifest, distinct-role and four-eyes controls, independent publication, corrected tier precedence and evidence rules, external schemas, validation tests, and principal review record. Status remains RELEASE-CANDIDATE pending named human approval. |
+| 2.1.0 | 2026-07-26 | Provena Foundry Governance | Agent-held reviewer seats. v2.0.0 required a distinct accountable human in every board seat, so the board could not be seated by an organisation with fewer humans than seats and was never convened. Designated reviewer seats (MA, SR, and the specialist pool) may now be held by governed agents. The Board Chair seat remains human because accountability cannot be delegated. Ratification and publication authority remain human. Any review using an agent-held seat is advisory and cannot be binding, and the seat's model and instruction version are recorded. Independence requirements prevent correlated agent seats. Status remains RELEASE-CANDIDATE pending named human approval. |
+
+## 21. Agent-Held Reviewer Seats
+
+A reviewer seat may be held by a governed agent. This section states what that
+does and does not change.
+
+**Permitted seats.** Methodology Audit, Sceptical Review, and every specialist
+seat may be agent-held. The Board Chair seat may not. The Chair is accountable
+for the review, and accountability cannot be delegated to an agent.
+
+**Authority is unchanged.** Ratification and publication authority remain human.
+An agent produces a report; it does not sign a decision.
+
+**Advisory only.** A review in which any seat was agent-held is advisory and
+cannot be binding, regardless of profile status.
+
+**Verification.** Every agent-held seat requires a named human verifier, recorded
+against the report. This is the existing `ai_assistance.human_verified` control.
+
+**Independence.** Agent seats fail as a board when they share reasoning. The
+following are required and recorded:
+
+- a distinct instruction version per seat;
+- the sceptical seat is blind to the proposed outcome, receiving evidence and the
+  question "what does this evidence fail to establish?";
+- the model and instruction version of each seat;
+- where seats share a model, that fact is recorded rather than obscured.
+
+**Interpretation.** A board of agents that never dissents is not providing
+assurance. Dissent rate is a health signal for the board, not a defect in it.
 
 ---
 
-*End of Governing Methodology — RBM-001 v2.0.0*
+*End of Governing Methodology — RBM-001 v2.1.0*

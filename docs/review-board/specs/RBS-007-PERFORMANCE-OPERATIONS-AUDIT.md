@@ -1,10 +1,10 @@
 # Reviewer Specification: Performance and Operations Audit
 
 **Document ID:** RBS-007
-**Version:** 2.0.0
+**Version:** 2.1.0
 **Status:** RELEASE-CANDIDATE — Pending Principal Architect approval before first operational use
 **Applicability:** Provena Foundry Review Board only. Not applicable to GS-P001.
-**Governing Methodology:** RBM-001 v2.0.0
+**Governing Methodology:** RBM-001 v2.1.0
 **Reviewer Role:** Performance and Operations Auditor (POA)
 **Last Updated:** 2026-07-19
 

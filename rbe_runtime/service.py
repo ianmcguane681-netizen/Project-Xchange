@@ -892,7 +892,7 @@ class RBERuntime:
             "governance_validator": ratification["governance_validator"],
         }
         board_record = {
-            "schema_version": "2.0.0",
+            "schema_version": "2.1.0",
             **common,
             "tier": initiation["tier"],
             "finding_snapshot": snapshot,
@@ -915,7 +915,7 @@ class RBERuntime:
             timespec="seconds"
         ).replace("+00:00", "Z")
         indicator = {
-            "schema_version": "2.0.0",
+            "schema_version": "2.1.0",
             **common,
             "review_risk_tier": initiation["tier"],
             "publication_authority": actor,

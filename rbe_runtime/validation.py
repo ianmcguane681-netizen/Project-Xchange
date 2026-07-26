@@ -18,7 +18,7 @@ from rbe_runtime.models import (
     Finding,
     RemediationPlan,
 )
-from rbe_runtime.profile import ProfilePolicy, RoleSeat
+from rbe_runtime.profile import ProfilePolicy, RoleSeat, is_agent_actor
 from rbe_runtime.schemas import SchemaRegistry
 
 
@@ -159,7 +159,23 @@ def validate_report_submission(
             "AI-assisted report material requires explicit human verification",
             "RBE-ES-FUT-002",
         )
-    if raw_record["reviewer"].lower().startswith(("ai:", "model:")):
+    if is_agent_actor(assignment.reviewer_actor):
+        # An agent-held seat cannot file a report claiming a human wrote it.
+        if not ai_used:
+            raise RBEError(
+                "RBE_AGENT_SEAT_MUST_DECLARE_AI",
+                "A report from an agent-held seat must declare AI assistance",
+                "RBE-ES-DES-002",
+                {"role": assignment.reviewer_role},
+            )
+        if not str(ai.get("method") or "").strip():
+            raise RBEError(
+                "RBE_AGENT_SEAT_METHOD_REQUIRED",
+                "An agent-held seat must record the model and instruction version",
+                "RBE-ES-DES-002",
+                {"role": assignment.reviewer_role},
+            )
+    elif raw_record["reviewer"].lower().startswith(("ai:", "model:")):
         raise RBEError(
             "RBE_AI_REVIEWER_NON_AUTHORITATIVE",
             "An AI actor cannot hold an authoritative reviewer assignment",

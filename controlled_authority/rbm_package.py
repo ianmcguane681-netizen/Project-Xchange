@@ -17,7 +17,7 @@ SCHEMA_ROOT = PACKAGE_ROOT / "schemas"
 CONTROLLED_TEXT_SUFFIXES = {".json", ".md"}
 
 PROFILE_ID = "RBM-001"
-PROFILE_VERSION = "2.0.0"
+PROFILE_VERSION = "2.1.0"
 PROCESS_STATUSES = {"READY", "PROCEDURALLY_INCOMPLETE", "BLOCKED", "VOID"}
 OUTCOMES = {"PASS", "PASS_WITH_FINDINGS", "FAIL", "INSUFFICIENT_EVIDENCE"}
 CANONICAL_RBE_STATES = {
@@ -397,6 +397,64 @@ def validate_decision_bundle(
         raise PackageValidationError("Decision claims merge permission outside the guard")
 
 
+AGENT_PROHIBITED_ROLES = {"BC"}
+AGENT_INDEPENDENCE_CONTROLS = {
+    "distinct_instruction_version_per_seat",
+    "sceptical_seat_is_blind_to_proposed_outcome",
+    "record_model_and_instruction_version_per_seat",
+    "shared_model_across_seats_must_be_recorded",
+}
+
+
+def _validate_agent_seat_policy(profile: dict[str, Any]) -> None:
+    """Agent seats may not erode accountability or reviewer independence.
+
+    A profile that permits agent-held seats must keep the Board Chair human,
+    keep ratification and publication human, require a named human verifier,
+    mark such reviews advisory, and carry every independence control. Any of
+    those missing would let a board of correlated agents produce consensus that
+    looks like assurance.
+    """
+
+    policy = profile.get("agent_seat_policy")
+    if policy is None:
+        return
+    if policy.get("agent_seats_permitted") is not True:
+        raise PackageValidationError("Agent seat policy present but not enabled")
+    permitted = set(policy.get("permitted_agent_roles", []))
+    prohibited = set(policy.get("prohibited_agent_roles", []))
+    if not permitted:
+        raise PackageValidationError("Agent seat policy permits no roles")
+    if not AGENT_PROHIBITED_ROLES.issubset(prohibited):
+        raise PackageValidationError(
+            "The accountable Board Chair seat must be prohibited to agents"
+        )
+    if permitted & AGENT_PROHIBITED_ROLES:
+        raise PackageValidationError("An accountable role is listed as agent-permitted")
+    if permitted & prohibited:
+        raise PackageValidationError("A role is both permitted and prohibited to agents")
+    if not policy.get("agent_actor_prefixes"):
+        raise PackageValidationError("Agent seat policy defines no actor prefix")
+    for control in (
+        "named_human_verifier_required",
+        "ratification_authority_must_be_human",
+        "publication_authority_must_be_human",
+        "agent_seat_review_is_advisory_only",
+    ):
+        if policy.get(control) is not True:
+            raise PackageValidationError(f"Agent seat control not enforced: {control}")
+    independence = policy.get("independence_requirements", {})
+    missing = sorted(
+        control
+        for control in AGENT_INDEPENDENCE_CONTROLS
+        if independence.get(control) is not True
+    )
+    if missing:
+        raise PackageValidationError(
+            f"Agent seat independence controls incomplete: {missing}"
+        )
+
+
 def _validate_profile(profile: dict[str, Any]) -> None:
     if profile.get("profile_id") != PROFILE_ID:
         raise PackageValidationError("Profile ID mismatch")
@@ -438,6 +496,7 @@ def _validate_profile(profile: dict[str, Any]) -> None:
     }
     if not all(role_policy.get(key) is True for key in required_role_controls):
         raise PackageValidationError("Separation-of-duties policy is incomplete")
+    _validate_agent_seat_policy(profile)
     priorities = [rule.get("priority") for rule in profile.get("decision_precedence", [])]
     if priorities != [1, 2, 3, 4, 5, 6]:
         raise PackageValidationError("Decision precedence is incomplete or unordered")
@@ -486,7 +545,7 @@ def _validate_documents() -> None:
         encoding="utf-8"
     )
     required_methodology_terms = {
-        "**Version:** 2.0.0",
+        f"**Version:** {PROFILE_VERSION}",
         "## 10. Process Status and Decision Framework",
         "`INSUFFICIENT_EVIDENCE`",
         "`PROCEDURALLY_INCOMPLETE`",
@@ -507,8 +566,8 @@ def _validate_documents() -> None:
     for spec in specs:
         text = spec.read_text(encoding="utf-8")
         required = {
-            "**Version:** 2.0.0",
-            "**Governing Methodology:** RBM-001 v2.0.0",
+            f"**Version:** {PROFILE_VERSION}",
+            f"**Governing Methodology:** RBM-001 v{PROFILE_VERSION}",
             "## 10. Board Decision Contribution",
             "non-authoritative AI assistant",
             "unsigned draft",
