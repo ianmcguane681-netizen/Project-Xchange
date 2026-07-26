@@ -129,8 +129,6 @@
       "Observed fixture volume remains stable"
     ],
     "evidence_ids": [
-      "EV-001",
-      "EV-002",
       "EV-007"
     ],
     "formulae": [
@@ -441,8 +439,7 @@
     "development_cost": 25000,
     "evidence_ids": [
       "EV-006",
-      "EV-007",
-      "EV-008"
+      "EV-007"
     ],
     "formulae": [
       "gross_margin = (annual_price - annual_cost_to_serve) / annual_price",

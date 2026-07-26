@@ -38,6 +38,30 @@ def _evidence_index(data: SolutionValidationInput) -> dict[str, EvidenceItem]:
     return index
 
 
+# Placeholder markers meaning "we have not judged this yet". Matching G4's
+# treatment of "unknown", these must not count as an assessment.
+UNASSESSED_MARKERS = ("unknown", "not assessed", "n/a", "tbd", "")
+
+
+def _is_unassessed(value: str) -> bool:
+    text = str(value or "").strip().lower()
+    return any(text == marker or text.startswith(marker) for marker in UNASSESSED_MARKERS if marker) or not text
+
+
+def is_assessed_competitor(competitor: Any) -> bool:
+    """True when a competitor record carries a real comparative judgement.
+
+    A record that names an incumbent but leaves strengths, weaknesses and
+    differentiation as placeholders identifies an alternative without assessing
+    one, and must not satisfy the competitive viability gate.
+    """
+
+    strengths = [item for item in competitor.strengths if not _is_unassessed(item)]
+    weaknesses = [item for item in competitor.weaknesses if not _is_unassessed(item)]
+    differentiated = not _is_unassessed(competitor.differentiation)
+    return bool(strengths or weaknesses or differentiated)
+
+
 def _approved_evidence(
     evidence_ids: tuple[str, ...],
     evidence: dict[str, EvidenceItem],
@@ -298,8 +322,17 @@ def assess_gates(data: SolutionValidationInput, rules: RuleSet) -> tuple[GateAss
             customer_check = customer_economics_check(data.customer_economics)
             failures.extend(customer_check.failures)
             unresolved.extend(customer_check.unresolved)
-        if gate_id == "G7_COMPETITIVE_VIABILITY" and not data.competitors:
-            unresolved.append("At least one current alternative must be assessed.")
+        if gate_id == "G7_COMPETITIVE_VIABILITY":
+            if not data.competitors:
+                unresolved.append("At least one current alternative must be assessed.")
+            elif not any(is_assessed_competitor(item) for item in data.competitors):
+                # Identifying an incumbent is not assessing it. Records whose
+                # comparative fields are placeholders would otherwise satisfy this
+                # gate on the strength of the competitor merely existing.
+                unresolved.append(
+                    "Competitor records carry no assessed strengths, weaknesses or "
+                    "differentiation; identifying an alternative is not assessing it."
+                )
         if gate_id == "G8_ETHICAL_LEGAL_REGULATORY_ACCEPTABILITY":
             if "ethical_legal_regulatory_acceptable" not in claims:
                 unresolved.append("Human-reviewed legal and regulatory acceptability evidence is required.")
