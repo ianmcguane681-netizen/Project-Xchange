@@ -306,7 +306,11 @@ def assess_gates(data: SolutionValidationInput, rules: RuleSet) -> tuple[GateAss
                 data.buyer_map.budget_source,
                 data.buyer_map.purchase_authority,
             )
-            if any(not value or value.lower() == "unknown" for value in buyer_fields):
+            # Was an ad-hoc check for empty or "unknown", which let "TBD", "n/a"
+            # and "not assessed" through as a named buyer. The shared marker set
+            # already existed for G7; G4 now uses it, so a placeholder cannot
+            # satisfy the gate under a different spelling.
+            if any(_is_unassessed(value) for value in buyer_fields):
                 unresolved.append("Buyer identity, budget source and purchase authority must all be explicit.")
             linked_buyer = [evidence[item_id] for item_id in evidence_ids if item_id in evidence]
             if not any(item.evidence_class is EvidenceClass.DIRECT_BUYER for item in linked_buyer):
