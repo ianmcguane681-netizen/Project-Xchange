@@ -26,6 +26,39 @@ python -m pytest tests/test_rbe_runtime_*.py
 
 See `docs/rbe-runtime/README.md` for the developer contract and commands.
 
+## Commercial Pipeline
+
+`commercial/` covers what happens between "the problem is proven" and "the product
+is in the market". None of it is market-specific, so it sits outside any single
+study.
+
+- **`agent_guard`** — agent output is analysis or a proposal, never evidence. The
+  rule holds structurally: `is_evidence` is not a settable field, agent provenance
+  is detected even through a serialised dict, and `assert_not_evidence` refuses
+  agent output at any position that requires proof. A proposal additionally needs a
+  named human reviewer before it can be acted on.
+- **`buyer`** — every study source is documentary and none of it shows anyone will
+  pay. This lane records buyer conversations as evidence with named provenance and
+  recorded consent, and holds the gate to distinct organisations, at least one
+  respondent with budget authority, and a verbatim account. One enthusiastic
+  conversation does not qualify.
+- **`stop_rules`** — a study that can always ask for more evidence will. Given a
+  budget and a study's state, returns one deterministic decision: objective met,
+  budget exhausted, no progress, externally blocked, or continue. Objective met is
+  checked first, so a study that achieved its aim is never reported as overspent.
+- **`claims`** — a public claim must trace to approved evidence or it cannot be
+  published. Agent-drafted support is recorded as `AGENT_ASSERTED`, unreviewed
+  support is distinguished from no support, and evidence flagged as contradicted
+  blocks the claim outright.
+- **`outcomes`** — records what was predicted against what was observed after
+  launch, respecting whether higher or lower is better, and reporting an
+  underpowered sample as inconclusive rather than rounding it toward the claim. A
+  measured shortfall flags the claim as contradicted and returns to the evidence
+  base as `E7_PROTOTYPE` evidence, so the next decision inherits what actually
+  happened.
+
+The dependency runs one way: `commercial` may use `rbe_runtime`, never the reverse.
+
 ## Golden Study Bridge
 
 `study_bridge/` joins the two audit chains that previously ran side by side. A
