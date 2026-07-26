@@ -1,4 +1,17 @@
-# Project Exchange Local Prototype
+# Provena Foundry
+
+**Founded on Proven Data.**
+
+Everyone else's output asks you to trust it. Ours can be re-run and checked.
+
+Every claim this system makes traces back through the audits that qualified it, to
+the verified source it came from, and to the exact code that produced it. Nothing
+reaches a decision on assertion alone: evidence is proved, deterministic gates
+decide, and a governed review board challenges the result before it stands.
+
+---
+
+## Project Exchange Local Prototype
 
 Local Python/Streamlit prototype for the Project Exchange internal operating system:
 
