@@ -56,6 +56,10 @@ class AgentOutput:
 
     @property
     def method_used(self) -> str:
+        # Agent ids often already carry the prefix (a board seat's actor is
+        # "agent:sr"), so do not stack a second one onto it.
+        if self.agent_id.startswith(AGENT_METHOD_PREFIX):
+            return self.agent_id
         return f"{AGENT_METHOD_PREFIX}{self.agent_id}"
 
     @property

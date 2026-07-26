@@ -28,7 +28,7 @@ from rbe_runtime.models import (
     ReviewerReport,
     ReviewSession,
 )
-from rbe_runtime.profile import ProfilePolicy
+from rbe_runtime.profile import ProfilePolicy, is_agent_actor
 from rbe_runtime.schemas import SchemaRegistry
 from rbe_runtime.state_machine import CanonicalStateMachine
 from rbe_runtime.storage import ReviewStore, open_sqlite_store
@@ -623,6 +623,7 @@ class RBERuntime:
                 "Ratification actors must match the initiated Board Chair and MA",
                 "RBE-ES-ORC-004",
             )
+        self._require_human_ratifiers(actor, governance_validator)
         candidate = self.repository.get_decision_candidate(session_id)
         if candidate is None:
             raise RBEError(
@@ -673,6 +674,41 @@ class RBERuntime:
             idempotency_key=idempotency_key,
         )
 
+    def _require_human_ratifiers(self, chair: str, validator: str) -> None:
+        """Ratification is a human authority, whoever did the reviewing.
+
+        The profile permits agent-held reviewer seats but keeps ratification and
+        publication human. Without this check an agent seated as Methodology
+        Auditor would also be signing the decision it reviewed, which is both
+        non-human authority and a collapse of the four-eyes control.
+        """
+
+        policy = self.authority.profile.get("agent_seat_policy") or {}
+        if policy.get("ratification_authority_must_be_human") is not True:
+            return
+        non_human = sorted(
+            actor for actor in (chair, validator) if is_agent_actor(actor)
+        )
+        if non_human:
+            raise RBEError(
+                "RBE_RATIFICATION_AUTHORITY_NOT_HUMAN",
+                "Ratification requires human authorities; an agent may review but not sign",
+                "RBE-ES-DES-002",
+                {"actors": non_human},
+            )
+
+    def _require_human_publisher(self, actor: str) -> None:
+        policy = self.authority.profile.get("agent_seat_policy") or {}
+        if policy.get("publication_authority_must_be_human") is not True:
+            return
+        if is_agent_actor(actor):
+            raise RBEError(
+                "RBE_PUBLICATION_AUTHORITY_NOT_HUMAN",
+                "Publication requires a human authority",
+                "RBE-ES-DES-002",
+                {"actor": actor},
+            )
+
     def supersede_published_decision(
         self,
         session_id: str,
@@ -712,6 +748,7 @@ class RBERuntime:
                 "Ratification actors must match the initiated Board Chair and MA",
                 "RBE-ES-ORC-004",
             )
+        self._require_human_ratifiers(actor, governance_validator)
         if not appeal_reference.strip():
             raise RBEError(
                 "RBE_APPEAL_REFERENCE_REQUIRED",
@@ -846,6 +883,7 @@ class RBERuntime:
                 "Publication is available only after DECIDED",
                 "RBE-ES-API-003",
             )
+        self._require_human_publisher(actor)
         decision = self.repository.get_decision(session_id)
         ratification = self.repository.get_ratification(session_id)
         candidate = self.repository.get_decision_candidate(session_id)

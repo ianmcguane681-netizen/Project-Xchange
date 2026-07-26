@@ -41,12 +41,12 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Lint RBE runtime and authority boundary
         run: >-
-          python -m ruff check commercial controlled_authority rbe_runtime scripts study_bridge
+          python -m ruff check board commercial controlled_authority rbe_runtime scripts study_bridge
           tests/test_rbe_runtime_*.py tests/test_rbe001_package.py
-          tests/test_rbm001_package.py tests/test_study_bridge_*.py tests/test_commercial_pipeline.py
+          tests/test_rbm001_package.py tests/test_study_bridge_*.py tests/test_commercial_pipeline.py tests/test_board_*.py tests/test_agent_seat_authority.py
       - name: Compile Python modules
         run: >-
-          python -m compileall -q commercial controlled_authority rbe_runtime scripts study_bridge
+          python -m compileall -q board commercial controlled_authority rbe_runtime scripts study_bridge
       - name: Assert the study bridge depends on the runtime, never the reverse
         run: >-
           if grep -rn "study_bridge" rbe_runtime controlled_authority; then
