@@ -43,7 +43,8 @@ jobs:
         run: >-
           python -m ruff check board commercial controlled_authority rbe_runtime scripts study_bridge
           tests/test_rbe_runtime_*.py tests/test_rbe001_package.py
-          tests/test_rbm001_package.py tests/test_study_bridge_*.py tests/test_commercial_pipeline.py tests/test_board_*.py tests/test_agent_seat_authority.py tests/test_single_authority.py
+          tests/test_rbm001_package.py tests/test_study_bridge_*.py tests/test_commercial_pipeline.py tests/test_board_*.py tests/test_agent_seat_authority.py
+          tests/test_single_authority.py tests/test_buyer_intake.py tests/test_placeholder_gates_sv.py
       - name: Compile Python modules
         run: >-
           python -m compileall -q board commercial controlled_authority rbe_runtime scripts study_bridge
