@@ -1,0 +1,454 @@
+[
+  {
+    "gate_id": "PG-01",
+    "gate_name": "Source Authenticity",
+    "status": "PASS",
+    "threshold": "Source reliability assessment present",
+    "observed_value": "True",
+    "evidence_ids": [],
+    "supporting_evidence": [
+      "CFPB-CCD-001",
+      "COURTLISTENER-FCRA-001",
+      "FJC-IDB-FCRA-001"
+    ],
+    "counter_evidence": [],
+    "confidence": 1.0,
+    "missing_evidence": [],
+    "recommended_next_action": "Create or review source reliability assessment.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Source authenticity is assessed from source metadata."
+    ]
+  },
+  {
+    "gate_id": "PG-02",
+    "gate_name": "Raw Record Preservation",
+    "status": "PASS",
+    "threshold": "Raw retrieval artifact or diagnostic exists",
+    "observed_value": "True",
+    "evidence_ids": [
+      "EVD-717FBD491D6B",
+      "EVD-D880B910483F",
+      "EVD-935EE74E5297",
+      "EVD-EA1426F27E9C",
+      "EVD-117888570675",
+      "EVD-7C518121A186",
+      "EVD-F3926BCC6222",
+      "EVD-D5F81E4B9C3B",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "raw artifacts",
+      "access diagnostics"
+    ],
+    "counter_evidence": [],
+    "confidence": 1.0,
+    "missing_evidence": [],
+    "recommended_next_action": "Do not normalise until raw retrieval or access failure is preserved.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Raw records or access failure diagnostics must exist."
+    ]
+  },
+  {
+    "gate_id": "PG-03",
+    "gate_name": "Normalisation Integrity",
+    "status": "PASS",
+    "threshold": "Normalised candidate records exist",
+    "observed_value": "True",
+    "evidence_ids": [
+      "EVD-717FBD491D6B",
+      "EVD-D880B910483F",
+      "EVD-935EE74E5297",
+      "EVD-EA1426F27E9C",
+      "EVD-117888570675",
+      "EVD-7C518121A186",
+      "EVD-F3926BCC6222",
+      "EVD-D5F81E4B9C3B",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "CAN-384DF7C4ADB0",
+      "CAN-F9EE6C0FC8A3",
+      "CAN-39C10ED8477A",
+      "CAN-217C3BAD589F",
+      "CAN-6526986E90DC",
+      "CAN-7298E2D184C5",
+      "CAN-0490AC42F88C",
+      "CAN-50152865A955",
+      "CAN-D9056222BA47"
+    ],
+    "counter_evidence": [],
+    "confidence": 0.9,
+    "missing_evidence": [],
+    "recommended_next_action": "Resolve source access or normalisation before verification.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Normalisation is deterministic."
+    ]
+  },
+  {
+    "gate_id": "PG-04",
+    "gate_name": "Study Classification Integrity",
+    "status": "PASS",
+    "threshold": "All evidence maps to GS-CF001-C",
+    "observed_value": "True",
+    "evidence_ids": [
+      "EVD-717FBD491D6B",
+      "EVD-D880B910483F",
+      "EVD-935EE74E5297",
+      "EVD-EA1426F27E9C",
+      "EVD-117888570675",
+      "EVD-7C518121A186",
+      "EVD-F3926BCC6222",
+      "EVD-D5F81E4B9C3B",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "GS-CF001-C deterministic product mapping"
+    ],
+    "counter_evidence": [],
+    "confidence": 0.9,
+    "missing_evidence": [],
+    "recommended_next_action": "Classify retrieved records into the implemented study only.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Only Credit Reporting Disputes is implemented."
+    ]
+  },
+  {
+    "gate_id": "PG-05",
+    "gate_name": "Repetition",
+    "status": "FAIL",
+    "threshold": "Minimum repeated mechanism finding",
+    "observed_value": "False",
+    "evidence_ids": [
+      "EVD-935EE74E5297",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [],
+    "counter_evidence": [],
+    "confidence": 0.0,
+    "missing_evidence": [
+      "repeated mechanism across CFPB records"
+    ],
+    "recommended_next_action": "Collect more CFPB records until repeated mechanisms are present.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Repetition is within source family only."
+    ]
+  },
+  {
+    "gate_id": "PG-06",
+    "gate_name": "Cross-Company Evidence",
+    "status": "FAIL",
+    "threshold": "At least 2 company references",
+    "observed_value": "1",
+    "evidence_ids": [
+      "EVD-935EE74E5297",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "EQUIFAX, INC.",
+      "AVANT, LLC"
+    ],
+    "counter_evidence": [],
+    "confidence": 0.0,
+    "missing_evidence": [
+      "evidence across at least 2 companies"
+    ],
+    "recommended_next_action": "Collect records spanning multiple companies.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Company spread supports repetition but not independent corroboration."
+    ]
+  },
+  {
+    "gate_id": "PG-07",
+    "gate_name": "Operational Specificity",
+    "status": "FAIL",
+    "threshold": "Finding includes operational mechanism definition",
+    "observed_value": "False",
+    "evidence_ids": [
+      "EVD-935EE74E5297",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [],
+    "counter_evidence": [],
+    "confidence": 0.0,
+    "missing_evidence": [
+      "operational mechanism definition"
+    ],
+    "recommended_next_action": "Extract trigger, step, failure mode, consequence, and expected process.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Findings represent mechanisms, not keywords."
+    ]
+  },
+  {
+    "gate_id": "PG-08",
+    "gate_name": "Software-Addressability",
+    "status": "WEAK",
+    "threshold": "Opportunity assessment exists",
+    "observed_value": "False",
+    "evidence_ids": [
+      "EVD-935EE74E5297",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "Unclassified mechanism - no supported component yet",
+      "Consumer dispute evidence intake component"
+    ],
+    "counter_evidence": [
+      "process change, policy change, staffing, vendor tools, or training may address the mechanism",
+      "process change, policy change, staffing, vendor tools, or training may address the mechanism"
+    ],
+    "confidence": 0.2,
+    "missing_evidence": [
+      "software-addressability evidence"
+    ],
+    "recommended_next_action": "Assess workflow detail and non-software alternatives.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Opportunity assessment is separate from verification."
+    ]
+  },
+  {
+    "gate_id": "PG-09",
+    "gate_name": "Independent Corroboration",
+    "status": "FAIL",
+    "threshold": "At least 1 adjudicated finding of occurrence, on a mechanism independently alleged by another source family",
+    "observed_value": "corroborated=0; adjudicated=3; establishing occurrence=0",
+    "evidence_ids": [
+      "EVD-717FBD491D6B",
+      "EVD-D880B910483F",
+      "EVD-935EE74E5297",
+      "EVD-EA1426F27E9C",
+      "EVD-117888570675",
+      "EVD-7C518121A186",
+      "EVD-F3926BCC6222",
+      "EVD-D5F81E4B9C3B",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "CFPB complaints",
+      "Federal court records"
+    ],
+    "counter_evidence": [
+      "Allegations repeat across forums without any forum having decided them."
+    ],
+    "confidence": 0.0,
+    "missing_evidence": [
+      "a judgment, consent order, or examination finding resolving the mechanism against a respondent"
+    ],
+    "recommended_next_action": "Retrieve adjudicated dispositions before BUILD CANDIDATE.",
+    "constrains_max_verdict": true,
+    "reasoning_chain": [
+      "Independence of forums makes allegations independent, not established.",
+      "Occurrence is established by a decision, never by repetition."
+    ]
+  },
+  {
+    "gate_id": "PG-10",
+    "gate_name": "Buyer Clarity",
+    "status": "FAIL",
+    "threshold": "Confirmed buyer evidence",
+    "observed_value": "unverified",
+    "evidence_ids": [
+      "EVD-935EE74E5297",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "unclear",
+      "unclear"
+    ],
+    "counter_evidence": [
+      "CFPB identifies companies, not buyers."
+    ],
+    "confidence": 0.0,
+    "missing_evidence": [
+      "confirmed buyer",
+      "budget owner",
+      "procurement context"
+    ],
+    "recommended_next_action": "Research buyer role after independent corroboration.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Buyer clarity cannot be established from CFPB complaints alone."
+    ]
+  },
+  {
+    "gate_id": "PG-11",
+    "gate_name": "Existing Solution Assessment",
+    "status": "WEAK",
+    "threshold": "At least 1 incumbent assessed for maturity, not merely identified",
+    "observed_value": "identified=5; assessed=0; publishing a price=0",
+    "evidence_ids": [
+      "PRC-CREDIT-REPAIR-CLOUD",
+      "PRC-DISPUTEFOX",
+      "PRC-SCORECEO",
+      "PRC-CLIENT-DISPUTE-MANAGER",
+      "PRC-DISPUTESUITE"
+    ],
+    "supporting_evidence": [],
+    "counter_evidence": [
+      "Identifying an incumbent is not assessing one."
+    ],
+    "confidence": 0.3,
+    "missing_evidence": [
+      "comparative assessment of at least one incumbent: strengths, weaknesses or differentiation"
+    ],
+    "recommended_next_action": "Assess an identified incumbent rather than only listing it.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "A pricing observation records what a vendor charges, not how mature its solution is.",
+      "Placeholder comparative fields must never satisfy this gate."
+    ]
+  },
+  {
+    "gate_id": "PG-12",
+    "gate_name": "Commercial Relevance",
+    "status": "FAIL",
+    "threshold": "At least 1 budget-holding buyer stating willingness",
+    "observed_value": "buyer records=0; budget-holding and willing=0",
+    "evidence_ids": [],
+    "supporting_evidence": [],
+    "counter_evidence": [],
+    "confidence": 0.0,
+    "missing_evidence": [
+      "a buyer who controls a budget stating what they would pay for"
+    ],
+    "recommended_next_action": "Record a buyer conversation; no dataset answers this.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Commercial urgency cannot be retrieved, only asked.",
+      "A list price is not evidence that a buyer would move."
+    ]
+  },
+  {
+    "gate_id": "PG-13",
+    "gate_name": "Counter-Evidence",
+    "status": "WEAK",
+    "threshold": "At least 1 adjudicated disposition resolving the mechanism in a respondent's favour",
+    "observed_value": "contradicting=0 of 3 adjudicated",
+    "evidence_ids": [
+      "EVD-717FBD491D6B",
+      "EVD-D880B910483F",
+      "EVD-935EE74E5297",
+      "EVD-EA1426F27E9C",
+      "EVD-117888570675",
+      "EVD-7C518121A186",
+      "EVD-F3926BCC6222",
+      "EVD-D5F81E4B9C3B",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [],
+    "counter_evidence": [],
+    "confidence": 0.3,
+    "missing_evidence": [
+      "adjudicated dispositions decided in a respondent's favour"
+    ],
+    "recommended_next_action": "Retrieve dispositions in both directions, not only those that confirm.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Complaints and filings are submitted by claimants, so neither yields counter-evidence.",
+      "A source that can only ever confirm the hypothesis is not a test of it."
+    ]
+  },
+  {
+    "gate_id": "PG-14",
+    "gate_name": "Reproducibility",
+    "status": "WEAK",
+    "threshold": "Run preserves artifacts and diagnostics",
+    "observed_value": "True",
+    "evidence_ids": [
+      "EVD-717FBD491D6B",
+      "EVD-D880B910483F",
+      "EVD-935EE74E5297",
+      "EVD-EA1426F27E9C",
+      "EVD-117888570675",
+      "EVD-7C518121A186",
+      "EVD-F3926BCC6222",
+      "EVD-D5F81E4B9C3B",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "artifact preservation",
+      "diagnostics"
+    ],
+    "counter_evidence": [
+      "ADIAG-B93587597E93",
+      "ADIAG-62DF588B4ACE"
+    ],
+    "confidence": 0.4,
+    "missing_evidence": [
+      "successful repeatable official retrieval"
+    ],
+    "recommended_next_action": "Preserve run manifest, diagnostics, and raw official records.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "Access failures are reproducible diagnostics, not evidence records."
+    ]
+  },
+  {
+    "gate_id": "PG-15",
+    "gate_name": "Source Independence",
+    "status": "PASS",
+    "threshold": "Independent source family count >= 2",
+    "observed_value": "2",
+    "evidence_ids": [
+      "EVD-717FBD491D6B",
+      "EVD-D880B910483F",
+      "EVD-935EE74E5297",
+      "EVD-EA1426F27E9C",
+      "EVD-117888570675",
+      "EVD-7C518121A186",
+      "EVD-F3926BCC6222",
+      "EVD-D5F81E4B9C3B",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "CFPB complaints",
+      "Federal court records"
+    ],
+    "counter_evidence": [
+      "Multiple CFPB complaints remain one source family."
+    ],
+    "confidence": 1.0,
+    "missing_evidence": [],
+    "recommended_next_action": "Add independent corroborating source family.",
+    "constrains_max_verdict": true,
+    "reasoning_chain": [
+      "Different URLs do not automatically mean independent sources."
+    ]
+  },
+  {
+    "gate_id": "PG-16",
+    "gate_name": "Evidence Ceiling Compliance",
+    "status": "PASS",
+    "threshold": "If source families < 2, maximum verdict is CONTINUE RESEARCH",
+    "observed_value": "source families=2",
+    "evidence_ids": [
+      "EVD-717FBD491D6B",
+      "EVD-D880B910483F",
+      "EVD-935EE74E5297",
+      "EVD-EA1426F27E9C",
+      "EVD-117888570675",
+      "EVD-7C518121A186",
+      "EVD-F3926BCC6222",
+      "EVD-D5F81E4B9C3B",
+      "EVD-B570173FB31A"
+    ],
+    "supporting_evidence": [
+      "deterministic evidence ceiling rule"
+    ],
+    "counter_evidence": [],
+    "confidence": 1.0,
+    "missing_evidence": [],
+    "recommended_next_action": "Apply deterministic ceiling before final verdict.",
+    "constrains_max_verdict": false,
+    "reasoning_chain": [
+      "AI, user settings, and reports cannot override the evidence ceiling."
+    ]
+  }
+]
