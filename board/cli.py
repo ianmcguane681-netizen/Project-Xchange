@@ -191,6 +191,49 @@ def _fix_line(finding) -> str:
     return "No remediation required."
 
 
+def cmd_remediate(args: argparse.Namespace) -> int:
+    """Answer a blocking finding with a remediation plan.
+
+    The board could raise SEV-1 and SEV-2 findings and the front door offered no
+    way to respond to one, so answering a blocker meant writing Python -- the exact
+    situation this CLI exists to remove. Review 0006 made it visible: two blocking
+    findings, both rendering NOT SPECIFIED, and no command to fill them in.
+
+    The runtime's constraints are surfaced here rather than left to be discovered
+    through a refusal. Only the Methodology Auditor may submit, and only while the
+    review is still in CHALLENGE or CONSOLIDATION -- once a decision candidate is
+    frozen the inputs cannot move, which is what stops a plan being written to fit
+    a verdict already computed.
+    """
+
+    runtime = _runtime(args)
+    payload = _load(args.plan)
+    initiation = runtime.repository.get_initiation(args.review)
+    auditor = initiation["methodology_auditor"]
+    try:
+        result = runtime.submit_remediation_plan(
+            args.review,
+            payload,
+            actor=auditor,
+            idempotency_key=f"remediate-{args.review}-{payload.get('document_id', 'plan')}",
+        )
+    except RBEError as error:
+        print(f"Refused [{error.code}]: {error}")
+        if error.details:
+            print(f"  {json.dumps(error.details)}")
+        if error.code == "RBE_REMEDIATION_SUBMISSION_NOT_OPEN":
+            print("  Plans are accepted in CHALLENGE or CONSOLIDATION, before a decision is prepared.")
+        if error.code == "RBE_REMEDIATION_ACTOR_MISMATCH":
+            print(f"  Only the Methodology Auditor ({auditor}) may submit a plan.")
+        return 1
+    accepted = result.get("items", result) if isinstance(result, dict) else result
+    print(f"Remediation plan recorded for {args.review} by {auditor}.")
+    for item in payload.get("items", ()):  # echo what was answered, worst first
+        print(f"  {item['finding_id']:<18} -> {item['planned_changes'][:56]}")
+    _print_next("board challenges to see the sheets, then board decide")
+    return 0
+
+
 def cmd_challenges(args: argparse.Namespace) -> int:
     """Show what the board found, worst first."""
 
@@ -389,6 +432,11 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--review", required=True)
     publish.add_argument("--actor", required=True)
     publish.set_defaults(func=cmd_publish)
+
+    remediate = sub.add_parser("remediate", help="Answer blocking findings with a plan")
+    remediate.add_argument("--review", required=True)
+    remediate.add_argument("--plan", required=True, help="tpl-rmp remediation plan JSON")
+    remediate.set_defaults(func=cmd_remediate)
 
     status = sub.add_parser("status", help="Where the review is")
     status.add_argument("--review", required=True)
