@@ -164,6 +164,33 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+# Severities that cannot be satisfied by doing nothing. Kept beside the renderer
+# because it is a presentation rule: the profile decides what blocks, this decides
+# how an unfilled field reads.
+_REMEDIATION_REQUIRED = frozenset({"SEV-1", "SEV-2"})
+
+
+def _fix_line(finding) -> str:
+    """What the sheet shows when a finding names no remediation.
+
+    Absent used to render as "No remediation required." at every severity, so a
+    SEV-2 read "needs a fix or an accepted remediation plan" on its Impact line and
+    "No remediation required." two lines below. On a blocking finding those are
+    opposite claims, and the sheet showed the wrong one -- a reader skimming a
+    rejection would take it as already handled.
+
+    Absent means nobody wrote one down. At a blocking severity that is a gap in the
+    finding, and the sheet now says so.
+    """
+
+    stated = str(finding.raw_record.get("remediation_requirement") or "").strip()
+    if stated:
+        return stated
+    if finding.severity in _REMEDIATION_REQUIRED:
+        return "NOT SPECIFIED - this severity requires a remediation plan."
+    return "No remediation required."
+
+
 def cmd_challenges(args: argparse.Namespace) -> int:
     """Show what the board found, worst first."""
 
@@ -188,8 +215,7 @@ def cmd_challenges(args: argparse.Namespace) -> int:
                 target=finding.title,
                 problem=finding.description,
                 impact=SEVERITY_EFFECT.get(finding.severity, "recorded"),
-                fix=finding.raw_record.get("remediation_requirement")
-                or "No remediation required.",
+                fix=_fix_line(finding),
                 evidence_ids=finding.evidence_reference_ids,
             )
         )
