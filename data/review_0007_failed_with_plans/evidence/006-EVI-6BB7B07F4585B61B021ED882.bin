@@ -1,0 +1,147 @@
+[
+  {
+    "source_id": "CFPB-CCD-001",
+    "source_name": "CFPB Consumer Complaint Database",
+    "publisher": "Consumer Financial Protection Bureau",
+    "publisher_type": "U.S. federal consumer financial regulator",
+    "authority_level": "U.S. federal consumer financial regulator",
+    "jurisdiction": "United States",
+    "source_family": "CFPB complaints",
+    "retrieval_method": "official_cfpb_search_api",
+    "retrieval_timestamp": "2026-07-28T23:15:14Z",
+    "update_frequency": "Published by CFPB; update cadence should be confirmed per access method.",
+    "coverage_period": "Depends on retrieved official dataset or query result.",
+    "record_granularity": "Individual consumer complaint record.",
+    "known_limitations": [
+      "Consumer narratives are not independently verified.",
+      "Complaint volume alone does not prove operational failure.",
+      "The dataset is not statistically representative of the full market.",
+      "Complaint volume may reflect company size, consumer awareness, reporting behaviour, or market share.",
+      "Similar complaints do not automatically prove a common root cause.",
+      "Company response status does not independently validate every consumer allegation.",
+      "Records may contain missing or withheld fields.",
+      "Public narratives may be unavailable for some records."
+    ],
+    "verification_constraints": [
+      "CFPB complaint repetition can support a repeated complaint signal.",
+      "CFPB alone cannot independently corroborate the underlying allegation.",
+      "CFPB alone cannot establish a BUILD CANDIDATE verdict.",
+      "Independent source evidence is required for stronger commercial conclusions."
+    ],
+    "independence_constraints": [
+      "Multiple CFPB complaints count as one source family.",
+      "Different CFPB distribution methods do not create source-family independence.",
+      "CFPB complaint records do not independently verify consumer allegations."
+    ],
+    "representativeness_warning": "CFPB complaint records are not a statistically representative market sample.",
+    "data_completeness_warning": "Some CFPB fields may be missing, withheld, amended, or unavailable in public data.",
+    "permitted_uses": [
+      "Discover recurring complaint mechanisms.",
+      "Analyse repeated CFPB complaint signals across companies.",
+      "Generate CFPB-limited findings requiring independent corroboration."
+    ],
+    "prohibited_inferences": [
+      "Do not infer that alleged failures definitely occurred.",
+      "Do not infer market prevalence from complaint volume alone.",
+      "Do not infer that software is the best intervention.",
+      "Do not produce BUILD CANDIDATE from CFPB data alone."
+    ],
+    "reliability_version": "CFPB-SRA-001",
+    "last_reviewed_date": "2026-07-14"
+  },
+  {
+    "source_id": "COURTLISTENER-FCRA-001",
+    "source_name": "CourtListener Federal Court Records (RECAP)",
+    "publisher": "Free Law Project",
+    "publisher_type": "Non-profit publisher of United States court records",
+    "authority_level": "Primary court records republished by a non-profit",
+    "jurisdiction": "United States",
+    "source_family": "Federal court records",
+    "retrieval_method": "courtlistener_search_api",
+    "retrieval_timestamp": "2026-07-28T23:15:17Z",
+    "update_frequency": "Continuously updated from PACER via RECAP contributions.",
+    "coverage_period": "Depends on the retrieved docket set.",
+    "record_granularity": "Individual federal court docket.",
+    "known_limitations": [
+      "A filed complaint states allegations, not established facts.",
+      "A settlement or dismissal is not an admission of liability.",
+      "RECAP coverage depends on documents contributed by users and is incomplete.",
+      "Docket metadata may be amended, sealed, or corrected after retrieval.",
+      "Litigation volume reflects propensity to sue, not only underlying failure rates.",
+      "Represented plaintiffs are not a representative sample of affected consumers.",
+      "Case captions may not identify the operationally responsible party."
+    ],
+    "verification_constraints": [
+      "Repeated statutory causes can support a repeated alleged mechanism.",
+      "Court records alone do not establish that an alleged failure occurred.",
+      "A judgment or documented finding is required before asserting proven failure."
+    ],
+    "independence_constraints": [
+      "Independent of CFPB complaints: different parties, different forum.",
+      "Multiple dockets from one plaintiff firm are weak independent evidence.",
+      "Consolidated or related cases must not be counted as separate events."
+    ],
+    "representativeness_warning": "Federal dockets are not a statistically representative sample of the market.",
+    "data_completeness_warning": "RECAP is a partial mirror of PACER; absence of a case proves nothing.",
+    "permitted_uses": [
+      "Corroborate that an alleged mechanism recurs outside the CFPB.",
+      "Establish a second independent source family.",
+      "Identify companies repeatedly named in the same statutory cause."
+    ],
+    "prohibited_inferences": [
+      "Do not infer that alleged failures definitely occurred.",
+      "Do not treat a settlement as proof of wrongdoing.",
+      "Do not infer market prevalence from case volume alone."
+    ],
+    "reliability_version": "COURTLISTENER-SRA-001",
+    "last_reviewed_date": "2026-07-25"
+  },
+  {
+    "source_id": "FJC-IDB-FCRA-001",
+    "source_name": "FJC Integrated Database (federal civil case outcomes)",
+    "publisher": "Federal Judicial Center, republished by the Free Law Project",
+    "publisher_type": "Research and education agency of the United States federal judiciary",
+    "authority_level": "Official judiciary statistical record of case outcomes",
+    "jurisdiction": "United States",
+    "source_family": "Federal court records",
+    "retrieval_method": "fjc_integrated_database_api",
+    "retrieval_timestamp": "2026-07-28T23:15:18Z",
+    "update_frequency": "Periodic dataset loads, not continuous.",
+    "coverage_period": "Federal civil cases from SY 1970 onward, depending on dataset.",
+    "record_granularity": "Individual federal civil case, with coded disposition and judgment.",
+    "known_limitations": [
+      "Outcome codes are null for pending cases and for cases not yet in a published load.",
+      "Disposition code 6 covers both Rule 12(b)(6) dismissal and Rule 56 summary judgment.",
+      "A settlement is coded as an ending, not as an admission of liability.",
+      "A default judgment records a forfeiture, not a weighed finding.",
+      "Case-level coding does not identify which specific allegation was decided.",
+      "Litigation volume reflects propensity to sue, not underlying failure rates.",
+      "Party names are as filed and may not identify the operationally responsible entity."
+    ],
+    "verification_constraints": [
+      "A merits judgment for the plaintiff establishes that a violation was found.",
+      "Absence of a coded judgment never means a case was decided either way.",
+      "A single case establishes occurrence in that case, never market prevalence."
+    ],
+    "independence_constraints": [
+      "NOT independent of the RECAP court records family; the same courts and cases.",
+      "Must never increase the independent source family count.",
+      "Corroborates only when another family independently alleges the same mechanism."
+    ],
+    "representativeness_warning": "Cases reaching a merits judgment are a small and unrepresentative fraction: most FCRA cases settle.",
+    "data_completeness_warning": "Recent cases carry null outcome codes until a subsequent dataset load.",
+    "permitted_uses": [
+      "Establish that an alleged mechanism was adjudicated against a respondent.",
+      "Supply counter-evidence where a merits judgment favoured the respondent.",
+      "Raise evidentiary standing from ALLEGED to ADJUDICATED."
+    ],
+    "prohibited_inferences": [
+      "Do not treat a settlement or voluntary dismissal as proof of wrongdoing.",
+      "Do not treat a default judgment as a finding on the merits.",
+      "Do not infer market prevalence from adjudicated case counts.",
+      "Do not count this source toward independent source families."
+    ],
+    "reliability_version": "FJC-IDB-SRA-001",
+    "last_reviewed_date": "2026-07-26"
+  }
+]

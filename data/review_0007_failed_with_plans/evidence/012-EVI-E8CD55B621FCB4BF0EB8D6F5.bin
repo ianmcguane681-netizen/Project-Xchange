@@ -1,0 +1,85 @@
+{
+  "run_id": "RUN-C1BEC4A07CED",
+  "study_id": "GS-CF001-C",
+  "code_commit_hash": "c70e61d339d230f28c62fee78036635c2da6fc5a",
+  "configuration_version": "GS-CF001-CONFIG-001",
+  "methodology_version": "PROVENA-EOS-METHOD-001",
+  "rule_versions": {
+    "normalisation": "NORM-CFPB-001",
+    "verification": "VER-CFPB-001",
+    "findings": "FIND-CFPB-001",
+    "opportunity_assessment": "OPP-ASSESS-001",
+    "proof_gates": "PG-001",
+    "evidence_ceiling": "CEILING-001",
+    "ai_governance": "AI-GOV-001"
+  },
+  "ai_model_configuration": "AI disabled; deterministic rules only.",
+  "source_access_method": "official_cfpb_search_api",
+  "retrieval_timestamps": [
+    "2026-07-28T23:15:14Z"
+  ],
+  "input_record_identifiers": [
+    "9999997",
+    "9999996",
+    "9999995",
+    "9999994",
+    "9999989",
+    "9999988"
+  ],
+  "artifact_checksums": {
+    "data/raw/cfpb_credit_reporting_raw_20260728T231514346123Z.json": "341fb57c982c4d0baffabd7fe8f667b44fcb9d6501286f0af4d4ff3986abdbbe",
+    "data/exports/access_diagnostics_20260728T231514346123Z.json": "e3b958d0aea8d054267fa27ee842a187b561f42297cc8f4cb3fc73c208a3f32c",
+    "data/exports/source_reliability_20260728T231514346123Z.json": "3ba7031a6486af92a683d539878fecb690e925aef27e7ddcac4889b29b039e74",
+    "data/exports/analysis_artifacts_20260728T231514346123Z.json": "d339b9e62e3850e63332b3d4600803d7b93ea603b3fe57b81cae41d636b0b8eb",
+    "data/exports/verification_artifacts_20260728T231514346123Z.json": "023d43f7fc1d616c68fc08e4dff5f3d5629b3d383223ab43624e57582a976a85",
+    "data/exports/proof_gate_results_20260728T231514346123Z.json": "7f176a53e6f9eb6a14ae6b4b9819260829f4ef2d6105a9b274f16548d227f577",
+    "data/exports/audit_trail_20260728T231514346123Z.json": "1a172a74ceac4e4053a95d53998faa0996d70a7d6bf1143584ac6b4f8ad9f2f4",
+    "data/exports/normalised_candidates_20260728T231514346123Z.json": "4adca1fbf03afb2c5a12ff0f14d1765ad8ed450dfb3220bf5d02284e54ec922c",
+    "data/exports/findings_20260728T231514346123Z.json": "3685678cbf59ca7655d9a6fdcc0a6b93e2327a0bda6a14a38b35bba369e491d1",
+    "data/exports/opportunities_20260728T231514346123Z.json": "719cbf461421055aa07e49eaf546fa7f965ee839405d6683840742cf343c0de7",
+    "data/exports/mechanism_classifications_20260728T231514346123Z.json": "c076da1fd2308fc8c006ad37df45b4424e0706c3fc8d29ec46b1840c996d04e5",
+    "data/processed/gs_cf001_c_processed_20260728T231514346123Z.json": "191f1704afc76cb1d2652149e544d742401680899b1088fe88d49da169aa88f3",
+    "data/exports/gs_cf001_c_report_20260728T231514346123Z.json": "191f1704afc76cb1d2652149e544d742401680899b1088fe88d49da169aa88f3",
+    "data/exports/gs_cf001_c_report_20260728T231514346123Z.md": "ce517e91b9156d40b65ee2cf3ddfccd032c012ef97e046afcd1f84210c9ce578"
+  },
+  "output_artifact_list": [
+    "data/raw/cfpb_credit_reporting_raw_20260728T231514346123Z.json",
+    "data/exports/access_diagnostics_20260728T231514346123Z.json",
+    "data/exports/source_reliability_20260728T231514346123Z.json",
+    "data/exports/analysis_artifacts_20260728T231514346123Z.json",
+    "data/exports/verification_artifacts_20260728T231514346123Z.json",
+    "data/exports/proof_gate_results_20260728T231514346123Z.json",
+    "data/exports/audit_trail_20260728T231514346123Z.json",
+    "data/exports/normalised_candidates_20260728T231514346123Z.json",
+    "data/exports/findings_20260728T231514346123Z.json",
+    "data/exports/opportunities_20260728T231514346123Z.json",
+    "data/exports/mechanism_classifications_20260728T231514346123Z.json",
+    "data/processed/gs_cf001_c_processed_20260728T231514346123Z.json",
+    "data/exports/gs_cf001_c_report_20260728T231514346123Z.json",
+    "data/exports/gs_cf001_c_report_20260728T231514346123Z.md"
+  ],
+  "final_verdict": "CONTINUE RESEARCH",
+  "evidence_ceiling": "BUILD CANDIDATE",
+  "errors": [],
+  "warnings": [
+    "a buyer who controls a budget stating what they would pay for",
+    "a judgment, consent order, or examination finding resolving the mechanism against a respondent",
+    "adjudicated dispositions decided in a respondent's favour",
+    "budget owner",
+    "comparative assessment of at least one incumbent: strengths, weaknesses or differentiation",
+    "confirmed buyer",
+    "evidence across at least 2 companies",
+    "operational mechanism definition",
+    "procurement context",
+    "repeated mechanism across CFPB records",
+    "software-addressability evidence",
+    "successful repeatable official retrieval"
+  ],
+  "reviewing_authority": {
+    "review_methodology_profile_id": "RBM-001",
+    "architecture_authority": "RBE-001",
+    "assessment_version_recorded_by": "the reviewing board, in its session record and bundle manifest",
+    "binding": "false",
+    "note": "This run declares the review regime that governs it. It does not assert which review session assessed it, or under which version, because neither is knowable when the run is produced."
+  }
+}

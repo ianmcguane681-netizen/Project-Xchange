@@ -1,0 +1,666 @@
+[
+  {
+    "evidence_id": "EVD-717FBD491D6B",
+    "candidate_id": "CAN-384DF7C4ADB0",
+    "study_id": "GS-CF001-C",
+    "source_record_id": "9999997",
+    "company_name": "TRANSUNION INTERMEDIATE HOLDINGS, INC.",
+    "verification_status": "rejected_candidate",
+    "operational": false,
+    "traceable": true,
+    "software_addressable": false,
+    "repeated_signal": true,
+    "independently_corrobored": false,
+    "mechanism": "unclassified_credit_reporting_complaint",
+    "reasoning_chain": [
+      "Operational qualification basis: operational_failure_not_established; matched terms: none.",
+      "Mechanism classified as unclassified_credit_reporting_complaint.",
+      "Traceability is present.",
+      "Software addressability: False (classification input only, not a verification gate).",
+      "Verification does not assess whether software should be built."
+    ],
+    "supporting_candidate_ids": [
+      "CAN-384DF7C4ADB0"
+    ],
+    "missing_evidence": [
+      "operational complaint mechanism",
+      "software-addressable workflow mechanism",
+      "independent non-CFPB corroboration"
+    ],
+    "evidence_state": "VERIFIED_WITHIN_SOURCE",
+    "source_family": "CFPB complaints",
+    "product": "Credit reporting or other personal consumer reports",
+    "issue": "Improper use of your report",
+    "date_received": "2024-09-03T22:42:53.000Z",
+    "source_limitations": [
+      "CFPB consumer narratives are not independently verified.",
+      "CFPB complaint repetition does not prove operational failure.",
+      "CFPB records do not establish market prevalence."
+    ],
+    "alternative_explanations": [
+      "Complaint may reflect misunderstanding, missing documentation, or company-specific handling.",
+      "Repeated complaint terms may reflect CFPB taxonomy rather than a common root cause."
+    ],
+    "state_transitions": [
+      {
+        "transition_id": "TRN-B7730BEAC90F",
+        "evidence_id": "EVD-717FBD491D6B",
+        "previous_state": "EVIDENCE_CANDIDATE",
+        "new_state": "VERIFIED_WITHIN_SOURCE",
+        "rule_or_process": "Verification V1 deterministic classification",
+        "timestamp": "2026-07-28T23:16:17Z",
+        "inputs": [
+          "CAN-384DF7C4ADB0"
+        ],
+        "output": "rejected_candidate",
+        "confidence": 0.35,
+        "limitations": [
+          "CFPB data alone cannot independently corroborate the underlying allegation."
+        ],
+        "actor_type": "deterministic rule"
+      }
+    ],
+    "narrative_available": false,
+    "operational_basis": "operational_failure_not_established",
+    "operational_terms_matched": [],
+    "software_terms_matched": [],
+    "evidentiary_standing": "ALLEGED",
+    "adjudication_posture": "",
+    "adjudication_direction": "",
+    "adjudication_citation": "",
+    "establishes_occurrence": false,
+    "contradicts_occurrence": false
+  },
+  {
+    "evidence_id": "EVD-D880B910483F",
+    "candidate_id": "CAN-F9EE6C0FC8A3",
+    "study_id": "GS-CF001-C",
+    "source_record_id": "9999996",
+    "company_name": "EQUIFAX, INC.",
+    "verification_status": "rejected_candidate",
+    "operational": false,
+    "traceable": true,
+    "software_addressable": false,
+    "repeated_signal": true,
+    "independently_corrobored": false,
+    "mechanism": "unclassified_credit_reporting_complaint",
+    "reasoning_chain": [
+      "Operational qualification basis: operational_failure_not_established; matched terms: none.",
+      "Mechanism classified as unclassified_credit_reporting_complaint.",
+      "Traceability is present.",
+      "Software addressability: False (classification input only, not a verification gate).",
+      "Verification does not assess whether software should be built."
+    ],
+    "supporting_candidate_ids": [
+      "CAN-F9EE6C0FC8A3"
+    ],
+    "missing_evidence": [
+      "operational complaint mechanism",
+      "software-addressable workflow mechanism",
+      "independent non-CFPB corroboration"
+    ],
+    "evidence_state": "VERIFIED_WITHIN_SOURCE",
+    "source_family": "CFPB complaints",
+    "product": "Credit reporting or other personal consumer reports",
+    "issue": "Improper use of your report",
+    "date_received": "2024-09-03T22:42:53.000Z",
+    "source_limitations": [
+      "CFPB consumer narratives are not independently verified.",
+      "CFPB complaint repetition does not prove operational failure.",
+      "CFPB records do not establish market prevalence."
+    ],
+    "alternative_explanations": [
+      "Complaint may reflect misunderstanding, missing documentation, or company-specific handling.",
+      "Repeated complaint terms may reflect CFPB taxonomy rather than a common root cause."
+    ],
+    "state_transitions": [
+      {
+        "transition_id": "TRN-AF1E0F90A394",
+        "evidence_id": "EVD-D880B910483F",
+        "previous_state": "EVIDENCE_CANDIDATE",
+        "new_state": "VERIFIED_WITHIN_SOURCE",
+        "rule_or_process": "Verification V1 deterministic classification",
+        "timestamp": "2026-07-28T23:16:17Z",
+        "inputs": [
+          "CAN-F9EE6C0FC8A3"
+        ],
+        "output": "rejected_candidate",
+        "confidence": 0.35,
+        "limitations": [
+          "CFPB data alone cannot independently corroborate the underlying allegation."
+        ],
+        "actor_type": "deterministic rule"
+      }
+    ],
+    "narrative_available": false,
+    "operational_basis": "operational_failure_not_established",
+    "operational_terms_matched": [],
+    "software_terms_matched": [],
+    "evidentiary_standing": "ALLEGED",
+    "adjudication_posture": "",
+    "adjudication_direction": "",
+    "adjudication_citation": "",
+    "establishes_occurrence": false,
+    "contradicts_occurrence": false
+  },
+  {
+    "evidence_id": "EVD-935EE74E5297",
+    "candidate_id": "CAN-39C10ED8477A",
+    "study_id": "GS-CF001-C",
+    "source_record_id": "9999995",
+    "company_name": "EQUIFAX, INC.",
+    "verification_status": "verified_candidate",
+    "operational": true,
+    "traceable": true,
+    "software_addressable": true,
+    "repeated_signal": true,
+    "independently_corrobored": false,
+    "mechanism": "unclassified_credit_reporting_complaint",
+    "reasoning_chain": [
+      "Operational qualification basis: explicit_cfpb_taxonomy_process_failure; matched terms: investigation into an existing problem, investigation did not fix an error.",
+      "Mechanism classified as unclassified_credit_reporting_complaint.",
+      "Traceability is present.",
+      "Software addressability: True (classification input only, not a verification gate).",
+      "Verification does not assess whether software should be built."
+    ],
+    "supporting_candidate_ids": [
+      "CAN-39C10ED8477A"
+    ],
+    "missing_evidence": [
+      "independent non-CFPB corroboration"
+    ],
+    "evidence_state": "CFPB_LIMITED_EVIDENCE",
+    "source_family": "CFPB complaints",
+    "product": "Credit reporting or other personal consumer reports",
+    "issue": "Problem with a company's investigation into an existing problem",
+    "date_received": "2024-09-03T22:41:36.000Z",
+    "source_limitations": [
+      "CFPB consumer narratives are not independently verified.",
+      "CFPB complaint repetition does not prove operational failure.",
+      "CFPB records do not establish market prevalence."
+    ],
+    "alternative_explanations": [
+      "Complaint may reflect misunderstanding, missing documentation, or company-specific handling.",
+      "Repeated complaint terms may reflect CFPB taxonomy rather than a common root cause."
+    ],
+    "state_transitions": [
+      {
+        "transition_id": "TRN-DA1E8FF60DFC",
+        "evidence_id": "EVD-935EE74E5297",
+        "previous_state": "EVIDENCE_CANDIDATE",
+        "new_state": "CFPB_LIMITED_EVIDENCE",
+        "rule_or_process": "Verification V1 deterministic classification",
+        "timestamp": "2026-07-28T23:16:17Z",
+        "inputs": [
+          "CAN-39C10ED8477A"
+        ],
+        "output": "verified_candidate",
+        "confidence": 0.75,
+        "limitations": [
+          "CFPB data alone cannot independently corroborate the underlying allegation."
+        ],
+        "actor_type": "deterministic rule"
+      }
+    ],
+    "narrative_available": false,
+    "operational_basis": "explicit_cfpb_taxonomy_process_failure",
+    "operational_terms_matched": [
+      "investigation into an existing problem",
+      "investigation did not fix an error"
+    ],
+    "software_terms_matched": [
+      "investigation"
+    ],
+    "evidentiary_standing": "ALLEGED",
+    "adjudication_posture": "",
+    "adjudication_direction": "",
+    "adjudication_citation": "",
+    "establishes_occurrence": false,
+    "contradicts_occurrence": false
+  },
+  {
+    "evidence_id": "EVD-EA1426F27E9C",
+    "candidate_id": "CAN-217C3BAD589F",
+    "study_id": "GS-CF001-C",
+    "source_record_id": "9999994",
+    "company_name": "EQUIFAX, INC.",
+    "verification_status": "rejected_candidate",
+    "operational": false,
+    "traceable": true,
+    "software_addressable": false,
+    "repeated_signal": true,
+    "independently_corrobored": false,
+    "mechanism": "unclassified_credit_reporting_complaint",
+    "reasoning_chain": [
+      "Operational qualification basis: operational_failure_not_established; matched terms: none.",
+      "Mechanism classified as unclassified_credit_reporting_complaint.",
+      "Traceability is present.",
+      "Software addressability: False (classification input only, not a verification gate).",
+      "Verification does not assess whether software should be built."
+    ],
+    "supporting_candidate_ids": [
+      "CAN-217C3BAD589F"
+    ],
+    "missing_evidence": [
+      "operational complaint mechanism",
+      "software-addressable workflow mechanism",
+      "independent non-CFPB corroboration"
+    ],
+    "evidence_state": "VERIFIED_WITHIN_SOURCE",
+    "source_family": "CFPB complaints",
+    "product": "Credit reporting or other personal consumer reports",
+    "issue": "Improper use of your report",
+    "date_received": "2024-09-03T22:37:10.000Z",
+    "source_limitations": [
+      "CFPB consumer narratives are not independently verified.",
+      "CFPB complaint repetition does not prove operational failure.",
+      "CFPB records do not establish market prevalence."
+    ],
+    "alternative_explanations": [
+      "Complaint may reflect misunderstanding, missing documentation, or company-specific handling.",
+      "Repeated complaint terms may reflect CFPB taxonomy rather than a common root cause."
+    ],
+    "state_transitions": [
+      {
+        "transition_id": "TRN-079A7D18C640",
+        "evidence_id": "EVD-EA1426F27E9C",
+        "previous_state": "EVIDENCE_CANDIDATE",
+        "new_state": "VERIFIED_WITHIN_SOURCE",
+        "rule_or_process": "Verification V1 deterministic classification",
+        "timestamp": "2026-07-28T23:16:17Z",
+        "inputs": [
+          "CAN-217C3BAD589F"
+        ],
+        "output": "rejected_candidate",
+        "confidence": 0.35,
+        "limitations": [
+          "CFPB data alone cannot independently corroborate the underlying allegation."
+        ],
+        "actor_type": "deterministic rule"
+      }
+    ],
+    "narrative_available": false,
+    "operational_basis": "operational_failure_not_established",
+    "operational_terms_matched": [],
+    "software_terms_matched": [],
+    "evidentiary_standing": "ALLEGED",
+    "adjudication_posture": "",
+    "adjudication_direction": "",
+    "adjudication_citation": "",
+    "establishes_occurrence": false,
+    "contradicts_occurrence": false
+  },
+  {
+    "evidence_id": "EVD-117888570675",
+    "candidate_id": "CAN-6526986E90DC",
+    "study_id": "GS-CF001-C",
+    "source_record_id": "9999989",
+    "company_name": "Lendmark Financial Services",
+    "verification_status": "rejected_candidate",
+    "operational": false,
+    "traceable": true,
+    "software_addressable": false,
+    "repeated_signal": true,
+    "independently_corrobored": false,
+    "mechanism": "unclassified_credit_reporting_complaint",
+    "reasoning_chain": [
+      "Operational qualification basis: operational_failure_not_established; matched terms: none.",
+      "Mechanism classified as unclassified_credit_reporting_complaint.",
+      "Traceability is present.",
+      "Software addressability: False (classification input only, not a verification gate).",
+      "Verification does not assess whether software should be built."
+    ],
+    "supporting_candidate_ids": [
+      "CAN-6526986E90DC"
+    ],
+    "missing_evidence": [
+      "operational complaint mechanism",
+      "software-addressable workflow mechanism",
+      "independent non-CFPB corroboration"
+    ],
+    "evidence_state": "VERIFIED_WITHIN_SOURCE",
+    "source_family": "CFPB complaints",
+    "product": "Credit reporting or other personal consumer reports",
+    "issue": "Incorrect information on your report",
+    "date_received": "2024-09-03T22:22:09.000Z",
+    "source_limitations": [
+      "CFPB consumer narratives are not independently verified.",
+      "CFPB complaint repetition does not prove operational failure.",
+      "CFPB records do not establish market prevalence."
+    ],
+    "alternative_explanations": [
+      "Complaint may reflect misunderstanding, missing documentation, or company-specific handling.",
+      "Repeated complaint terms may reflect CFPB taxonomy rather than a common root cause."
+    ],
+    "state_transitions": [
+      {
+        "transition_id": "TRN-78D38B0B7A84",
+        "evidence_id": "EVD-117888570675",
+        "previous_state": "EVIDENCE_CANDIDATE",
+        "new_state": "VERIFIED_WITHIN_SOURCE",
+        "rule_or_process": "Verification V1 deterministic classification",
+        "timestamp": "2026-07-28T23:16:17Z",
+        "inputs": [
+          "CAN-6526986E90DC"
+        ],
+        "output": "rejected_candidate",
+        "confidence": 0.35,
+        "limitations": [
+          "CFPB data alone cannot independently corroborate the underlying allegation."
+        ],
+        "actor_type": "deterministic rule"
+      }
+    ],
+    "narrative_available": false,
+    "operational_basis": "operational_failure_not_established",
+    "operational_terms_matched": [],
+    "software_terms_matched": [],
+    "evidentiary_standing": "ALLEGED",
+    "adjudication_posture": "",
+    "adjudication_direction": "",
+    "adjudication_citation": "",
+    "establishes_occurrence": false,
+    "contradicts_occurrence": false
+  },
+  {
+    "evidence_id": "EVD-7C518121A186",
+    "candidate_id": "CAN-7298E2D184C5",
+    "study_id": "GS-CF001-C",
+    "source_record_id": "9999988",
+    "company_name": "EQUIFAX, INC.",
+    "verification_status": "rejected_candidate",
+    "operational": false,
+    "traceable": true,
+    "software_addressable": false,
+    "repeated_signal": true,
+    "independently_corrobored": false,
+    "mechanism": "unclassified_credit_reporting_complaint",
+    "reasoning_chain": [
+      "Operational qualification basis: operational_failure_not_established; matched terms: none.",
+      "Mechanism classified as unclassified_credit_reporting_complaint.",
+      "Traceability is present.",
+      "Software addressability: False (classification input only, not a verification gate).",
+      "Verification does not assess whether software should be built."
+    ],
+    "supporting_candidate_ids": [
+      "CAN-7298E2D184C5"
+    ],
+    "missing_evidence": [
+      "operational complaint mechanism",
+      "software-addressable workflow mechanism",
+      "independent non-CFPB corroboration"
+    ],
+    "evidence_state": "VERIFIED_WITHIN_SOURCE",
+    "source_family": "CFPB complaints",
+    "product": "Credit reporting or other personal consumer reports",
+    "issue": "Incorrect information on your report",
+    "date_received": "2024-09-03T22:34:31.000Z",
+    "source_limitations": [
+      "CFPB consumer narratives are not independently verified.",
+      "CFPB complaint repetition does not prove operational failure.",
+      "CFPB records do not establish market prevalence."
+    ],
+    "alternative_explanations": [
+      "Complaint may reflect misunderstanding, missing documentation, or company-specific handling.",
+      "Repeated complaint terms may reflect CFPB taxonomy rather than a common root cause."
+    ],
+    "state_transitions": [
+      {
+        "transition_id": "TRN-413F91D045C0",
+        "evidence_id": "EVD-7C518121A186",
+        "previous_state": "EVIDENCE_CANDIDATE",
+        "new_state": "VERIFIED_WITHIN_SOURCE",
+        "rule_or_process": "Verification V1 deterministic classification",
+        "timestamp": "2026-07-28T23:16:17Z",
+        "inputs": [
+          "CAN-7298E2D184C5"
+        ],
+        "output": "rejected_candidate",
+        "confidence": 0.35,
+        "limitations": [
+          "CFPB data alone cannot independently corroborate the underlying allegation."
+        ],
+        "actor_type": "deterministic rule"
+      }
+    ],
+    "narrative_available": false,
+    "operational_basis": "operational_failure_not_established",
+    "operational_terms_matched": [],
+    "software_terms_matched": [],
+    "evidentiary_standing": "ALLEGED",
+    "adjudication_posture": "",
+    "adjudication_direction": "",
+    "adjudication_citation": "",
+    "establishes_occurrence": false,
+    "contradicts_occurrence": false
+  },
+  {
+    "evidence_id": "EVD-F3926BCC6222",
+    "candidate_id": "CAN-0490AC42F88C",
+    "study_id": "GS-CF001-C",
+    "source_record_id": "26232596",
+    "company_name": "VIVINT SMART HOME",
+    "verification_status": "rejected_candidate",
+    "operational": false,
+    "traceable": true,
+    "software_addressable": false,
+    "repeated_signal": true,
+    "independently_corrobored": false,
+    "mechanism": "unclassified_credit_reporting_complaint",
+    "reasoning_chain": [
+      "Operational qualification basis: operational_failure_not_established; matched terms: none.",
+      "Mechanism classified as unclassified_credit_reporting_complaint.",
+      "Traceability is present.",
+      "Software addressability: False (classification input only, not a verification gate).",
+      "Verification does not assess whether software should be built."
+    ],
+    "supporting_candidate_ids": [
+      "CAN-0490AC42F88C"
+    ],
+    "missing_evidence": [
+      "operational complaint mechanism",
+      "software-addressable workflow mechanism",
+      "independent non-CFPB corroboration"
+    ],
+    "evidence_state": "VERIFIED_WITHIN_SOURCE",
+    "source_family": "Federal court records",
+    "product": "Credit reporting or other personal consumer reports",
+    "issue": "Adjudicated Fair Credit Reporting Act claim",
+    "date_received": "2021-05-03",
+    "source_limitations": [
+      "CFPB consumer narratives are not independently verified.",
+      "CFPB complaint repetition does not prove operational failure.",
+      "CFPB records do not establish market prevalence."
+    ],
+    "alternative_explanations": [
+      "Complaint may reflect misunderstanding, missing documentation, or company-specific handling.",
+      "Repeated complaint terms may reflect CFPB taxonomy rather than a common root cause."
+    ],
+    "state_transitions": [
+      {
+        "transition_id": "TRN-ECD2203DDC5C",
+        "evidence_id": "EVD-F3926BCC6222",
+        "previous_state": "EVIDENCE_CANDIDATE",
+        "new_state": "VERIFIED_WITHIN_SOURCE",
+        "rule_or_process": "Verification V1 deterministic classification",
+        "timestamp": "2026-07-28T23:16:17Z",
+        "inputs": [
+          "CAN-0490AC42F88C"
+        ],
+        "output": "rejected_candidate",
+        "confidence": 0.35,
+        "limitations": [
+          "CFPB data alone cannot independently corroborate the underlying allegation."
+        ],
+        "actor_type": "deterministic rule"
+      }
+    ],
+    "narrative_available": false,
+    "operational_basis": "operational_failure_not_established",
+    "operational_terms_matched": [],
+    "software_terms_matched": [],
+    "evidentiary_standing": "ADJUDICATED",
+    "adjudication_posture": "CONSENT_ORDER",
+    "adjudication_direction": "AGAINST_RESPONDENT",
+    "adjudication_citation": "2:21-cv-00267",
+    "establishes_occurrence": false,
+    "contradicts_occurrence": false
+  },
+  {
+    "evidence_id": "EVD-D5F81E4B9C3B",
+    "candidate_id": "CAN-50152865A955",
+    "study_id": "GS-CF001-C",
+    "source_record_id": "26114731",
+    "company_name": "DEVILLE ASSET MANAGEMEN, ET AL",
+    "verification_status": "rejected_candidate",
+    "operational": false,
+    "traceable": true,
+    "software_addressable": false,
+    "repeated_signal": true,
+    "independently_corrobored": false,
+    "mechanism": "unclassified_credit_reporting_complaint",
+    "reasoning_chain": [
+      "Operational qualification basis: operational_failure_not_established; matched terms: none.",
+      "Mechanism classified as unclassified_credit_reporting_complaint.",
+      "Traceability is present.",
+      "Software addressability: False (classification input only, not a verification gate).",
+      "Verification does not assess whether software should be built."
+    ],
+    "supporting_candidate_ids": [
+      "CAN-50152865A955"
+    ],
+    "missing_evidence": [
+      "operational complaint mechanism",
+      "software-addressable workflow mechanism",
+      "independent non-CFPB corroboration"
+    ],
+    "evidence_state": "VERIFIED_WITHIN_SOURCE",
+    "source_family": "Federal court records",
+    "product": "Credit reporting or other personal consumer reports",
+    "issue": "Adjudicated Fair Credit Reporting Act claim",
+    "date_received": "2020-12-11",
+    "source_limitations": [
+      "CFPB consumer narratives are not independently verified.",
+      "CFPB complaint repetition does not prove operational failure.",
+      "CFPB records do not establish market prevalence."
+    ],
+    "alternative_explanations": [
+      "Complaint may reflect misunderstanding, missing documentation, or company-specific handling.",
+      "Repeated complaint terms may reflect CFPB taxonomy rather than a common root cause."
+    ],
+    "state_transitions": [
+      {
+        "transition_id": "TRN-0A4AA149EBDB",
+        "evidence_id": "EVD-D5F81E4B9C3B",
+        "previous_state": "EVIDENCE_CANDIDATE",
+        "new_state": "VERIFIED_WITHIN_SOURCE",
+        "rule_or_process": "Verification V1 deterministic classification",
+        "timestamp": "2026-07-28T23:16:17Z",
+        "inputs": [
+          "CAN-50152865A955"
+        ],
+        "output": "rejected_candidate",
+        "confidence": 0.35,
+        "limitations": [
+          "CFPB data alone cannot independently corroborate the underlying allegation."
+        ],
+        "actor_type": "deterministic rule"
+      }
+    ],
+    "narrative_available": false,
+    "operational_basis": "operational_failure_not_established",
+    "operational_terms_matched": [],
+    "software_terms_matched": [],
+    "evidentiary_standing": "ADJUDICATED",
+    "adjudication_posture": "SUMMARY_JUDGMENT",
+    "adjudication_direction": "AGAINST_RESPONDENT",
+    "adjudication_citation": "4:20-cv-03316",
+    "establishes_occurrence": false,
+    "contradicts_occurrence": false
+  },
+  {
+    "evidence_id": "EVD-B570173FB31A",
+    "candidate_id": "CAN-D9056222BA47",
+    "study_id": "GS-CF001-C",
+    "source_record_id": "25925458",
+    "company_name": "AVANT, LLC",
+    "verification_status": "verified_candidate",
+    "operational": true,
+    "traceable": true,
+    "software_addressable": true,
+    "repeated_signal": false,
+    "independently_corrobored": false,
+    "mechanism": "dispute_supporting_evidence_rejection",
+    "reasoning_chain": [
+      "Operational qualification basis: consumer_narrative_process_and_failure; matched terms: contacted, did not, documentation, documents, failed, not considered, refused, rejected, requested, response.",
+      "Mechanism classified as dispute_supporting_evidence_rejection.",
+      "Traceability is present.",
+      "Software addressability: True (classification input only, not a verification gate).",
+      "Verification does not assess whether software should be built."
+    ],
+    "supporting_candidate_ids": [
+      "CAN-D9056222BA47"
+    ],
+    "missing_evidence": [
+      "independent complaint repetition",
+      "independent non-CFPB corroboration"
+    ],
+    "evidence_state": "VERIFIED_WITHIN_SOURCE",
+    "source_family": "Federal court records",
+    "product": "Credit reporting or other personal consumer reports",
+    "issue": "Adjudicated Fair Credit Reporting Act claim",
+    "date_received": "2019-05-17",
+    "source_limitations": [
+      "CFPB consumer narratives are not independently verified.",
+      "CFPB complaint repetition does not prove operational failure.",
+      "CFPB records do not establish market prevalence."
+    ],
+    "alternative_explanations": [
+      "Complaint may reflect misunderstanding, missing documentation, or company-specific handling.",
+      "Repeated complaint terms may reflect CFPB taxonomy rather than a common root cause."
+    ],
+    "state_transitions": [
+      {
+        "transition_id": "TRN-94E46D17FA37",
+        "evidence_id": "EVD-B570173FB31A",
+        "previous_state": "EVIDENCE_CANDIDATE",
+        "new_state": "VERIFIED_WITHIN_SOURCE",
+        "rule_or_process": "Verification V1 deterministic classification",
+        "timestamp": "2026-07-28T23:16:17Z",
+        "inputs": [
+          "CAN-D9056222BA47"
+        ],
+        "output": "verified_candidate",
+        "confidence": 0.75,
+        "limitations": [
+          "CFPB data alone cannot independently corroborate the underlying allegation."
+        ],
+        "actor_type": "deterministic rule"
+      }
+    ],
+    "narrative_available": true,
+    "operational_basis": "consumer_narrative_process_and_failure",
+    "operational_terms_matched": [
+      "contacted",
+      "did not",
+      "documentation",
+      "documents",
+      "failed",
+      "not considered",
+      "refused",
+      "rejected",
+      "requested",
+      "response"
+    ],
+    "software_terms_matched": [
+      "document",
+      "response"
+    ],
+    "evidentiary_standing": "ADJUDICATED",
+    "adjudication_posture": "CONSENT_ORDER",
+    "adjudication_direction": "AGAINST_RESPONDENT",
+    "adjudication_citation": "1:19-cv-02517",
+    "establishes_occurrence": false,
+    "contradicts_occurrence": false
+  }
+]
