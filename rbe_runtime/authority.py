@@ -1,4 +1,10 @@
-"""Load and verify authoritative RBE and RBM packages."""
+"""Load and verify authoritative RBE and RBM packages.
+
+The loader used to know one profile by hardcoded path. It now resolves a profile from
+the registry in `controlled_authority.profiles`, so a review is conducted under a named
+methodology rather than under whichever one happened to be on disk. The architecture
+package (RBE-001) is not parameterised: profiles map onto it, they do not replace it.
+"""
 
 from __future__ import annotations
 
@@ -7,9 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from controlled_authority.profiles import PackageSpec
+from controlled_authority.profiles import get as get_profile_spec
 from controlled_authority.rbe_package import check as validate_rbe_package
 from controlled_authority.rbm_package import validate_package as validate_rbm_package
-from rbe_runtime.constants import RBE_RELEASE, RBM_PROFILE_ID, RBM_PROFILE_VERSION
+from rbe_runtime.constants import RBE_RELEASE
 from rbe_runtime.errors import RBEError
 from rbe_runtime.models import ExecutionMode
 
@@ -35,9 +43,17 @@ class AuthorityBundle:
     profile_manifest: dict[str, Any]
     reviewer_specs: dict[str, Path]
     schemas: dict[str, Path]
+    spec: PackageSpec
+
+    @property
+    def profile_id(self) -> str:
+        return self.spec.profile_id
 
     @classmethod
-    def load(cls, repo_root: str | Path | None = None) -> "AuthorityBundle":
+    def load(
+        cls, repo_root: str | Path | None = None, *, profile_id: str | None = None
+    ) -> "AuthorityBundle":
+        spec = get_profile_spec(profile_id)
         canonical_root = Path(__file__).resolve().parents[1]
         root = Path(repo_root).resolve() if repo_root else canonical_root
         # validate_rbe_package/validate_rbm_package derive their own package roots
@@ -53,7 +69,7 @@ class AuthorityBundle:
             )
         try:
             validate_rbe_package()
-            validate_rbm_package()
+            validate_rbm_package(spec)
         except Exception as exc:
             raise RBEError(
                 "RBE_AUTHORITY_PACKAGE_INVALID",
@@ -63,7 +79,7 @@ class AuthorityBundle:
             ) from exc
 
         rbe_root = root / "docs" / "rbe-001" / "v1.1.0"
-        rbm_root = root / "docs" / "review-board"
+        rbm_root = spec.package_root
         state_machine = json.loads(
             (rbe_root / "registers" / "state_machine.json").read_text(
                 encoding="utf-8"
@@ -95,6 +111,7 @@ class AuthorityBundle:
             profile_manifest=profile_manifest,
             reviewer_specs=reviewer_specs,
             schemas=schemas,
+            spec=spec,
         )
         bundle.validate_identity()
         return bundle
@@ -106,12 +123,13 @@ class AuthorityBundle:
                 "State-machine release does not match the runtime authority",
                 "RBE-ES-LIF-001",
             )
-        if self.profile.get("profile_id") != RBM_PROFILE_ID or self.profile.get(
+        if self.profile.get("profile_id") != self.spec.profile_id or self.profile.get(
             "version"
-        ) != RBM_PROFILE_VERSION:
+        ) != self.spec.profile_version:
             raise RBEError(
                 "RBE_PROFILE_IDENTITY_MISMATCH",
-                "The loaded methodology is not RBM-001 v2.0.0",
+                f"The loaded methodology is not {self.spec.profile_id} "
+                f"v{self.spec.profile_version}",
                 "RBE-ES-DEC-002",
             )
         minimum = self.profile.get("architecture_authority", {}).get(
@@ -124,11 +142,23 @@ class AuthorityBundle:
                 "RBE-ES-DEC-002",
                 {"minimum": minimum, "loaded": RBE_RELEASE},
             )
-        if len(self.reviewer_specs) != 8 or len(self.schemas) != 7:
+        # Counts come from the registry, not from what the directory happens to hold.
+        # A validator that derives its expectation from what it finds cannot detect a
+        # missing file -- it would simply expect one fewer.
+        if len(self.reviewer_specs) != self.spec.reviewer_spec_count or len(
+            self.schemas
+        ) != len(self.spec.schema_files):
             raise RBEError(
                 "RBE_PROFILE_INCOMPLETE",
-                "RBM reviewer specifications or schemas are incomplete",
+                "Reviewer specifications or schemas are incomplete for this profile",
                 "RBE-ES-DEC-002",
+                {
+                    "profile_id": self.spec.profile_id,
+                    "reviewer_specs": len(self.reviewer_specs),
+                    "expected_reviewer_specs": self.spec.reviewer_spec_count,
+                    "schemas": len(self.schemas),
+                    "expected_schemas": len(self.spec.schema_files),
+                },
             )
 
     def require_execution_mode(self, mode: ExecutionMode) -> None:

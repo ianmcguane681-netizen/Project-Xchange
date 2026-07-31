@@ -1,4 +1,15 @@
-"""Build and validate the controlled RBM-001 methodology profile package."""
+"""Build and validate a controlled methodology profile package.
+
+Originally this validated exactly one package, RBM-001, with its identity and location
+as module constants. Every function now takes a `PackageSpec` describing which package
+it is working on, defaulting to RBM-001 so existing callers are unchanged.
+
+What did *not* move into the spec matters as much as what did. The canonical RBE
+lifecycle states, the four permitted outcomes, the four process statuses and the
+decision matrix are architecture: they are RBE-001's, and a methodology profile maps
+onto them rather than replacing them. A profile that could redefine its own outcome
+vocabulary could also decide what "FAIL" means.
+"""
 
 from __future__ import annotations
 
@@ -8,16 +19,24 @@ import json
 from pathlib import Path
 from typing import Any
 
+from controlled_authority.profiles import PackageSpec
+from controlled_authority.profiles import get as get_profile_spec
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PACKAGE_ROOT = REPO_ROOT / "docs" / "review-board"
-PROFILE_PATH = PACKAGE_ROOT / "PROFILE.json"
-MANIFEST_PATH = PACKAGE_ROOT / "MANIFEST.json"
-SCHEMA_ROOT = PACKAGE_ROOT / "schemas"
 CONTROLLED_TEXT_SUFFIXES = {".json", ".md"}
 
-PROFILE_ID = "RBM-001"
-PROFILE_VERSION = "2.2.0"
+# Retained as module-level names because scripts and tests refer to them, and because
+# RBM-001 remains the default package. They are now derived from the registry rather
+# than being the only statement of it.
+_DEFAULT_SPEC = get_profile_spec()
+PACKAGE_ROOT = _DEFAULT_SPEC.package_root
+PROFILE_PATH = _DEFAULT_SPEC.profile_path
+MANIFEST_PATH = _DEFAULT_SPEC.manifest_path
+SCHEMA_ROOT = _DEFAULT_SPEC.schema_root
+PROFILE_ID = _DEFAULT_SPEC.profile_id
+PROFILE_VERSION = _DEFAULT_SPEC.profile_version
+
 PROCESS_STATUSES = {"READY", "PROCEDURALLY_INCOMPLETE", "BLOCKED", "VOID"}
 OUTCOMES = {"PASS", "PASS_WITH_FINDINGS", "FAIL", "INSUFFICIENT_EVIDENCE"}
 CANONICAL_RBE_STATES = {
@@ -46,25 +65,17 @@ CANONICAL_RBE_STATES = {
     "VOID",
     "WITHDRAWN",
 }
-SCHEMA_FILES = {
-    "tpl-rir.schema.json",
-    "tpl-fnd.schema.json",
-    "tpl-rrr.schema.json",
-    "tpl-bdr.schema.json",
-    "tpl-rmp.schema.json",
-    "tpl-mri.schema.json",
-    "tpl-cor.schema.json",
-}
+SCHEMA_FILES = set(_DEFAULT_SPEC.schema_files)
 
 
 class PackageValidationError(ValueError):
-    """Raised when the RBM-001 package is stale or internally inconsistent."""
+    """Raised when a controlled package is stale or internally inconsistent."""
 
 
-def package_path_sort_key(path: Path) -> tuple[str, str]:
+def package_path_sort_key(path: Path, spec: PackageSpec | None = None) -> tuple[str, str]:
     """Match the controlled package's canonical case-insensitive path order."""
 
-    relative = path.relative_to(PACKAGE_ROOT).as_posix()
+    relative = path.relative_to((spec or _DEFAULT_SPEC).package_root).as_posix()
     return relative.casefold(), relative
 
 
@@ -97,39 +108,41 @@ def calculate_profile_checksum(profile: dict[str, Any]) -> str:
     return f"sha256:{sha256_bytes(canonical_json(payload))}"
 
 
-def controlled_files() -> list[Path]:
+def controlled_files(spec: PackageSpec | None = None) -> list[Path]:
+    spec = spec or _DEFAULT_SPEC
     return sorted(
         (
             path
-            for path in PACKAGE_ROOT.rglob("*")
-            if path.is_file() and path != MANIFEST_PATH
+            for path in spec.package_root.rglob("*")
+            if path.is_file() and path != spec.manifest_path
         ),
-        key=package_path_sort_key,
+        key=lambda path: package_path_sort_key(path, spec),
     )
 
 
-def build_manifest() -> dict[str, Any]:
+def build_manifest(spec: PackageSpec | None = None) -> dict[str, Any]:
+    spec = spec or _DEFAULT_SPEC
     files = [
         {
-            "path": path.relative_to(PACKAGE_ROOT).as_posix(),
+            "path": path.relative_to(spec.package_root).as_posix(),
             "sha256": sha256_bytes(path.read_bytes()),
             "size": path.stat().st_size,
         }
-        for path in controlled_files()
+        for path in controlled_files(spec)
     ]
     return {
         "schema_version": "1.0.0",
-        "package_id": PROFILE_ID,
-        "package_version": PROFILE_VERSION,
+        "package_id": spec.profile_id,
+        "package_version": spec.profile_version,
         "files": files,
         "root_sha256": f"sha256:{sha256_bytes(canonical_json(files))}",
     }
 
 
-def normalize_controlled_text_files() -> None:
+def normalize_controlled_text_files(spec: PackageSpec | None = None) -> None:
     """Write controlled text with canonical LF endings before hashing it."""
 
-    for path in controlled_files():
+    for path in controlled_files(spec):
         if path.suffix.lower() not in CONTROLLED_TEXT_SUFFIXES:
             continue
         raw = path.read_bytes()
@@ -138,28 +151,30 @@ def normalize_controlled_text_files() -> None:
             path.write_bytes(normalized)
 
 
-def _validate_controlled_line_endings() -> None:
+def _validate_controlled_line_endings(spec: PackageSpec | None = None) -> None:
+    spec = spec or _DEFAULT_SPEC
     invalid = []
-    for path in [*controlled_files(), MANIFEST_PATH]:
+    for path in [*controlled_files(spec), spec.manifest_path]:
         if path.suffix.lower() in CONTROLLED_TEXT_SUFFIXES and b"\r" in path.read_bytes():
-            invalid.append(path.relative_to(PACKAGE_ROOT).as_posix())
+            invalid.append(path.relative_to(spec.package_root).as_posix())
     if invalid:
         raise PackageValidationError(
             f"Controlled text must use canonical LF endings: {sorted(invalid)}"
         )
 
 
-def write_control_files() -> None:
-    normalize_controlled_text_files()
-    profile = load_json(PROFILE_PATH)
+def write_control_files(spec: PackageSpec | None = None) -> None:
+    spec = spec or _DEFAULT_SPEC
+    normalize_controlled_text_files(spec)
+    profile = load_json(spec.profile_path)
     profile["checksum"] = calculate_profile_checksum(profile)
-    PROFILE_PATH.write_text(
+    spec.profile_path.write_text(
         json.dumps(profile, indent=2, ensure_ascii=True) + "\n",
         encoding="utf-8",
         newline="\n",
     )
-    manifest = build_manifest()
-    MANIFEST_PATH.write_text(
+    manifest = build_manifest(spec)
+    spec.manifest_path.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=True) + "\n",
         encoding="utf-8",
         newline="\n",
@@ -474,10 +489,13 @@ def _validate_agent_seat_policy(profile: dict[str, Any]) -> None:
         )
 
 
-def _validate_profile(profile: dict[str, Any]) -> None:
-    if profile.get("profile_id") != PROFILE_ID:
+def _validate_profile(profile: dict[str, Any], spec: PackageSpec | None = None) -> None:
+    spec = spec or _DEFAULT_SPEC
+    # Checked against the registry, never against the profile's own claim: a package
+    # that decided its own identity would always agree with itself.
+    if profile.get("profile_id") != spec.profile_id:
         raise PackageValidationError("Profile ID mismatch")
-    if profile.get("version") != PROFILE_VERSION:
+    if profile.get("version") != spec.profile_version:
         raise PackageValidationError("Profile version mismatch")
     if profile.get("checksum") != calculate_profile_checksum(profile):
         raise PackageValidationError("Profile checksum mismatch")
@@ -527,17 +545,19 @@ def _validate_profile(profile: dict[str, Any]) -> None:
         raise PackageValidationError("Canonical lifecycle mapping is incomplete")
 
 
-def _validate_schemas() -> None:
-    actual = {path.name for path in SCHEMA_ROOT.glob("*.schema.json")}
-    if actual != SCHEMA_FILES:
+def _validate_schemas(spec: PackageSpec | None = None) -> None:
+    spec = spec or _DEFAULT_SPEC
+    expected = set(spec.schema_files)
+    actual = {path.name for path in spec.schema_root.glob("*.schema.json")}
+    if actual != expected:
         raise PackageValidationError(
-            f"Schema set mismatch: expected {sorted(SCHEMA_FILES)}, got {sorted(actual)}"
+            f"Schema set mismatch: expected {sorted(expected)}, got {sorted(actual)}"
         )
-    for name in sorted(SCHEMA_FILES):
-        schema = load_json(SCHEMA_ROOT / name)
+    for name in sorted(expected):
+        schema = load_json(spec.schema_root / name)
         if schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
             raise PackageValidationError(f"Wrong JSON Schema draft: {name}")
-        if not str(schema.get("$id", "")).endswith(f"/{PROFILE_VERSION}"):
+        if not str(schema.get("$id", "")).endswith(f"/{spec.profile_version}"):
             raise PackageValidationError(f"Wrong schema version: {name}")
         if schema.get("type") != "object":
             raise PackageValidationError(f"Schema root must be an object: {name}")
@@ -559,41 +579,42 @@ def _validate_schemas() -> None:
                 raise PackageValidationError(f"Merge guard missing from schema: {name}")
 
 
-def _validate_documents() -> None:
-    methodology = (PACKAGE_ROOT / "REVIEW-BOARD-METHODOLOGY.md").read_text(
+def _validate_documents(spec: PackageSpec | None = None) -> None:
+    spec = spec or _DEFAULT_SPEC
+    methodology = (spec.package_root / spec.methodology_document).read_text(
         encoding="utf-8"
     )
     required_methodology_terms = {
-        f"**Version:** {PROFILE_VERSION}",
-        "## 10. Process Status and Decision Framework",
-        "`INSUFFICIENT_EVIDENCE`",
-        "`PROCEDURALLY_INCOMPLETE`",
-        "### 6B. Canonical RBE Lifecycle Mapping",
-        "### 16.2 Activation Gate",
-        "Decision Finalisation and Publication Separation",
+        f"**Version:** {spec.profile_version}",
+        *spec.methodology_terms,
     }
     missing = sorted(term for term in required_methodology_terms if term not in methodology)
     if missing:
         raise PackageValidationError(f"Methodology terms missing: {missing}")
 
-    specs = sorted(
-        (PACKAGE_ROOT / "specs").glob("RBS-*.md"),
-        key=package_path_sort_key,
+    reviewer_specs = sorted(
+        spec.spec_root.glob("RBS-*.md"),
+        key=lambda path: package_path_sort_key(path, spec),
     )
-    if len(specs) != 8:
-        raise PackageValidationError("Expected exactly eight reviewer specifications")
-    for spec in specs:
-        text = spec.read_text(encoding="utf-8")
+    if len(reviewer_specs) != spec.reviewer_spec_count:
+        raise PackageValidationError(
+            f"Expected exactly {spec.reviewer_spec_count} reviewer specifications, "
+            f"found {len(reviewer_specs)}"
+        )
+    for reviewer_spec in reviewer_specs:
+        text = reviewer_spec.read_text(encoding="utf-8")
+        # These five controls are not RBM-001's; they are what makes any reviewer
+        # specification safe to act on. A profile cannot opt out of them.
         required = {
-            f"**Version:** {PROFILE_VERSION}",
-            f"**Governing Methodology:** RBM-001 v{PROFILE_VERSION}",
+            f"**Version:** {spec.profile_version}",
+            f"**Governing Methodology:** {spec.profile_id} v{spec.profile_version}",
             "## 10. Board Decision Contribution",
             "non-authoritative AI assistant",
             "unsigned draft",
         }
         absent = sorted(term for term in required if term not in text)
         if absent:
-            raise PackageValidationError(f"{spec.name} missing controls: {absent}")
+            raise PackageValidationError(f"{reviewer_spec.name} missing controls: {absent}")
 
 
 def _validate_decision_coverage() -> None:
@@ -623,14 +644,18 @@ def _validate_decision_coverage() -> None:
         raise PackageValidationError("Decision matrix does not reach every permitted result")
 
 
-def validate_package() -> None:
-    _validate_controlled_line_endings()
-    profile = load_json(PROFILE_PATH)
-    _validate_profile(profile)
-    _validate_schemas()
-    _validate_documents()
+def validate_package(spec: PackageSpec | None = None) -> None:
+    spec = spec or _DEFAULT_SPEC
+    _validate_controlled_line_endings(spec)
+    profile = load_json(spec.profile_path)
+    _validate_profile(profile, spec)
+    _validate_schemas(spec)
+    _validate_documents(spec)
+    # Not parameterised, deliberately. The decision matrix is RBE architecture, so
+    # every profile is checked against the same one -- a profile that could supply its
+    # own would be marking its own homework.
     _validate_decision_coverage()
-    expected_manifest = build_manifest()
-    actual_manifest = load_json(MANIFEST_PATH)
+    expected_manifest = build_manifest(spec)
+    actual_manifest = load_json(spec.manifest_path)
     if actual_manifest != expected_manifest:
         raise PackageValidationError("Package manifest is stale or invalid")

@@ -13,6 +13,7 @@ authority attests to the process rather than choosing the result.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 from pathlib import Path
 
@@ -125,15 +126,10 @@ def test_single_authority_is_refused_under_a_binding_methodology(tmp_path: Path)
     binding["status"] = "ACTIVE"
     binding["binding"] = True
     runtime = RBERuntime(tmp_path / "binding.sqlite3", clock=lambda: NOW)
-    runtime.authority = type(authority)(
-        repo_root=authority.repo_root,
-        state_machine=authority.state_machine,
-        verdict_taxonomy=authority.verdict_taxonomy,
-        profile=binding,
-        profile_manifest=authority.profile_manifest,
-        reviewer_specs=authority.reviewer_specs,
-        schemas=authority.schemas,
-    )
+    # `replace` rather than a field-by-field rebuild: the bundle gained a `spec` field
+    # when the runtime learned to carry more than one profile, and a test that
+    # enumerates fields has to be edited every time one is added.
+    runtime.authority = dataclasses.replace(authority, profile=binding)
 
     with pytest.raises(RBEError) as exc:
         runtime._require_single_authority_permitted(
