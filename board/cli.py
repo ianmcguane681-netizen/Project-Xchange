@@ -31,6 +31,7 @@ from board.seats import (
     require_independent_seats,
     shared_model_note,
 )
+from rbe_runtime.authority import AuthorityBundle
 from rbe_runtime.errors import RBEError
 from rbe_runtime.service import RBERuntime
 
@@ -38,7 +39,17 @@ DEFAULT_DB = Path("data/review_board.sqlite3")
 
 
 def _runtime(args: argparse.Namespace) -> RBERuntime:
-    return RBERuntime(args.database)
+    """Open the review store under the named methodology profile.
+
+    The profile is a per-invocation choice rather than a stored one, so every command
+    in a review must name the same profile. That is deliberate: a review half-conducted
+    under research rules and half under engineering rules would be neither, and
+    silently defaulting the second half is exactly how that happens.
+    """
+
+    profile_id = getattr(args, "profile", None)
+    authority = AuthorityBundle.load(profile_id=profile_id) if profile_id else None
+    return RBERuntime(args.database, authority=authority)
 
 
 def _load(path: str) -> Any:
@@ -99,6 +110,88 @@ def cmd_evidence(args: argparse.Namespace) -> int:
     print(f"Registered {len(result.reference_ids)} file(s) from {bundle.study_id} run {bundle.run_id}.")
     print(f"  bundle root hash: {bundle.bundle_root_hash}")
     print(f"  code commit:      {bundle.code_commit_hash}")
+    _print_next("board advance --to EVIDENCE_LOCKED, then ASSIGNMENT")
+    return 0
+
+
+def cmd_commit_evidence(args: argparse.Namespace) -> int:
+    """Register source files at a named commit as the material under review.
+
+    An engineering review's artefact is a `GIT_COMMIT`, which is where engineering
+    review is easier than research review rather than harder: the thing under review is
+    exactly identified, immutable, and independently retrievable by anyone with the
+    repository.
+
+    Files are read with `git show <commit>:<path>` rather than from the working tree.
+    Reviewing the checkout would review whatever happened to be on disk, and the commit
+    named in the record would be decoration.
+    """
+
+    import subprocess
+
+    runtime = _runtime(args)
+    repo = Path(args.repo).resolve()
+
+    def _git(*command: str) -> bytes:
+        result = subprocess.run(
+            ["git", "-C", str(repo), *command], capture_output=True, check=False
+        )
+        if result.returncode != 0:
+            raise RBEError(
+                "RBE_EVIDENCE_INCOMPLETE",
+                f"git {' '.join(command)} failed: {result.stderr.decode().strip()}",
+                "RBE-ES-ORC-007",
+            )
+        return result.stdout
+
+    resolved = _git("rev-parse", args.commit).decode().strip()
+    print(f"Artefact commit {resolved}")
+
+    registered = 0
+    for path in args.path:
+        content = _git("show", f"{resolved}:{path}")
+        runtime.register_evidence(
+            args.review,
+            locator=f"{args.repo}@{resolved}:{path}",
+            content=content,
+            description=f"{path} at commit {resolved[:12]}",
+            source_tier="T2",
+            provenance={
+                "kind": "GIT_COMMIT",
+                "repository": args.repo,
+                "commit": resolved,
+                "path": path,
+                "retrieved_by": "git show",
+            },
+            actor=args.actor,
+            idempotency_key=f"commit-{resolved[:12]}-{path}",
+        )
+        registered += 1
+        print(f"  T2  {path} ({len(content)} bytes)")
+
+    if args.test_log:
+        log = Path(args.test_log).read_bytes()
+        runtime.register_evidence(
+            args.review,
+            locator=f"{args.repo}@{resolved}:test-run",
+            content=log,
+            description=f"Recorded test run at commit {resolved[:12]}",
+            source_tier="T1",
+            # T1 because it is a command and its output, not a description of one.
+            # EG-06 exists because a quoted test count is a claim, not a measurement.
+            provenance={
+                "kind": "TEST_RUN",
+                "repository": args.repo,
+                "commit": resolved,
+                "command": args.test_command or "unrecorded",
+            },
+            actor=args.actor,
+            idempotency_key=f"commit-{resolved[:12]}-testrun",
+        )
+        registered += 1
+        print(f"  T1  test run ({len(log)} bytes)")
+
+    print(f"\nRegistered {registered} item(s) of evidence.")
     _print_next("board advance --to EVIDENCE_LOCKED, then ASSIGNMENT")
     return 0
 
@@ -231,6 +324,54 @@ def cmd_remediate(args: argparse.Namespace) -> int:
     for item in payload.get("items", ()):  # echo what was answered, worst first
         print(f"  {item['finding_id']:<18} -> {item['planned_changes'][:56]}")
     _print_next("board challenges to see the sheets, then board decide")
+    return 0
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """Record that a named human read an agent seat's draft and verified it.
+
+    The runtime refuses an AI-assisted report until `human_verified` is true. That is
+    the control, not an obstacle: an agent seat produces an unsigned draft, and a draft
+    becomes reviewable material only when a person takes responsibility for it.
+
+    So this is a separate command run by that person, rather than a field the drafting
+    process fills in for itself. The distinction is the whole of EG-04, and this
+    repository has already broken it once -- a demonstration run recorded a named human
+    as the transcriber of a figure the automation had read, and committed it.
+
+    This command writes only to the draft file. Nothing is submitted to the review
+    store here, so verifying is reversible until the report is filed.
+    """
+
+    from rbe_runtime.profile import is_agent_actor
+
+    if is_agent_actor(args.by):
+        raise RBEError(
+            "RBE_AI_REPORT_UNVERIFIED",
+            "An agent cannot verify agent-drafted material; that is not a second pair of eyes",
+            "RBE-ES-FUT-002",
+            {"by": args.by},
+        )
+
+    path = Path(args.report)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    role = payload["reviewer_role"]
+
+    print(f"Verifying {role} draft as {args.by}:")
+    print(f"  summary: {payload['summary']}")
+    for item in payload.get("findings", ()):
+        print(f"  {item['severity']:6} {item['finding_id']:16} {item['title']}")
+    if not payload.get("findings"):
+        print("  (no findings)")
+
+    payload["report"]["ai_assistance"]["human_verified"] = True
+    payload["report"]["human_signature_ref"] = f"SIG-VERIFY-{role}-{args.by}"
+    for item in payload.get("findings", ()):
+        item["ai_assistance"]["human_verified"] = True
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    print(f"\nRecorded: {args.by} verified {len(payload.get('findings', ()))} finding(s) for {role}.")
+    _print_next(f"board report --review <id> --report {args.report}")
     return 0
 
 
@@ -371,6 +512,13 @@ def build_parser() -> argparse.ArgumentParser:
         prog="board", description="Convene and run a Review Board session."
     )
     parser.add_argument("--database", default=str(DEFAULT_DB), help="Review store path")
+    parser.add_argument(
+        "--profile",
+        default=None,
+        help="Methodology profile id, e.g. RBM-001 (research) or RBM-002 (engineering). "
+             "Defaults to the research board. An unregistered id is refused rather "
+             "than defaulted.",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     seats = sub.add_parser("seats", help="Show agent seats and check independence")
@@ -386,6 +534,18 @@ def build_parser() -> argparse.ArgumentParser:
     evidence.add_argument("--bundle", required=True)
     evidence.add_argument("--actor", required=True)
     evidence.set_defaults(func=cmd_evidence)
+
+    commit = sub.add_parser(
+        "commit-evidence", help="Register source at a named commit (engineering review)"
+    )
+    commit.add_argument("--review", required=True)
+    commit.add_argument("--repo", required=True, help="Path to the repository")
+    commit.add_argument("--commit", required=True, help="Commit-ish under review")
+    commit.add_argument("--path", required=True, nargs="+", help="Files to register")
+    commit.add_argument("--test-log", default=None, help="Recorded test output (T1)")
+    commit.add_argument("--test-command", default=None)
+    commit.add_argument("--actor", required=True)
+    commit.set_defaults(func=cmd_commit_evidence)
 
     advance = sub.add_parser("advance", help="Move to the next lifecycle state")
     advance.add_argument("--review", required=True)
@@ -404,6 +564,13 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--review", required=True)
     report.add_argument("--report", required=True)
     report.set_defaults(func=cmd_report)
+
+    verify = sub.add_parser(
+        "verify", help="Record that a named human verified an agent seat's draft"
+    )
+    verify.add_argument("--report", required=True)
+    verify.add_argument("--by", required=True, help="The human verifying. Never an agent.")
+    verify.set_defaults(func=cmd_verify)
 
     challenges = sub.add_parser("challenges", help="Show challenge sheets")
     challenges.add_argument("--review", required=True)
